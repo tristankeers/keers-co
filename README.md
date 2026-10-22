@@ -2,13 +2,31 @@
 
 A research platform for three investment strategies: distressed and special situations, durable-moat compounders, and systematic quant. Research only. Paper portfolios only. No live trading.
 
-**Status: Phase 1 in progress (engine ported; live data layer next).** Nothing here makes investment decisions yet. This repository currently holds:
+**Status: Phase 1 in progress (engine ported; live data layer built, awaiting its first live run).** Nothing here makes investment decisions yet. This repository currently holds:
 
 - `legacy/kci/`: KCI's calculation engine and dataset, copied unchanged from KCI's published page ([tristankeers/kci](https://github.com/tristankeers/kci), commit `2232610`). KCI's original source code could not be recovered, so the published page is the source of record. See `legacy/kci/SOURCE.json`.
 - `tests/legacy/`: tests that lock in what that engine produces today (the 19 hand-worked checks, the Dropbox worked case and the default model for all 100 companies).
 - `src/keers/valuation/kci_v1.py` and `kci_v1_defaults.py`: the KCI engine and its default assumptions ported to Python as calculation version `kci-v1`. The port matches the frozen JavaScript on all 100 companies and on 3,864 randomised cases. It keeps KCI's known issues on purpose; fixes come as version 2.
 
+- `src/keers/data/`: the live data layer. It pulls SEC filings (XBRL company facts), daily share prices (Stooq, or Tiingo with a token) and Treasury and credit rates (FRED). Every number is stored with the filing, date and response hash it came from, and is read as of a date, so a back-dated run sees only what had been filed by then. Snapshots with missing or stale figures are blocked and never reach the valuation engine.
+
 KCI itself is a separate project and is never modified from here.
+
+## Live data
+
+SEC requires every client to identify itself, so set `SEC_USER_AGENT` to your name and a contact email first.
+
+```bash
+export SEC_USER_AGENT="Your Name you@example.com"
+python -m keers.data refresh DBX ADBE            # or: --universe config/universe/kci100.txt
+python -m keers.data snapshot DBX --analyse      # snapshot as of today, then KCI v1 if not blocked
+python -m keers.data snapshot DBX --as-of 2026-10-15
+python -m keers.data status
+```
+
+The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it). In GitHub Actions, set the repository variable `SEC_USER_AGENT` to turn on the weekday refresh (`refresh.yml`), and run `live-smoke.yml` by hand to check the live build against Dropbox's figures from filings. `TIINGO_TOKEN` is an optional secret.
+
+How figures are built: trailing twelve months = latest fiscal year + current year-to-date − prior year-to-date; EBITDA = operating income + D&A; net debt = borrowings (including finance leases, excluding operating leases) − cash − short-term investments; EV = price × shares + net debt. A price more than 3 business days old, or a latest period more than 135 days old, blocks the snapshot. Live figures are labelled `filed`, never `verified`, until a cross-check is built.
 
 ## Running the checks
 
