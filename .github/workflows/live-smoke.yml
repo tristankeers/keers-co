@@ -1,0 +1,37 @@
+name: Live data smoke test
+
+# Fetches real SEC filings, prices and rates, and checks the live TTM build against a figure KCI recorded.
+# Run by hand from the Actions tab. Needs the repository variable SEC_USER_AGENT (your name and contact email,
+# which SEC requires). TIINGO_TOKEN is an optional secret; without it prices come from Stooq.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set the repository variable SEC_USER_AGENT (Settings > Secrets and variables > Actions > Variables)"
+            exit 1
+          fi
+      - run: pip install -e .
+      - name: Smoke test
+        run: python scripts/live_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-smoke
+          path: smoke-out/*.json

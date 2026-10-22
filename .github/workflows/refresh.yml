@@ -1,0 +1,51 @@
+name: Data refresh
+
+# Refreshes filings, prices and rates for the universe every weekday evening (US time) and keeps the database in
+# the Actions cache. It does nothing until the repository variable SEC_USER_AGENT is set.
+
+on:
+  schedule:
+    - cron: "30 23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: ${{ vars.SEC_USER_AGENT != '' }}
+    runs-on: ubuntu-latest
+    env:
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      KEERS_DB: data/keers.sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/cache/restore@v4
+        with:
+          path: data/keers.sqlite
+          key: keers-db-${{ github.run_id }}
+          restore-keys: keers-db-
+      - name: Refresh
+        id: refresh
+        continue-on-error: true
+        run: python -m keers.data refresh --universe config/universe/kci100.txt
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/keers.sqlite
+          key: keers-db-${{ github.run_id }}
+      - name: Report
+        if: always()
+        run: python -m keers.data status | head -1
+      - name: Fail if any company failed
+        if: steps.refresh.outcome != 'success'
+        run: exit 1
