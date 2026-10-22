@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import json
 import re
+import threading
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -91,6 +93,11 @@ def score(query: str, symbol: str, name: str) -> int | None:
         return 2
     if any(w.startswith(query.strip().upper()) for w in re.split(r"[\s\-,./&]+", nm)):
         return 3
+    words = [w for w in re.split(r"[\s\-,./&]+", query.strip().upper()) if w]
+    if len(words) > 1:  # "open tech" finds OPENDOOR TECHNOLOGIES: every typed word starts a word of the name
+        name_words = [w for w in re.split(r"[\s\-,./&]+", nm) if w]
+        if all(any(n.startswith(w) for n in name_words) for w in words):
+            return 3
     if q in norm(nm):
         return 4
     return None
@@ -136,28 +143,60 @@ class SecTickerDirectory:
 
     name = "sec"
 
-    def __init__(self, cache: Path, fetch: Callable[[], tuple[bytes, str]] | None = None) -> None:
+    def __init__(
+        self, cache: Path, fetch: Callable[[], tuple[bytes, str]] | None = None, background: bool = True
+    ) -> None:
         self.cache = cache
         self.fetch = fetch
+        self.background = background  # download in a thread so a search never waits for SEC
         self._rows: list[Listing] | None = None
         self._by_symbol: dict[str, Listing] = {}
+        self._failed_at = -1e9
+        self._guard = threading.Lock()
+        self._downloading = False
+        self._done = threading.Event()
+
+    RETRY_AFTER = 300.0  # seconds before a failed download is tried again
+    GET_WAIT = 20.0  # an exact lookup (opening a page) waits this long for a download in progress; search never waits
 
     def _load(self) -> list[Listing]:
         if self._rows is not None:
             return self._rows
-        doc: Any = None
-        as_of = None
         if self.cache.exists():
-            cached = json.loads(self.cache.read_text())
-            doc, as_of = cached.get("doc"), cached.get("retrievedAt")
-        if doc is None and self.fetch is not None:
             try:
-                body, as_of = self.fetch()
-                doc = json.loads(body)
-                self.cache.parent.mkdir(parents=True, exist_ok=True)
-                self.cache.write_text(json.dumps({"retrievedAt": as_of, "doc": doc}))
-            except Exception:  # noqa: BLE001 - an unreachable source leaves the directory to its other backings
-                doc = None
+                cached = json.loads(self.cache.read_text())
+                if self._index(cached.get("doc"), cached.get("retrievedAt")):
+                    return self._rows or []
+            except (OSError, ValueError, AttributeError):
+                pass  # an unreadable cache is downloaded again
+        if self.fetch is None or time.monotonic() - self._failed_at < self.RETRY_AFTER:
+            return []
+        if not self.background:
+            self._download()
+            return self._rows or []
+        with self._guard:
+            if not self._downloading:
+                self._downloading = True
+                self._done.clear()
+                threading.Thread(target=self._download, name="sec-ticker-map", daemon=True).start()
+        return []  # the other backings answer until the map has arrived
+
+    def _download(self) -> None:
+        assert self.fetch is not None  # noqa: S101
+        try:
+            body, as_of = self.fetch()
+            doc = json.loads(body)
+            if not self._index(doc, as_of):
+                raise ValueError("empty SEC ticker map")
+            self.cache.parent.mkdir(parents=True, exist_ok=True)
+            self.cache.write_text(json.dumps({"retrievedAt": as_of, "doc": doc}))
+        except Exception:  # noqa: BLE001 - an unreachable source leaves the directory to its other backings
+            self._failed_at = time.monotonic()
+        finally:
+            self._downloading = False
+            self._done.set()
+
+    def _index(self, doc: Any, as_of: str | None) -> list[Listing]:
         rows: list[Listing] = []
         for r in (doc or {}).values() if isinstance(doc, dict) else []:
             try:
@@ -167,6 +206,8 @@ class SecTickerDirectory:
                                     as_of=(as_of or "")[:10] or None, coverage="sec-filer"))  # fmt: skip
             except (KeyError, TypeError, ValueError):
                 continue
+        if not rows:
+            return []
         self._rows = rows
         self._by_symbol = {x.symbol: x for x in rows}
         return rows
@@ -176,6 +217,8 @@ class SecTickerDirectory:
 
     def get(self, key: str) -> Listing | None:
         self._load()
+        if self._rows is None and self._downloading:
+            self._done.wait(self.GET_WAIT)
         return self._by_symbol.get(sources.symbol(key))
 
 
@@ -241,7 +284,14 @@ class UniverseDirectory:
 
     def search(self, query: str, limit: int = 20) -> list[Listing]:
         try:
-            return [self._convert(x) for x in self._call("search", query, limit)]
+            found = [self._convert(x) for x in self._call("search", query, limit)]
+            words = sorted(re.split(r"[\s\-,./&]+", query.strip()), key=len)
+            if len(found) < limit and len(words) > 1 and len(words[-1]) >= 2:
+                # the universe matches the whole phrase; "open tech" also needs OPENDOOR TECHNOLOGIES
+                more = [self._convert(x) for x in self._call("search", words[-1], limit * 10)]
+                have = {x.symbol for x in found}
+                found += [x for x in rank(query, more, limit) if x.symbol not in have]
+            return found[:limit]
         except Exception:  # noqa: BLE001 - e.g. the listings table not built yet
             return []
 

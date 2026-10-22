@@ -5,11 +5,13 @@ A thin layer: every route calls one ``Workbench`` method and returns its JSON. N
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +19,9 @@ from keers.data.market import price_sources
 from keers.data.refresh import DEFAULT_DB
 
 from .service import InputError, Live, LiveConfig, Workbench
+
+log = logging.getLogger("keers.web")
+SLOW_REQUEST = 3.0  # seconds; slower requests are logged
 
 STATIC = Path(__file__).parent / "static"
 SYMBOL = r"^[A-Za-z0-9.\-=^]{1,24}$"
@@ -39,6 +44,15 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     wb = wb or workbench_from_env()
     app = FastAPI(title="Keers & Co research workbench", version="0.1", docs_url="/api/docs", redoc_url=None)
 
+    @app.middleware("http")
+    async def _timing(request: Request, call_next: Any) -> Any:
+        t = time.monotonic()
+        response = await call_next(request)
+        took = time.monotonic() - t
+        if took > SLOW_REQUEST or response.status_code >= 500:
+            log.warning("%s %s -> %s in %.1fs", request.method, request.url.path, response.status_code, took)
+        return response
+
     @app.exception_handler(InputError)
     async def _input_error(_: Any, exc: InputError) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=422)
@@ -55,8 +69,10 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
         return wb.status()
 
     @app.get("/api/search")
-    def search(q: str = Query("", max_length=60), limit: int = Query(20, ge=1, le=50)) -> dict[str, Any]:
-        return wb.search(q, limit)
+    def search(
+        q: str = Query("", max_length=60), limit: int = Query(20, ge=1, le=50), remote: bool = Query(False)
+    ) -> dict[str, Any]:
+        return wb.search(q, limit, remote)
 
     @app.get("/api/companies/{symbol}")
     def company(symbol: str) -> dict[str, Any]:

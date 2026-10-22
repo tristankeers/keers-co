@@ -28,8 +28,20 @@ function fill(el, ...kids) {
 const extLink = (href, ...kids) =>
   href ? h("a", { href, target: "_blank", rel: "noopener noreferrer nofollow" }, ...kids) : h("span", {}, ...kids);
 
+// Every request has a time limit, so a slow source shows an error with a Retry button instead of hanging.
 async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const { timeout = 45000, signal, ...rest } = opts;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(new DOMException("timeout", "TimeoutError")), timeout);
+  if (signal) signal.addEventListener("abort", () => ctl.abort(signal.reason), { once: true });
+  let res;
+  try {
+    res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...rest, signal: ctl.signal });
+  } catch (e) {
+    if (ctl.signal.reason?.name === "TimeoutError") throw new Error(`no answer from the server after ${Math.round(timeout / 1000)}s (a live source may be slow; check the Terminal running python -m keers.web)`);
+    if (e.name === "AbortError") throw e;
+    throw new Error(`could not reach the server (${e.message}). Is python -m keers.web still running?`);
+  } finally { clearTimeout(timer); }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail ? (typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail)) : `HTTP ${res.status}`);
   return body;
@@ -132,47 +144,119 @@ async function loadStatus() {
 }
 
 // --- search --------------------------------------------------------------------------------------------------
+// Suggestions come from the local directories (universe, store, SEC map) as you type; Yahoo's live search is
+// asked a moment later and only adds listings the local ones lack.
 const q = $("#q"), results = $("#results");
-let searchTimer = null, searchSeq = 0, hits = [], sel = -1;
+const SYMBOL_RE = /^[A-Za-z0-9.\-=^]{1,24}$/;
+let searchTimer = null, remoteTimer = null, searchSeq = 0, hits = [], remoteHits = [], sel = -1;
+let localPending = null, remoteState = "idle", lastSources = [];
 document.addEventListener("keydown", (e) => {
   if (e.key === "/" && document.activeElement !== q && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName)) { e.preventDefault(); q.focus(); q.select(); }
 });
-q.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 160); });
-q.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowDown") { sel = Math.min(sel + 1, hits.length - 1); paintHits(); e.preventDefault(); }
-  else if (e.key === "ArrowUp") { sel = Math.max(sel - 1, 0); paintHits(); e.preventDefault(); }
+q.addEventListener("input", () => {
+  clearTimeout(searchTimer); clearTimeout(remoteTimer);
+  searchTimer = setTimeout(runSearch, 70);
+});
+const allHits = () => hits.concat(remoteHits);
+q.addEventListener("keydown", async (e) => {
+  const n = allHits().length;
+  if (e.key === "ArrowDown") { e.preventDefault(); if (n) { sel = (sel + 1) % n; paintHits(); } }
+  else if (e.key === "ArrowUp") { e.preventDefault(); if (n) { sel = sel <= 0 ? n - 1 : sel - 1; paintHits(); } }
+  else if (e.key === "Tab" && !results.hidden && allHits()[sel]) { e.preventDefault(); q.value = allHits()[sel].symbol; runSearch(); }
   else if (e.key === "Enter") {
-    const pick = hits[sel] || hits[0];
-    if (pick) go(pick.symbol);
-    else if (q.value.trim()) go(q.value.trim().toUpperCase());
+    e.preventDefault();
+    const text = q.value.trim();
+    if (!text) return;
+    // Pressed before the suggestions arrived: wait for them rather than guessing.
+    if (searchTimer || localPending) { clearTimeout(searchTimer); searchTimer = null; await (localPending || runSearch()); }
+    const pick = allHits()[sel] || allHits()[0];
+    if (pick) return go(pick.symbol);
+    if (SYMBOL_RE.test(text) && !/\s/.test(text)) return go(text.toUpperCase());
+    paintHits(); // "no match" message; a name with spaces is never opened as a ticker
   } else if (e.key === "Escape") { results.hidden = true; q.blur(); }
 });
 q.addEventListener("blur", () => setTimeout(() => (results.hidden = true), 150));
-q.addEventListener("focus", () => { if (hits.length) results.hidden = false; });
-async function runSearch() {
+q.addEventListener("focus", () => { if (q.value.trim() && (allHits().length || remoteState !== "idle")) results.hidden = false; });
+
+function runSearch() {
+  searchTimer = null;
   const text = q.value.trim();
   const seq = ++searchSeq;
-  if (!text) { hits = []; results.hidden = true; return; }
-  try {
-    const r = await api(`/api/search?q=${encodeURIComponent(text)}&limit=15`);
-    if (seq !== searchSeq) return;
-    hits = r.results; sel = hits.length ? 0 : -1; paintHits(r.sources);
-  } catch (e) { fill(results, h("li", { class: "empty" }, `Search failed: ${e.message}`)); results.hidden = false; }
+  remoteHits = []; remoteState = "idle";
+  if (!text) { hits = []; sel = -1; results.hidden = true; return Promise.resolve(); }
+  localPending = (async () => {
+    try {
+      const r = await api(`/api/search?q=${encodeURIComponent(text)}&limit=12`, { timeout: 10000 });
+      if (seq !== searchSeq) return;
+      hits = r.results; lastSources = r.sources || []; sel = hits.length ? 0 : -1;
+      if (STATUS?.live && text.length >= 2) { remoteState = "waiting"; remoteTimer = setTimeout(() => runRemote(text, seq), 350); }
+      paintHits();
+    } catch (e) {
+      if (seq !== searchSeq) return;
+      hits = []; fill(results, h("li", { class: "empty" }, `Search failed: ${e.message}`)); results.hidden = false;
+    } finally { if (seq === searchSeq) localPending = null; }
+  })();
+  return localPending;
 }
-function paintHits(sources) {
-  fill(results, ...(hits.length ? hits.map((x, i) => h("li", {
-    role: "option", "aria-selected": i === sel ? "true" : "false", onmousedown: () => go(x.symbol),
-  },
-    h("span", { class: "sym" }, x.symbol),
-    h("span", {}, x.name || "—"),
+async function runRemote(text, seq) {
+  if (seq !== searchSeq) return;
+  remoteState = "loading"; paintHits();
+  try {
+    const r = await api(`/api/search?q=${encodeURIComponent(text)}&limit=8&remote=1`, { timeout: 20000 });
+    if (seq !== searchSeq) return;
+    remoteHits = r.results; remoteState = "done";
+    if (sel < 0 && remoteHits.length) sel = 0;
+  } catch { if (seq !== searchSeq) return; remoteState = "failed"; }
+  paintHits();
+}
+// Show the typed text in bold where it matches the symbol or name.
+function marked(text, query) {
+  const t = String(text || ""), words = query.trim().toUpperCase().split(/[\s\-,./&]+/).filter(Boolean);
+  if (!t || !words.length) return t || "—";
+  const up = t.toUpperCase(), on = new Array(t.length).fill(false);
+  for (const w of words) {
+    let i = up.indexOf(w);
+    while (i >= 0) { if (i === 0 || /[\s\-,./&(]/.test(up[i - 1])) { for (let k = i; k < i + w.length; k++) on[k] = true; break; } i = up.indexOf(w, i + 1); }
+  }
+  const out = []; let i = 0;
+  while (i < t.length) { let j = i; while (j < t.length && on[j] === on[i]) j++; out.push(on[i] ? h("mark", {}, t.slice(i, j)) : t.slice(i, j)); i = j; }
+  return out;
+}
+function hitRow(x, i, text) {
+  return h("li", { role: "option", id: `hit-${i}`, "aria-selected": i === sel ? "true" : "false",
+    onmousedown: (e) => { e.preventDefault(); go(x.symbol); }, onmousemove: () => { if (sel !== i) { sel = i; paintHits(); } } },
+    h("span", { class: "sym" }, marked(x.symbol, text)),
+    h("span", { class: "nm" }, marked(x.name, text)),
     h("span", { class: "meta" }, [x.exchange, x.country].filter(Boolean).join(" · "), " ",
       (x.warnings || []).length ? h("span", { title: x.warnings.join("\n") }, "⚠ ") : null,
-      h("span", { class: "chip cov", title: x.coverageText }, x.coverage)),
-  )) : [h("li", { class: "empty" }, `No match. Press Enter to open "${q.value.trim().toUpperCase()}" as a symbol.`),
-    sources ? h("li", { class: "empty faint" }, `Searched: ${sources.join(", ")}`) : null]));
-  results.hidden = false;
+      h("span", { class: "chip cov", title: x.coverageText }, x.coverage)));
 }
-function go(symbol) { results.hidden = true; q.value = ""; hits = []; location.hash = `#/c/${encodeURIComponent(symbol)}`; }
+function paintHits() {
+  const text = q.value.trim();
+  if (!text) { results.hidden = true; return; }
+  const rows = hits.map((x, i) => hitRow(x, i, text));
+  if (remoteHits.length) {
+    rows.push(h("li", { class: "group" }, "More listings from Yahoo search (live)"));
+    rows.push(...remoteHits.map((x, i) => hitRow(x, hits.length + i, text)));
+  }
+  if (!allHits().length) {
+    const asSym = SYMBOL_RE.test(text) && !/\s/.test(text);
+    rows.push(h("li", { class: "empty" }, remoteState === "waiting" || remoteState === "loading" ? "No local match yet." :
+      asSym ? `No match. Press Enter to open "${text.toUpperCase()}" as a ticker.` : "No match. Try fewer words, or the ticker."));
+  }
+  if (remoteState === "loading") rows.push(h("li", { class: "empty faint" }, "Searching Yahoo for more listings…"));
+  else if (remoteState === "failed") rows.push(h("li", { class: "empty faint" }, "Yahoo search did not answer; local results only."));
+  rows.push(h("li", { class: "empty faint keys" }, `↑↓ choose · Enter open · Tab fill · Esc close · searched: ${lastSources.concat(remoteState === "done" ? ["yahoo"] : []).join(", ")}`));
+  fill(results, rows);
+  results.hidden = false;
+  q.setAttribute("aria-activedescendant", sel >= 0 ? `hit-${sel}` : "");
+  $(`#hit-${sel}`, results)?.scrollIntoView({ block: "nearest" });
+}
+function go(symbol) {
+  clearTimeout(searchTimer); clearTimeout(remoteTimer); searchSeq++;
+  results.hidden = true; q.value = ""; hits = []; remoteHits = []; sel = -1; remoteState = "idle";
+  location.hash = `#/c/${encodeURIComponent(symbol)}`;
+}
 
 // --- router --------------------------------------------------------------------------------------------------
 const TABS = [["overview", "Overview"], ["valuation", "Valuation"], ["distress", "Distress screen"], ["chart", "Chart"], ["news", "News"]];
@@ -243,12 +327,34 @@ async function homeView() {
 }
 
 // --- company shell ------------------------------------------------------------------------------------------
+let loadSeq = 0;
 async function companyView(symbol, tab) {
   if (current.symbol !== symbol || !current.company) {
-    fill(view, h("div", { class: "loading" }, `Loading ${symbol}…`));
+    if (!SYMBOL_RE.test(symbol)) {
+      // e.g. a company name in the address: search for it instead of asking the server for a ticker that can't exist
+      fill(view, h("div", { class: "callout warn" }, `"${symbol}" is not a ticker. `,
+        h("button", { class: "btn", onclick: () => { location.hash = ""; q.value = symbol; q.focus(); runSearch(); } }, `Search for "${symbol}"`)));
+      return;
+    }
+    const seq = ++loadSeq, started = Date.now();
+    const note = h("span", { class: "faint" });
+    fill(view, h("div", { class: "loading" }, `Loading ${symbol}… `, note));
+    const tick = setInterval(() => {
+      const s = Math.round((Date.now() - started) / 1000);
+      note.textContent = s >= 3 ? `${s}s${s >= 10 ? " (asking the live sources; this can take up to 45s)" : ""}` : "";
+    }, 1000);
     try {
-      current = { symbol, company: await api(`/api/companies/${encodeURIComponent(symbol)}`) };
-    } catch (e) { fill(view, h("p", { class: "err" }, `Could not load ${symbol}: ${e.message}`)); return; }
+      const company = await api(`/api/companies/${encodeURIComponent(symbol)}`, { timeout: 45000 });
+      if (seq !== loadSeq) return;
+      current = { symbol, company };
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      fill(view, h("div", { class: "callout bad" }, h("strong", {}, `Could not load ${symbol}. `), e.message,
+        h("div", { style: "margin-top:10px;display:flex;gap:8px" },
+          h("button", { class: "btn primary", onclick: () => companyView(symbol, tab) }, "Retry"),
+          h("a", { class: "btn", href: "#/" }, "Back to search"))));
+      return;
+    } finally { clearInterval(tick); }
   }
   const c = current.company;
   document.title = `${c.symbol} · Keers & Co`;
@@ -309,7 +415,7 @@ function tabsBar(c, tab) {
   const btn = h("button", { class: "btn primary", title: "Fetch filings, prices and rates from the live sources now", onclick: async () => {
     btn.disabled = true; btn.textContent = "Refreshing…";
     try {
-      const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/refresh`, { method: "POST" });
+      const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/refresh`, { method: "POST", timeout: 180000 });
       const errs = Object.entries(r.errors || {});
       current.company = null;
       await companyView(c.symbol, tab);
