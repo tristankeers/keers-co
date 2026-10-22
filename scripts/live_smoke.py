@@ -23,7 +23,7 @@ from keers.data.store import Store
 
 AS_OF = date(2026, 10, 15)
 TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY"]
-DIAG_PATTERN = r"^(LongTermDebt|DebtCurrent|ShortTermBorrowings|CommercialPaper|Convertible(Debt|Notes)|SecuredDebt|.*TermLoan|LineOfCredit$|InterestExpense|Depreciation|AmortizationOfIntangibleAssets|AdjustmentForAmortization|CashCashEquivalentsAndShortTermInvestments|EntityCommonStockSharesOutstanding|WeightedAverageNumberOfDilutedSharesOutstanding)"
+DIAG_PATTERN = r"^(LongTermDebt|DebtCurrent|ShortTermBorrowings|CommercialPaper|Convertible(Debt|Notes)|SecuredDebt|.*TermLoan|LineOfCredit$|InterestExpense|Depreciation|AmortizationOfIntangibleAssets|AdjustmentForAmortization|CashCashEquivalentsAndShortTermInvestments|EntityCommonStockSharesOutstanding|WeightedAverageNumberOfDilutedSharesOutstanding|Interest|ProceedsFrom.*(Debt|Loan|Borrow|Credit)|Liabilities$|.*Loan|DebtInstrument(Carrying|Face))"
 CHECK = {"DBX": ("revenue", 2531.6, 0.005)}
 
 
