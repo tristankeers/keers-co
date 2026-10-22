@@ -115,21 +115,27 @@ def net_leverage(net_debt: Value, ebitda: Value) -> Check:
                  f"net debt is {x:.1f}x EBITDA ({nd:,.0f}m / {eb:,.0f}m)", t, inp)  # fmt: skip
 
 
-def debt_due(due: Value, liquid: Value) -> Check:
-    t = f"severe when debt due exceeds cash and short-term investments, watch above {DUE_WATCH:.0%} of them"
-    inp = _inputs(debtDueWithinYear=due, liquidAssets=liquid)
+def debt_due(due: Value, liquid: Value, revolver: Value | None = None) -> Check:
+    """Debt due within a year against cash, short-term investments and undrawn committed credit lines."""
+    t = (f"severe when debt due exceeds cash, short-term investments and undrawn credit lines; watch above "
+         f"{DUE_WATCH:.0%} of them")  # fmt: skip
+    inp = _inputs(debtDueWithinYear=due, liquidAssets=liquid, undrawnCreditLines=revolver)
     d, c = _v(due), _v(liquid)
+    r = _v(revolver) or 0.0
     if d is None:
         return Check("debtDue", "unknown", None, f"debt due within a year unknown: {due.method}", t, inp)
     if d <= 0:
         return Check("debtDue", "clear", 0.0, "no debt due within a year", t, inp)
     if c is None:
         return Check("debtDue", "unknown", None, f"cash unknown: {liquid.method}", t, inp)
-    if c <= 0:
-        return Check("debtDue", "severe", None, f"{d:,.0f}m due within a year and no cash reported", t, inp)
-    x = d / c
+    room = c + r
+    lines = f" and {r:,.0f}m of undrawn credit lines" if r else " (no undrawn credit lines filed)"
+    if room <= 0:
+        return Check("debtDue", "severe", None, f"{d:,.0f}m due within a year and no cash or credit lines reported",
+                     t, inp)  # fmt: skip
+    x = d / room
     return Check("debtDue", _level(x, DUE_SEVERE, DUE_WATCH, below=False), x,
-                 f"{d:,.0f}m due within a year against {c:,.0f}m of cash and short-term investments ({x:.0%})",
+                 f"{d:,.0f}m due within a year against {c:,.0f}m of cash and short-term investments{lines} ({x:.0%})",
                  t, inp)  # fmt: skip
 
 
@@ -238,6 +244,9 @@ def _debt_due(fu: F.Fundamentals, at: date) -> Value:
     cur = fu.balance(F.DEBT_CURRENT_ALL, "current debt", at)
     if cur.known:
         return cur
+    cur_dl = fu.balance(F.DEBT_AND_LEASES_CURRENT, "current debt and finance leases", at)
+    if cur_dl.known:
+        return cur_dl
     parts = [fu.balance(F.DEBT_CURRENT, "current long-term debt", at),
              fu.balance(F.ST_BORROWINGS, "short-term borrowings", at)]  # fmt: skip
     known = [p for p in parts if p.known]
@@ -270,7 +279,7 @@ def screen(store: Store, ticker: str, as_of: date) -> dict[str, Any]:
     checks = [
         interest_cover(v["ebit"], v["interestExpense"], v["debt"]),
         net_leverage(v["netDebt"], v["ebitda"]),
-        debt_due(_debt_due(fu, at), v["liquidAssets"]),
+        debt_due(_debt_due(fu, at), v["liquidAssets"], fu.revolver_available(at)),
         altman_z(co.get("sic"), fu.balance(F.ASSETS, "total assets", at),
                  fu.balance(F.ASSETS_CURRENT, "current assets", at),
                  fu.balance(F.LIABILITIES_CURRENT, "current liabilities", at),
