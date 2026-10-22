@@ -84,11 +84,10 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
         check(snap)
         return snap
     # Every other figure must cover the same period as revenue (flows) or sit at its end (balances).
-    v["ebit"] = fu.flow(F.OPERATING_INCOME, "operating income", at)
+    v["ebit"] = fu.operating_income(at)
     v["da"] = fu.depreciation_amortisation(at)
     v["netIncome"] = fu.flow(F.NET_INCOME, "net income", at)
     v["capex"] = fu.flow(F.CAPEX, "capital expenditure", at)
-    v["interestExpense"] = fu.flow(F.INTEREST, "interest expense", at)
     v["sbc"] = fu.flow(F.SBC, "share-based compensation", at)
     v["revenueGrowth"] = fu.flow_growth(F.REVENUE, "revenue")
 
@@ -102,6 +101,7 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     liquid = fu.liquid_assets(at)
     debt = fu.total_debt(at)
     v["liquidAssets"], v["debt"] = liquid, debt
+    v["interestExpense"] = fu.interest_expense(at, debt)
     # Shown for comparison with data vendors that count leases as debt; not included in net debt.
     v["operatingLeases"] = fu.operating_leases(at)
     ys = fu.year_start(at)

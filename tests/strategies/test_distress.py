@@ -54,6 +54,12 @@ def test_debt_due_levels(due: float, cash: float, level: str) -> None:
     assert D.debt_due(val(due), val(cash)).level == level
 
 
+def test_undrawn_credit_lines_count_towards_liquidity() -> None:
+    c = D.debt_due(val(150), val(100), val(200))
+    assert c.level == "clear" and c.value == pytest.approx(0.5) and "200m of undrawn" in c.reason
+    assert D.debt_due(val(150), val(100), UNK).level == "severe"  # not filed: not assumed
+
+
 def test_debt_due_unknown() -> None:
     assert D.debt_due(UNK, val(100)).level == "unknown"
     assert D.debt_due(val(50), UNK).level == "unknown"

@@ -39,8 +39,15 @@ DA = (
 NET_INCOME = ("us-gaap:NetIncomeLoss",)
 CAPEX = ("us-gaap:PaymentsToAcquirePropertyPlantAndEquipment", "us-gaap:PaymentsToAcquireProductiveAssets")
 INTEREST = ("us-gaap:InterestExpense", "us-gaap:InterestExpenseNonoperating", "us-gaap:InterestExpenseDebt")
+# Net interest (income less expense, so negative when a net cost). Used only when gross interest is not usable.
+NET_INTEREST = ("us-gaap:InterestIncomeExpenseNonoperatingNet", "us-gaap:InterestIncomeExpenseNet")
+PRETAX_INCOME = (
+    "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+    "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+)
+REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
 SBC = ("us-gaap:ShareBasedCompensation",)
-CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue",)
+CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash")
 ST_INVESTMENTS = (
     "us-gaap:ShortTermInvestments",
     "us-gaap:MarketableSecuritiesCurrent",
@@ -54,8 +61,16 @@ DEBT_NONCURRENT = ("us-gaap:LongTermDebtNoncurrent",)
 DEBT_CURRENT = ("us-gaap:LongTermDebtCurrent",)
 DEBT_CURRENT_ALL = ("us-gaap:DebtCurrent",)  # current maturities plus short-term borrowings
 ST_BORROWINGS = ("us-gaap:ShortTermBorrowings", "us-gaap:CommercialPaper")
-CONVERTIBLE_NONCURRENT = ("us-gaap:ConvertibleDebtNoncurrent", "us-gaap:ConvertibleNotesPayable")
+CONVERTIBLE_NONCURRENT = (
+    "us-gaap:ConvertibleDebtNoncurrent",
+    "us-gaap:ConvertibleNotesPayable",
+    "us-gaap:ConvertibleLongTermNotesPayable",
+)
 CONVERTIBLE_CURRENT = ("us-gaap:ConvertibleDebtCurrent", "us-gaap:ConvertibleNotesPayableCurrent")
+# Debt and finance leases on one line, as some companies file it (Lumen, Norwegian Cruise, Sirius XM).
+DEBT_AND_LEASES_NONCURRENT = ("us-gaap:LongTermDebtAndCapitalLeaseObligations",)
+DEBT_AND_LEASES_CURRENT = ("us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent",)
+DEBT_AND_LEASES_TOTAL = ("us-gaap:DebtAndCapitalLeaseObligations",)
 FINANCE_LEASES = ("us-gaap:FinanceLeaseLiability",)
 FINANCE_LEASES_SPLIT = ("us-gaap:FinanceLeaseLiabilityCurrent", "us-gaap:FinanceLeaseLiabilityNoncurrent")
 OPERATING_LEASES = ("us-gaap:OperatingLeaseLiability",)
@@ -104,19 +119,24 @@ ROLLFORWARD_MIN_USDM = 50.0
 
 DEBT_CONCEPTS = (
     DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + DEBT_CURRENT_ALL + ST_BORROWINGS + CONVERTIBLE_NONCURRENT
-    + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT
+    + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT + DEBT_AND_LEASES_NONCURRENT
+    + DEBT_AND_LEASES_CURRENT + DEBT_AND_LEASES_TOTAL
 )  # fmt: skip
 
 ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
-    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET
+    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
+    + PRETAX_INCOME + REVOLVER_AVAILABLE
 )  # fmt: skip
 
 
 # An implied interest rate on the debt found above this means some debt is probably tagged in a way we do not
 # read (for example a company-specific tag), so net debt is not trusted.
 MAX_IMPLIED_RATE = 0.15
+# Gross interest implying less than this on the debt found is probably a side line (Norwegian Cruise files a small
+# InterestExpenseNonoperating beside its real, net interest), so it is not used.
+MIN_IMPLIED_RATE = 0.01
 SHARES_MAX_AGE_DAYS = 200
 
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
@@ -355,6 +375,7 @@ class Fundamentals:
             return missing("USDm", "debt: no period to read the balance at")
         notes: list[str] = []
         parts: list[Value] = []
+        leases_inside = False
         nc = self.balance(DEBT_NONCURRENT, "non-current debt", at)
         cur_all = self.balance(DEBT_CURRENT_ALL, "current debt", at)
         if nc.known:
@@ -378,12 +399,20 @@ class Fundamentals:
                     stb = self.balance(ST_BORROWINGS, "short-term borrowings", at)
                     if stb.known:
                         parts.append(stb)
-            elif cur_all.known:
-                parts.append(cur_all)
-        has_base = nc.known or any("LongTermDebt" in _name(p_) for p_ in parts)
+            else:
+                dl = self._first((DEBT_AND_LEASES_NONCURRENT + DEBT_AND_LEASES_CURRENT, DEBT_AND_LEASES_NONCURRENT,
+                                  DEBT_AND_LEASES_TOTAL), "debt and finance leases", at)  # fmt: skip
+                if dl.known:
+                    parts.append(dl)
+                    leases_inside = True
+                elif cur_all.known:
+                    parts.append(cur_all)
+        has_base = nc.known or any(
+            "LongTermDebt" in _name(p_) or "DebtAndCapitalLease" in _name(p_) for p_ in parts
+        )
         for groups, lab in (
-            ((CONVERTIBLE_NONCURRENT[:1], CONVERTIBLE_NONCURRENT[1:]), "convertible notes"),
-            ((CONVERTIBLE_CURRENT[:1], CONVERTIBLE_CURRENT[1:]), "current convertible notes"),
+            (tuple((c,) for c in CONVERTIBLE_NONCURRENT), "convertible notes"),
+            (tuple((c,) for c in CONVERTIBLE_CURRENT), "current convertible notes"),
         ):
             v = self._first(groups, lab, at)
             if not v.known or not v.value:
@@ -395,7 +424,9 @@ class Fundamentals:
             else:
                 parts.append(v)
         lease = self._first((FINANCE_LEASES, FINANCE_LEASES_SPLIT), "finance leases", at)
-        if lease.known and include_leases:
+        if leases_inside:
+            notes.append("finance leases are inside the debt line filed")
+        elif lease.known and include_leases:
             parts.append(lease)
         if not parts:
             if not self.ever_filed(DEBT_CONCEPTS):
@@ -407,6 +438,50 @@ class Fundamentals:
         v = _sum(parts, " + ".join(_name(p_) for p_ in parts) + " (operating leases excluded)",
                  tuple(notes))  # fmt: skip
         return v
+
+    def operating_income(self, at: date) -> Value:
+        """Operating income (TTM). Without it, pre-tax income plus interest expense, with a warning."""
+        ebit = self.flow(OPERATING_INCOME, "operating income", at)
+        if ebit.known:
+            return ebit
+        pretax = self.flow(PRETAX_INCOME, "pre-tax income", at)
+        interest = self.flow(INTEREST, "interest expense", at)
+        if pretax.known and interest.known:
+            return _sum([pretax, interest], "pre-tax income + interest expense (no operating income filed)",
+                        ("operating income not filed; pre-tax income + interest used, so other non-operating "
+                         "items are included",))  # fmt: skip
+        return ebit
+
+    def interest_expense(self, at: date, debt: Value) -> Value:
+        """Interest expense (TTM): gross where it is plausible for the debt found, else net interest cost."""
+        gross = self.flow(INTEREST, "interest expense", at)
+        d = debt.value if debt.known else None
+        plausible = gross.known and (d is None or d <= 0 or (gross.value or 0) / d >= MIN_IMPLIED_RATE)
+        if plausible:
+            return gross
+        net = self.flow(NET_INTEREST, "net interest", at)
+        if net.known and (net.value or 0) < 0:
+            return Value(-(net.value or 0), net.kind, net.unit, f"−{net.method}", net.period_end, net.sources,
+                         net.warnings + ("net interest used (interest income netted off), so cover is overstated "
+                                         "slightly",))  # fmt: skip
+        if gross.known:
+            assert gross.value is not None and d is not None  # noqa: S101
+            return missing("USDm", f"interest expense: {_name(gross)} of {gross.value:,.1f}m is only "
+                                   f"{gross.value / d:.2%} of the {d:,.1f}m of debt found, and no net interest is filed")  # fmt: skip
+        return gross
+
+    def revolver_available(self, at: date, max_age_days: int = 200) -> Value:
+        """Undrawn committed credit lines, from the latest filing within ``max_age_days`` of ``at``."""
+        facts = [f for c in REVOLVER_AVAILABLE for f in latest_known(self._facts(c)) if f.start is None]
+        facts = [f for f in facts if f.end <= at and (at - f.end).days <= max_age_days]
+        if not facts:
+            return missing("USDm", "undrawn credit lines: none filed in the last 200 days")
+        last = max(f.end for f in facts)
+        same = [f for f in facts if f.end == last]
+        f = same[-1]
+        warn = (f"undrawn credit lines as at {f.end}, not {at}",) if f.end != at else ()
+        return Value(f.value / MILLION, Kind.REPORTED, "USDm", f"{REVOLVER_AVAILABLE[0]}: as reported", f.end,
+                     (f.cite(),), warn)  # fmt: skip
 
     def debt_check(self, debt: Value, at: date) -> str | None:
         """Deterministic completeness check: interest expense far too high for the debt found means debt is missing."""

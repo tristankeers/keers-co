@@ -6,6 +6,11 @@ name: Live data smoke test
 
 on:
   workflow_dispatch:
+    inputs:
+      diagnose:
+        description: "Optional: tickers to list filed XBRL concepts for (diagnostics only)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -28,6 +33,12 @@ jobs:
             exit 1
           fi
       - run: pip install -e .
+      - name: Concept diagnostics
+        if: inputs.diagnose != ''
+        env:
+          DIAGNOSE: ${{ inputs.diagnose }}
+        # shellcheck disable=SC2086
+        run: python scripts/concept_diag.py $DIAGNOSE
       - name: Smoke test
         run: python scripts/live_smoke.py
       - name: Distress screen on the test list
