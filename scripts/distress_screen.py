@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from keers.data.http import Fetcher
-from keers.data.refresh import read_universe, refresh, user_agent
+from keers.data.refresh import price_report, read_universe, refresh, user_agent
 from keers.data.store import Store
 from keers.strategies import distress
 
@@ -83,6 +83,7 @@ def main() -> int:
         store, tickers, Fetcher(user_agent()), (os.environ.get("TIINGO_TOKEN") or "").strip() or None
     )
     print("refresh:", json.dumps({"status": res_r["status"], "failed": res_r["failed"]}, indent=2))
+    print("prices:", json.dumps(price_report(res_r), indent=2))
     ok = [t for t in tickers if t not in res_r["failed"]]
     res = distress.run(store, ok, a.as_of)
     (out / "distress.json").write_text(json.dumps(res, indent=2, default=str))
