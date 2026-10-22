@@ -439,3 +439,39 @@ def test_live_snapshot_with_price_history_gets_a_beta_and_a_dcf() -> None:
     assert a["dcfIn"]["beta"] == pytest.approx(b)
     assert a["wacc"]["costOfEquity"] == pytest.approx(0.041 + b * 0.055 + 0.01)  # $2.0bn cap: 1% size premium
     assert a["dcf"]["ok"] is True
+
+
+def test_https_uses_certifi_unless_the_system_is_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    import ssl
+
+    import certifi
+
+    from keers.data import http
+
+    seen: list[str | None] = []
+    real = ssl.create_default_context
+    monkeypatch.setattr(http.ssl, "create_default_context", lambda cafile=None: seen.append(cafile) or real())
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    http.tls_context()
+    monkeypatch.setenv("SSL_CERT_FILE", "/etc/ssl/cert.pem")
+    http.tls_context()
+    assert seen == [certifi.where(), None]
+
+
+def test_certificate_failures_are_not_retried_and_say_how_to_fix(monkeypatch: pytest.MonkeyPatch) -> None:
+    import ssl
+    import urllib.error
+
+    from keers.data.http import Fetcher, FetchError
+
+    calls: list[int] = []
+
+    def opener(req: object, timeout: float) -> bytes:
+        calls.append(1)
+        raise urllib.error.URLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+
+    f = Fetcher("t", opener=opener, sleep=lambda s: None)
+    with pytest.raises(FetchError, match="Install Certificates.command"):
+        f.get("https://query1.finance.yahoo.com/x")
+    assert calls == [1]

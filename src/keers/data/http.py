@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -17,6 +19,28 @@ from typing import Any
 from urllib.parse import urlparse
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+TLS_HINT = (
+    "this Python cannot check HTTPS certificates: run pip install certifi, or on a Mac run "
+    "'Install Certificates.command' in the Python folder under Applications"
+)
+
+
+def tls_context() -> ssl.SSLContext:
+    """Certificates to trust for HTTPS.
+
+    Python from python.org on macOS ships without system certificates until "Install Certificates.command" is
+    run, so every fetch fails with CERTIFICATE_VERIFY_FAILED. If the certifi package is installed (it comes with
+    the workbench extras) its bundle is used. Setting SSL_CERT_FILE or SSL_CERT_DIR keeps the system's own setup.
+    Verification is never turned off.
+    """
+    if not (os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR")):
+        try:
+            import certifi  # type: ignore[import-not-found,unused-ignore]
+        except ImportError:
+            pass
+        else:
+            return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
 
 
 def _reason(e: urllib.error.HTTPError) -> str:
@@ -68,6 +92,7 @@ class Fetcher:
         self._sleep = sleep
         self._last: dict[str, float] = {}
         self._opener = opener
+        self._tls: ssl.SSLContext | None = None
 
     def _wait_turn(self, host: str) -> None:
         gap = self.min_interval.get(host, 0)
@@ -81,7 +106,9 @@ class Fetcher:
     def _open(self, req: urllib.request.Request) -> tuple[bytes, str]:
         if self._opener is not None:
             return self._opener(req, self.timeout), ""
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310 (https URLs built in code)
+        if self._tls is None:
+            self._tls = tls_context()
+        with urllib.request.urlopen(req, timeout=self.timeout, context=self._tls) as resp:  # noqa: S310 (https URLs built in code)
             return resp.read(), resp.headers.get("Content-Type", "")
 
     def get(self, url: str, headers: dict[str, str] | None = None) -> Response:
@@ -120,7 +147,11 @@ class Fetcher:
                 if e.code not in RETRY_STATUSES:
                     break
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-                last_error = str(getattr(e, "reason", e))
+                reason = getattr(e, "reason", e)
+                last_error = str(reason)
+                if isinstance(reason, ssl.SSLCertVerificationError):
+                    last_error += f" ({TLS_HINT})"
+                    break  # trying again cannot fix a certificate problem
             if attempt < self.retries:
                 self._sleep(delay)
                 delay *= 2
