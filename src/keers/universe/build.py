@@ -165,7 +165,7 @@ class Builder:
             if v is not None and NOT_SHARES.search(v.name):
                 skip("not ordinary shares (warrant, unit, right, preferred, note)")
                 continue
-            mic = v.mic if v is not None else SEC_EXCHANGE_MIC.get(r.exchange.lower(), "")
+            mic = (v.mic if v is not None else "") or SEC_EXCHANGE_MIC.get(r.exchange.lower(), "")
             if not mic:
                 skip("no exchange listing")
                 continue

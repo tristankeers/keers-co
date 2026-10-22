@@ -175,8 +175,9 @@ def test_sec_and_nasdaq_parsers_refuse_unexpected_documents() -> None:
         src.parse_sec_tickers_exchange({"data": []})
     with pytest.raises(ParseError, match="footer"):
         src.parse_nasdaq_listed(NASDAQ_LISTED.rsplit("File", 1)[0])  # cut short
-    with pytest.raises(ParseError, match="exchange letter"):
-        src.parse_other_listed(OTHER_LISTED.replace("|N|EXH.B|", "|Q|EXH.B|"))
+    # An exchange letter this code does not know keeps the row (flags still apply) with no venue.
+    odd = src.parse_other_listed(OTHER_LISTED.replace("|N|EXH.B|", "|F|EXH.B|"))
+    assert odd[0].ticker == "EXH.B" and odd[0].mic == "" and odd[1].etf
 
 
 def test_openfigi_error_is_raised_not_read_as_empty() -> None:
