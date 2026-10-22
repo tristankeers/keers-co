@@ -110,6 +110,29 @@ def parse_company_facts(doc: Any, raw_sha256: str, concepts: Iterable[str] | Non
     return out
 
 
+def concept_inventory(doc: Any, pattern: str, since: date | None = None) -> list[dict[str, Any]]:
+    """Which concepts a company files whose names match ``pattern`` (a regex), with the latest period of each.
+
+    For diagnosis only: it shows which tags a company actually uses so the candidate lists can be extended.
+    """
+    import re
+
+    rx = re.compile(pattern)
+    out = []
+    for tax, concepts_doc in doc.get("facts", {}).items():
+        for concept, body in concepts_doc.items():
+            if not rx.search(concept):
+                continue
+            for unit, rows in body.get("units", {}).items():
+                last = max(rows, key=lambda r: (r["end"], r["filed"]))
+                end = date.fromisoformat(last["end"])
+                if since and end < since:
+                    continue
+                out.append({"concept": f"{tax}:{concept}", "unit": unit, "end": last["end"],
+                            "start": last.get("start"), "value": last["val"], "form": last.get("form"), "n": len(rows)})  # fmt: skip
+    return sorted(out, key=lambda r: r["concept"])
+
+
 class SEC:
     """Fetches SEC documents, stores the raw bytes, and writes parsed records to the store."""
 

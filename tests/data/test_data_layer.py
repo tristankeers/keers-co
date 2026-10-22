@@ -256,3 +256,137 @@ def test_refresh_records_failures_and_keeps_good_companies() -> None:
     snap = snapshot.build(store, "EXW", date(2025, 11, 10))
     assert not snap.blocked, snap.blocked_by
     assert store.raw(snap.values["price"].sources[0]["raw_sha256"]) is not None  # raw bytes kept
+
+
+# balance dates (found in the first live run: an old total-debt figure was used in place of the current one) ----
+def test_old_balance_is_never_used_for_the_current_period() -> None:
+    old_total = ("us-gaap", "LongTermDebt", "USD", None, "2022-12-31", 9999 * fx.M,
+                 "0000000001-23-000001", "10-K", "2023-02-14")  # fmt: skip
+    snap = snapshot.build(with_market(load(fx.base_rows() + [old_total])), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value == pytest.approx(400)  # current components, not the 2022 total
+    assert snap.values["netDebt"].value == pytest.approx(200)
+
+
+def test_debt_missing_at_period_end_blocks_rather_than_reads_zero() -> None:
+    rows = [r for r in fx.base_rows() if not (r[1].startswith("LongTermDebt") and r[4] == "2025-09-30")]
+    snap = snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value is None
+    assert any("missing netDebt" in b for b in snap.blocked_by)
+
+
+def test_company_that_never_filed_debt_has_zero_debt_with_a_warning() -> None:
+    rows = [r for r in fx.base_rows() if not r[1].startswith("LongTermDebt")]
+    snap = snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value == 0
+    assert snap.values["debt"].warnings
+
+
+# patterns seen in the first live run (rebuilt here on the fictional company) --------------------------------
+def without(rows: list[fx.Row], *concepts: str) -> list[fx.Row]:
+    return [r for r in rows if r[1] not in concepts]
+
+
+def flow_rows(concept: str, fy: float, ytd9_24: float, ytd9_25: float) -> list[fx.Row]:
+    return [
+        fx._dur(concept, "2024-01-01", "2024-12-31", fy, fx.K24),
+        fx._dur(concept, "2024-01-01", "2024-09-30", ytd9_24, fx.Q3_25),
+        fx._dur(concept, "2025-01-01", "2025-09-30", ytd9_25, fx.Q3_25),
+    ]
+
+
+def build(rows: list[fx.Row]) -> snapshot.Snapshot:
+    return snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+
+
+def test_figure_from_an_old_period_is_not_used() -> None:
+    # Workday's last DepreciationAndAmortization was for 2019; it must not be paired with 2025 operating income.
+    old = [fx._dur("DepreciationAndAmortization", "2018-11-01", "2019-10-31", 260, fx.K24)]
+    snap = build(without(fx.base_rows(), "DepreciationDepletionAndAmortization") + old)
+    assert snap.values["da"].value is None
+    assert any("missing ebitda" in b for b in snap.blocked_by)
+
+
+def test_da_from_separate_depreciation_and_amortisation_lines() -> None:
+    rows = without(fx.base_rows(), "DepreciationDepletionAndAmortization")
+    rows += flow_rows("Depreciation", 40, 30, 32) + flow_rows("AmortizationOfIntangibleAssets", 10, 7, 8)
+    snap = build(rows)
+    assert snap.values["da"].value == pytest.approx((40 + 32 - 30) + (10 + 8 - 7))
+    assert snap.values["ebitda"].value == pytest.approx(230 + 53)
+
+
+def test_long_term_debt_beside_debt_current_is_the_noncurrent_line() -> None:
+    # Adobe files LongTermDebt for the non-current line and DebtCurrent for the current one, with no
+    # LongTermDebtNoncurrent.
+    rows = without(fx.base_rows(), "LongTermDebtNoncurrent", "LongTermDebtCurrent")
+    rows += [
+        fx._inst("LongTermDebt", "2025-09-30", 380, fx.Q3_25),
+        fx._inst("DebtCurrent", "2025-09-30", 20, fx.Q3_25),
+    ]
+    snap = build(rows)
+    assert snap.values["debt"].value == pytest.approx(400)
+    assert any("non-current line" in w for w in snap.values["debt"].warnings)
+
+
+def test_interest_too_high_for_the_debt_found_blocks() -> None:
+    # Dropbox's term loan is filed under its own tag, so only part of its debt is visible in company facts.
+    rows = fx.base_rows() + flow_rows("InterestExpense", 90, 70, 80)  # TTM 100 on 400 of debt = 25%
+    snap = build(rows)
+    assert snap.values["netDebt"].value is None
+    assert any("debt looks incomplete" in b for b in snap.blocked_by)
+    ok = build(fx.base_rows() + flow_rows("InterestExpense", 20, 15, 16))  # 21 on 400 = 5%
+    assert ok.values["netDebt"].known
+
+
+def test_old_share_count_is_not_used() -> None:
+    # Workday's last non-dimensional cover-page count is from 2018 (it now has two share classes).
+    rows = without(fx.base_rows(), "EntityCommonStockSharesOutstanding")
+    rows += [("dei", "EntityCommonStockSharesOutstanding", "shares", None, "2018-11-30", 220 * fx.M, *fx.K24)]
+    rows += [("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2025-07-01", "2025-09-30",
+              52 * fx.M, *fx.Q3_25)]  # fmt: skip
+    v = build(rows).values["shares"]
+    assert v.value == pytest.approx(52) and v.warnings
+
+
+def test_combined_cash_and_investments_line_and_split_leases() -> None:
+    rows = fx.base_rows() + [
+        fx._inst("CashCashEquivalentsAndShortTermInvestments", "2025-09-30", 205, fx.Q3_25),
+        fx._inst("OperatingLeaseLiabilityCurrent", "2025-09-30", 5, fx.Q3_25),
+        fx._inst("OperatingLeaseLiabilityNoncurrent", "2025-09-30", 45, fx.Q3_25),
+    ]
+    snap = build(rows)
+    assert snap.values["liquidAssets"].value == pytest.approx(205)
+    assert snap.values["netDebt"].value == pytest.approx(400 - 205)
+    assert snap.values["operatingLeases"].value == pytest.approx(50)
+
+
+def test_debt_roll_forward_catches_a_borrowing_we_cannot_see() -> None:
+    # Dropbox drew 1.2bn on a credit line filed under its own tag; the cash-flow line still shows the draw.
+    repaid = [fx._dur("RepaymentsOfLongTermDebt", "2025-01-01", "2025-09-30", 20, fx.Q3_25)]
+    assert build(fx.base_rows() + repaid).values["netDebt"].known  # 420 - 20 = 400 found: reconciles
+    hidden = repaid + [fx._dur("ProceedsFromLinesOfCredit", "2025-01-01", "2025-09-30", 300, fx.Q3_25)]
+    snap = build(fx.base_rows() + hidden)
+    assert snap.values["netDebt"].value is None
+    assert any("700.0m expected, but only 400.0m found" in b for b in snap.blocked_by)
+
+
+def test_api_error_reason_is_shown() -> None:
+    import io
+
+    def opener(req: urllib.request.Request, timeout: float) -> bytes:
+        raise urllib.error.HTTPError(
+            "https://x", 403, "err", Message(), io.BytesIO(b'{"detail":"Invalid token."}')
+        )
+
+    with pytest.raises(FetchError, match="Invalid token"):
+        Fetcher("t", opener=opener, sleep=lambda s: None).get(
+            "https://x/y", headers={"Authorization": "Token s3cret"}
+        )
+
+
+def test_live_code_never_reads_kci_dataset() -> None:
+    # KCI's tools are reused; its dataset is only a test and comparison baseline, never an input to a valuation.
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[2] / "src"
+    offenders = [p for p in src.rglob("*.py") if "seed.json" in p.read_text() or "KCI_SEED" in p.read_text()]
+    assert offenders == []

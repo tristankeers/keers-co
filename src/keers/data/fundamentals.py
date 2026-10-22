@@ -45,20 +45,64 @@ ST_INVESTMENTS = (
     "us-gaap:ShortTermInvestments",
     "us-gaap:MarketableSecuritiesCurrent",
     "us-gaap:AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+    "us-gaap:DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
 )
+DEPRECIATION = ("us-gaap:Depreciation",)
+AMORTIZATION = ("us-gaap:AdjustmentForAmortization", "us-gaap:AmortizationOfIntangibleAssets")
 DEBT_TOTAL = ("us-gaap:LongTermDebt",)
 DEBT_NONCURRENT = ("us-gaap:LongTermDebtNoncurrent",)
 DEBT_CURRENT = ("us-gaap:LongTermDebtCurrent",)
+DEBT_CURRENT_ALL = ("us-gaap:DebtCurrent",)  # current maturities plus short-term borrowings
 ST_BORROWINGS = ("us-gaap:ShortTermBorrowings", "us-gaap:CommercialPaper")
+CONVERTIBLE_NONCURRENT = ("us-gaap:ConvertibleDebtNoncurrent", "us-gaap:ConvertibleNotesPayable")
+CONVERTIBLE_CURRENT = ("us-gaap:ConvertibleDebtCurrent", "us-gaap:ConvertibleNotesPayableCurrent")
 FINANCE_LEASES = ("us-gaap:FinanceLeaseLiability",)
+FINANCE_LEASES_SPLIT = ("us-gaap:FinanceLeaseLiabilityCurrent", "us-gaap:FinanceLeaseLiabilityNoncurrent")
+OPERATING_LEASES = ("us-gaap:OperatingLeaseLiability",)
+OPERATING_LEASES_SPLIT = (
+    "us-gaap:OperatingLeaseLiabilityCurrent",
+    "us-gaap:OperatingLeaseLiabilityNoncurrent",
+)
+CASH_AND_STI = ("us-gaap:CashCashEquivalentsAndShortTermInvestments",)
 SHARES_COVER = ("dei:EntityCommonStockSharesOutstanding",)
 SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding",)
 SHARES_DILUTED = ("us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",)
 
-ALL_CONCEPTS: tuple[str, ...] = (
-    REVENUE + OPERATING_INCOME + DA + NET_INCOME + CAPEX + INTEREST + SBC + CASH + ST_INVESTMENTS + DEBT_TOTAL
-    + DEBT_NONCURRENT + DEBT_CURRENT + ST_BORROWINGS + FINANCE_LEASES + SHARES_COVER + SHARES_BALANCE + SHARES_DILUTED
+# Cash-flow lines for the debt roll-forward check (borrowed, repaid, and net lines filed as one figure).
+BORROWED = tuple(f"us-gaap:{c}" for c in (
+    "ProceedsFromLinesOfCredit", "ProceedsFromLongTermLinesOfCredit", "ProceedsFromSecuredLinesOfCredit",
+    "ProceedsFromUnsecuredLinesOfCredit", "ProceedsFromIssuanceOfLongTermDebt", "ProceedsFromIssuanceOfDebt",
+    "ProceedsFromIssuanceOfSecuredDebt", "ProceedsFromIssuanceOfUnsecuredDebt", "ProceedsFromIssuanceOfSeniorLongTermDebt",
+    "ProceedsFromConvertibleDebt", "ProceedsFromBankDebt", "ProceedsFromShortTermDebt",
+))  # fmt: skip
+REPAID = tuple(f"us-gaap:{c}" for c in (
+    "RepaymentsOfLinesOfCredit", "RepaymentsOfLongTermLinesOfCredit", "RepaymentsOfSecuredDebt",
+    "RepaymentsOfUnsecuredDebt", "RepaymentsOfLongTermDebt", "RepaymentsOfDebt", "RepaymentsOfSeniorDebt",
+    "RepaymentsOfConvertibleDebt", "RepaymentsOfBankDebt", "RepaymentsOfShortTermDebt",
+))  # fmt: skip
+NET_BORROWED = tuple(f"us-gaap:{c}" for c in (
+    "ProceedsFromRepaymentsOfCommercialPaper", "ProceedsFromRepaymentsOfShortTermDebt", "ProceedsFromRepaymentsOfDebt",
+    "ProceedsFromRepaymentsOfLinesOfCredit",
+))  # fmt: skip
+ROLLFORWARD_TOLERANCE = 0.15  # of the larger of expected and found debt
+ROLLFORWARD_MIN_USDM = 50.0
+
+DEBT_CONCEPTS = (
+    DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + DEBT_CURRENT_ALL + ST_BORROWINGS + CONVERTIBLE_NONCURRENT
+    + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT
 )  # fmt: skip
+
+ALL_CONCEPTS: tuple[str, ...] = (
+    REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
+    + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
+    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED
+)  # fmt: skip
+
+
+# An implied interest rate on the debt found above this means some debt is probably tagged in a way we do not
+# read (for example a company-specific tag), so net debt is not trusted.
+MAX_IMPLIED_RATE = 0.15
+SHARES_MAX_AGE_DAYS = 200
 
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
@@ -189,7 +233,21 @@ class Fundamentals:
             tuple(f.cite() for f in p.used), p.warnings,
         )  # fmt: skip
 
-    def flow(self, candidates: Sequence[str], label: str) -> Value:
+    def flow(self, candidates: Sequence[str], label: str, at: date | None = None) -> Value:
+        """TTM of a flow. With ``at``, only a TTM ending at ``at`` is accepted, so every figure covers one period."""
+        if at is not None:
+            latest: tuple[date, str] | None = None
+            for c in candidates:
+                facts = self._facts(c)
+                p = ttm_at(facts, at)
+                if p is not None:
+                    return self._value(p, c, "USDm", MILLION, "")
+                ends = [f.end for f in facts if f.start is not None]
+                if ends and (latest is None or max(ends) > latest[0]):
+                    latest = (max(ends), c)
+            if latest is None:
+                return missing("USDm", f"{label}: not filed under {', '.join(candidates)}")
+            return missing("USDm", f"{label}: no TTM to {at} (latest is {latest[1]} to {latest[0]})")
         hit = self._pick(candidates, instant=False)
         if hit is None:
             return missing("USDm", f"{label}: not filed under {', '.join(candidates)}")
@@ -202,6 +260,19 @@ class Fundamentals:
                 p = Period(f.value, f.end, "latest fiscal year (TTM could not be built)", Kind.REPORTED, (f,),
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, "USDm", MILLION, f"{label}: no usable period")
+
+    def depreciation_amortisation(self, at: date) -> Value:
+        """Total D&A if filed; otherwise depreciation plus amortisation filed as separate lines."""
+        total = self.flow(DA, "depreciation and amortisation", at)
+        if total.known:
+            return total
+        dep = self.flow(DEPRECIATION, "depreciation", at)
+        if not dep.known:
+            return missing("USDm", f"D&A: {total.method}; {dep.method}")
+        amo = self.flow(AMORTIZATION, "amortisation", at)
+        parts = [dep, amo] if amo.known else [dep]
+        warn = () if amo.known else ("no amortisation line filed; D&A is depreciation only",)
+        return _sum(parts, " + ".join(_name(v) for v in parts), warn)
 
     def flow_growth(self, candidates: Sequence[str], label: str) -> Value:
         """TTM growth versus the TTM a year earlier, both built the same way."""
@@ -221,58 +292,231 @@ class Fundamentals:
         )  # fmt: skip
 
     def balance(self, candidates: Sequence[str], label: str, at: date | None, unit: str = "USDm") -> Value:
-        hit = self._pick(candidates, instant=True)
-        if hit is None:
-            return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
-        concept, facts = hit
-        return self._value(instant_at(facts, at), concept, unit, MILLION, f"{label}: no balance")
+        """Balance at ``at`` (within 3 days), first matching candidate in priority order.
 
-    def total_debt(self, at: date | None) -> Value:
-        """Borrowings: long-term debt (current + non-current) plus short-term borrowings and finance leases."""
+        An older balance is never used in place of the one at ``at``: the result is missing instead.
+        With ``at`` None, the latest balance of the newest candidate is used.
+        """
+        if at is None:
+            hit = self._pick(candidates, instant=True)
+            if hit is None:
+                return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
+            return self._value(instant_at(hit[1]), hit[0], unit, MILLION, f"{label}: no balance")
+        latest: tuple[date, str] | None = None
+        for c in candidates:
+            inst = [f for f in latest_known(self._facts(c)) if f.start is None]
+            hit_at = [f for f in inst if _close(f.end, at, 3)]
+            if hit_at:
+                f = hit_at[-1]
+                return self._value(
+                    Period(f.value, f.end, "as reported", Kind.REPORTED, (f,)), c, unit, MILLION, ""
+                )
+            if inst and (latest is None or inst[-1].end > latest[0]):
+                latest = (inst[-1].end, c)
+        if latest is None:
+            return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
+        return missing(unit, f"{label}: no balance at {at} (latest is {latest[1]} at {latest[0]})")
+
+    def ever_filed(self, candidates: Sequence[str]) -> bool:
+        return any(self._facts(c) for c in candidates)
+
+    def _first(self, groups: Sequence[Sequence[str]], label: str, at: date) -> Value:
+        """First group whose concepts are all filed at ``at``; a group of several is summed."""
+        for g in groups:
+            vals = [self.balance((c,), label, at) for c in g]
+            if all(v.known for v in vals):
+                return vals[0] if len(vals) == 1 else _sum(vals, " + ".join(c.split(":")[1] for c in g))
+        return missing("USDm", f"{label}: no balance at {at}")
+
+    def total_debt(self, at: date | None, include_leases: bool = True) -> Value:
+        """Borrowings at ``at``, excluding operating leases. Never reads a missing balance as zero.
+
+        Non-current and current debt come from the balance-sheet lines where filed, because companies use
+        ``LongTermDebt`` both for total debt and for the non-current line only. Convertible notes and finance
+        leases are added when filed as separate lines. Zero is used only for a company that has never filed a debt
+        concept at all.
+        """
+        if at is None:
+            return missing("USDm", "debt: no period to read the balance at")
+        notes: list[str] = []
         parts: list[Value] = []
-        total = self.balance(DEBT_TOTAL, "long-term debt", at)
-        if total.known:
-            parts.append(total)
+        nc = self.balance(DEBT_NONCURRENT, "non-current debt", at)
+        cur_all = self.balance(DEBT_CURRENT_ALL, "current debt", at)
+        if nc.known:
+            parts.append(nc)
+            if cur_all.known:
+                parts.append(cur_all)
+            else:
+                parts += [v for v in (self.balance(DEBT_CURRENT, "current debt", at),
+                                      self.balance(ST_BORROWINGS, "short-term borrowings", at)) if v.known]  # fmt: skip
         else:
-            nc, cur = (
-                self.balance(DEBT_NONCURRENT, "long-term debt", at),
-                self.balance(DEBT_CURRENT, "current debt", at),
-            )
-            parts += [v for v in (nc, cur) if v.known]
-        for cands, lab in ((ST_BORROWINGS, "short-term borrowings"), (FINANCE_LEASES, "finance leases")):
-            v = self.balance(cands, lab, at)
-            if v.known and (at is None or v.period_end is None or _close(v.period_end, at, 3)):
+            ltd = self.balance(DEBT_TOTAL, "long-term debt", at)
+            if ltd.known:
+                parts.append(ltd)
+                if cur_all.known:
+                    # Seen at Adobe: LongTermDebt carries the non-current line and DebtCurrent the current one.
+                    parts.append(cur_all)
+                    notes.append(
+                        "LongTermDebt read as the non-current line because DebtCurrent is filed beside it"
+                    )
+                else:
+                    stb = self.balance(ST_BORROWINGS, "short-term borrowings", at)
+                    if stb.known:
+                        parts.append(stb)
+            elif cur_all.known:
+                parts.append(cur_all)
+        has_base = nc.known or any("LongTermDebt" in _name(p_) for p_ in parts)
+        for groups, lab in (
+            ((CONVERTIBLE_NONCURRENT[:1], CONVERTIBLE_NONCURRENT[1:]), "convertible notes"),
+            ((CONVERTIBLE_CURRENT[:1], CONVERTIBLE_CURRENT[1:]), "current convertible notes"),
+        ):
+            v = self._first(groups, lab, at)
+            if not v.known or not v.value:
+                continue
+            if has_base:
+                notes.append(
+                    f"{lab} filed separately ({v.value:,.1f}m); taken as already inside long-term debt"
+                )
+            else:
                 parts.append(v)
+        lease = self._first((FINANCE_LEASES, FINANCE_LEASES_SPLIT), "finance leases", at)
+        if lease.known and include_leases:
+            parts.append(lease)
         if not parts:
-            # A company that files no debt concept at all is treated as having none, and says so.
-            return Value(0.0, Kind.DERIVED, "USDm", "no debt concepts filed; taken as zero", at,
-                         warnings=("no debt concepts filed; debt taken as zero",))  # fmt: skip
-        return Value(
-            sum(v.value or 0 for v in parts), Kind.DERIVED, "USDm",
-            " + ".join(v.method.split(":")[0] for v in parts) + " (operating leases excluded)",
-            max((v.period_end for v in parts if v.period_end), default=None),
-            tuple(s for v in parts for s in v.sources), tuple(w for v in parts for w in v.warnings),
-        )  # fmt: skip
+            if not self.ever_filed(DEBT_CONCEPTS):
+                return Value(0.0, Kind.DERIVED, "USDm", "no debt concept ever filed; taken as zero", at,
+                             warnings=("no debt concept ever filed; debt taken as zero",))  # fmt: skip
+            return missing(
+                "USDm", f"debt: no debt balance at {at}, though debt concepts have been filed before"
+            )
+        v = _sum(parts, " + ".join(_name(p_) for p_ in parts) + " (operating leases excluded)",
+                 tuple(notes))  # fmt: skip
+        return v
+
+    def debt_check(self, debt: Value, at: date) -> str | None:
+        """Deterministic completeness check: interest expense far too high for the debt found means debt is missing."""
+        interest = self.flow(INTEREST, "interest expense", at)
+        if not (interest.known and debt.known) or interest.value is None or debt.value is None:
+            return None
+        if debt.value <= 0:
+            return (
+                f"debt looks incomplete: interest expense of {interest.value:,.1f}m with no debt found"
+                if interest.value > 1
+                else None
+            )
+        rate = interest.value / debt.value
+        if rate > MAX_IMPLIED_RATE:
+            return (f"debt looks incomplete: interest expense {interest.value:,.1f}m is {rate:.0%} of the "
+                    f"{debt.value:,.1f}m of debt found (limit {MAX_IMPLIED_RATE:.0%}); some debt is probably filed "
+                    "under a tag we do not read")  # fmt: skip
+        return None
+
+    def _ytd_sum(self, concepts: Sequence[str], start: date, end: date) -> tuple[float, list[Fact]]:
+        total, used = 0.0, []
+        for c in concepts:
+            hit = [f for f in latest_known(self._facts(c))
+                   if f.start is not None and _close(f.start, start, 3) and _close(f.end, end, 3)]  # fmt: skip
+            if hit:
+                total += hit[-1].value
+                used.append(hit[-1])
+        return total / MILLION, used
+
+    def debt_rollforward(self, at: date, year_start: date) -> str | None:
+        """Debt at the last year end, plus borrowed less repaid since, should roughly equal debt now.
+
+        Much less debt than expected means a borrowing is filed under a tag we do not read. Finance leases are left
+        out on both sides because new leases are not cash borrowings.
+        """
+        before = self.total_debt(year_start - timedelta(days=1), include_leases=False)
+        now = self.total_debt(at, include_leases=False)
+        if not (before.known and now.known) or before.value is None or now.value is None:
+            return None
+        borrowed, b_used = self._ytd_sum(BORROWED, year_start, at)
+        repaid, r_used = self._ytd_sum(REPAID, year_start, at)
+        net, n_used = self._ytd_sum(NET_BORROWED, year_start, at)
+        if not (b_used or r_used or n_used):
+            return None
+        expected = before.value + borrowed - repaid + net
+        gap = expected - now.value
+        limit = max(ROLLFORWARD_TOLERANCE * max(expected, now.value), ROLLFORWARD_MIN_USDM)
+        if gap > limit:
+            return (f"debt looks incomplete: {before.value:,.1f}m at {year_start - timedelta(days=1)} + "
+                    f"{borrowed:,.1f}m borrowed − {repaid:,.1f}m repaid{f' + {net:,.1f}m net' if n_used else ''} "
+                    f"= {expected:,.1f}m expected, but only {now.value:,.1f}m found at {at}; some debt is probably "
+                    "filed under a tag we do not read")  # fmt: skip
+        return None
+
+    def year_start(self, at: date) -> date | None:
+        """First day of the fiscal year that contains ``at``, from the revenue periods filed."""
+        for c in REVENUE:
+            durations = [f for f in latest_known(self._facts(c)) if f.start is not None]
+            for f in durations:
+                if _close(f.end, at, 3) and f.days is not None and f.days <= YEAR[1] and f.start is not None:
+                    prior = [a for a in _annual(durations) if _close(a.end, f.start - timedelta(days=1), 3)]
+                    if prior or (f.days >= YEAR[0]):
+                        return f.start
+        return None
+
+    def liquid_assets(self, at: date) -> Value:
+        """Cash plus short-term investments at ``at``. The combined line is used where a company files it."""
+        both = self.balance(CASH_AND_STI, "cash and short-term investments", at)
+        if both.known:
+            return both
+        cash = self.balance(CASH, "cash", at)
+        if not cash.known:
+            return cash
+        sti = self.balance(ST_INVESTMENTS, "short-term investments", at)
+        return (
+            _sum([cash, sti], "cash + short-term investments")
+            if sti.known
+            else _sum([cash], "cash (no short-term investments filed at this date)")
+        )
+
+    def operating_leases(self, at: date) -> Value:
+        return self._first((OPERATING_LEASES, OPERATING_LEASES_SPLIT), "operating lease liabilities", at)
 
     def shares(self, at: date | None) -> Value:
-        for cands, note in (
-            (SHARES_COVER, None),
-            (SHARES_BALANCE, None),
-            (SHARES_DILUTED, "diluted weighted-average shares used; no shares-outstanding figure filed"),
+        """Shares outstanding near ``at``: the cover-page count, else the balance sheet, else diluted average.
+
+        A count older than ``SHARES_MAX_AGE_DAYS`` before the as-of date, or from before the period, is not used.
+        """
+        lo = (at - timedelta(days=10)) if at else self.as_of - timedelta(days=SHARES_MAX_AGE_DAYS)
+        lo = max(lo, self.as_of - timedelta(days=SHARES_MAX_AGE_DAYS))
+        for cands, instant, note in (
+            (SHARES_COVER, True, None),
+            (SHARES_BALANCE, True, None),
+            (
+                SHARES_DILUTED,
+                False,
+                "diluted weighted-average shares used; no current shares-outstanding count filed",
+            ),
         ):
-            hit = self._pick(cands, instant=cands is not SHARES_DILUTED)
-            if hit is None:
-                continue
-            concept, facts = hit
-            p: Period | None
-            if cands is SHARES_DILUTED:
-                durations = [f for f in latest_known(facts) if f.start is not None]
-                f = durations[-1]
-                p = Period(f.value, f.end, "latest reported period", Kind.REPORTED, (f,))
-            else:
-                p = instant_at(facts)  # latest count, which is usually the cover page date
-            assert p is not None  # noqa: S101 (facts is non-empty)
-            v = self._value(p, concept, "m shares", MILLION, "shares")
-            return Value(v.value, v.kind, v.unit, v.method, v.period_end, v.sources,
-                         v.warnings + ((note,) if note else ()))  # fmt: skip
-        return missing("m shares", "shares outstanding: not filed")
+            for c in cands:
+                fs = [f for f in latest_known(self._facts(c)) if (f.start is None) == instant and f.end >= lo]
+                if instant is False and at is not None:
+                    fs = [f for f in fs if _close(f.end, at, 3)]
+                if not fs:
+                    continue
+                f = fs[-1]
+                v = self._value(
+                    Period(f.value, f.end, "as reported", Kind.REPORTED, (f,)), c, "m shares", MILLION, ""
+                )
+                return Value(
+                    v.value, v.kind, v.unit, v.method, v.period_end, v.sources, (note,) if note else ()
+                )
+        return missing("m shares", f"shares outstanding: no count filed since {lo}")
+
+
+def _name(v: Value) -> str:
+    """Concept name from a method like ``us-gaap:LongTermDebt: as reported``; composite methods are returned whole."""
+    bits = v.method.split(":")
+    return bits[1].split(" ")[0] if len(bits) > 2 else v.method
+
+
+def _sum(parts: Sequence[Value], method: str, warnings: tuple[str, ...] = ()) -> Value:
+    ends = [p.period_end for p in parts if p.period_end]
+    return Value(
+        sum(p.value or 0 for p in parts), Kind.DERIVED if len(parts) > 1 else parts[0].kind, parts[0].unit,
+        method, max(ends) if ends else None, tuple(s for p in parts for s in p.sources),
+        tuple(w for p in parts for w in p.warnings) + warnings,
+    )  # fmt: skip

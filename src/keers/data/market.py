@@ -36,11 +36,18 @@ def _num(s: str) -> float | None:
     return float(s)
 
 
+def _page_text(html: str, limit: int = 240) -> str:
+    """Visible text of an HTML page, so a refusal or captcha page shows up readably in logs."""
+    import re
+
+    body = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
+    return " ".join(re.sub(r"<[^>]+>", " ", body).split())[:limit]
+
+
 def parse_stooq_csv(text: str, ticker: str, raw_sha256: str) -> list[PricePoint]:
     rows = list(csv.reader(io.StringIO(text)))
     if not rows or [c.strip().lower() for c in rows[0][:5]] != ["date", "open", "high", "low", "close"]:
-        head = text[:80].replace("\n", " ")
-        raise ParseError(f"stooq {ticker}: unexpected response {head!r}")
+        raise ParseError(f"stooq {ticker}: not a price file. Page says: {_page_text(text)!r}")
     out: list[PricePoint] = []
     for r in rows[1:]:
         if not r:

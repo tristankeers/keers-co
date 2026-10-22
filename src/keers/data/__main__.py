@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         tickers = [t.upper() for t in a.tickers] + (read_universe(a.universe) if a.universe else [])
         if not tickers:
             ap.error("give tickers or --universe")
-        res = refresh(store, tickers, Fetcher(user_agent()), os.environ.get("TIINGO_TOKEN") or None,
+        res = refresh(store, tickers, Fetcher(user_agent()), (os.environ.get("TIINGO_TOKEN") or "").strip() or None,
                       rates=not a.no_rates)  # fmt: skip
         print(
             json.dumps({"status": res["status"], "ok": len(res["done"]), "failed": res["failed"]}, indent=2)

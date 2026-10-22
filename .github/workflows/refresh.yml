@@ -1,7 +1,8 @@
 name: Data refresh
 
 # Refreshes filings, prices and rates for the universe every weekday evening (US time) and keeps the database in
-# the Actions cache. It does nothing until the repository variable SEC_USER_AGENT is set.
+# the Actions cache. It does nothing until SEC_USER_AGENT is set (a repository secret is preferred, so it is masked
+# in the public logs; a repository variable also works).
 
 on:
   schedule:
@@ -17,35 +18,44 @@ concurrency:
 
 jobs:
   refresh:
-    if: ${{ vars.SEC_USER_AGENT != '' }}
     runs-on: ubuntu-latest
     env:
-      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
       TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
       KEERS_DB: data/keers.sqlite
     steps:
+      - name: Check configuration
+        id: cfg
+        run: |
+          if [ -n "$SEC_USER_AGENT" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::SEC_USER_AGENT is not set, so the refresh is skipped"; fi
       - uses: actions/checkout@v4
+        if: steps.cfg.outputs.enabled == 'true'
       - uses: actions/setup-python@v5
+        if: steps.cfg.outputs.enabled == 'true'
         with:
           python-version: "3.12"
       - run: pip install -e .
+        if: steps.cfg.outputs.enabled == 'true'
       - uses: actions/cache/restore@v4
+        if: steps.cfg.outputs.enabled == 'true'
         with:
           path: data/keers.sqlite
           key: keers-db-${{ github.run_id }}
           restore-keys: keers-db-
       - name: Refresh
         id: refresh
+        if: steps.cfg.outputs.enabled == 'true'
         continue-on-error: true
         run: python -m keers.data refresh --universe config/universe/kci100.txt
       - uses: actions/cache/save@v4
-        if: always()
+        if: always() && steps.cfg.outputs.enabled == 'true'
         with:
           path: data/keers.sqlite
           key: keers-db-${{ github.run_id }}
       - name: Report
-        if: always()
+        if: always() && steps.cfg.outputs.enabled == 'true'
         run: python -m keers.data status | head -1
       - name: Fail if any company failed
-        if: steps.refresh.outcome != 'success'
+        if: steps.cfg.outputs.enabled == 'true' && steps.refresh.outcome != 'success'
         run: exit 1

@@ -147,6 +147,13 @@ class Store:
             return None
         return dict(zip(("sha256", "url", "retrievedAt", "contentType", "size"), r, strict=True))
 
+    def latest_body(self, url: str) -> bytes | None:
+        r = self.db.execute(
+            "SELECT body FROM raw_documents WHERE url=? AND body IS NOT NULL ORDER BY retrieved_at DESC LIMIT 1",
+            (url,),
+        ).fetchone()
+        return None if r is None else bytes(r[0])
+
     # companies -------------------------------------------------------------------------------------------------
     def put_company(self, cik: int, ticker: str, name: str, sic: str | None, fye: str | None) -> None:
         with self.tx() as db:

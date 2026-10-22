@@ -24,7 +24,7 @@ python -m keers.data snapshot DBX --as-of 2026-10-15
 python -m keers.data status
 ```
 
-The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it). In GitHub Actions, set the repository variable `SEC_USER_AGENT` to turn on the weekday refresh (`refresh.yml`), and run `live-smoke.yml` by hand to check the live build against Dropbox's figures from filings. `TIINGO_TOKEN` is an optional secret.
+The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it). In GitHub Actions, set `SEC_USER_AGENT` as a repository secret (masked in the public logs; a variable also works) to turn on the weekday refresh (`refresh.yml`), and run `live-smoke.yml` by hand to check the live build against Dropbox's figures from filings. `TIINGO_TOKEN` is an optional secret.
 
 How figures are built: trailing twelve months = latest fiscal year + current year-to-date − prior year-to-date; EBITDA = operating income + D&A; net debt = borrowings (including finance leases, excluding operating leases) − cash − short-term investments; EV = price × shares + net debt. A price more than 3 business days old, or a latest period more than 135 days old, blocks the snapshot. Live figures are labelled `filed`, never `verified`, until a cross-check is built.
 
