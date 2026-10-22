@@ -26,10 +26,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
-ignore = ["S101"]
+ignore = ["S101", "E501"]  # line length is left to the formatter
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S603", "S607"]
+"tests/**" = ["S603", "S607", "S311"]
 
 [tool.mypy]
 strict = true

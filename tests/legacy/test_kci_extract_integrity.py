@@ -25,6 +25,8 @@ def test_files_match_manifest_hashes() -> None:
 def test_files_are_byte_identical_to_published_page() -> None:
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "extract_kci.py"), "--check"],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
