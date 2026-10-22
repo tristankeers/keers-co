@@ -186,10 +186,13 @@ class SecTickerDirectory:
         try:
             body, as_of = self.fetch()
             doc = json.loads(body)
-            if not self._index(doc, as_of):
+            if not isinstance(doc, dict) or not doc:
                 raise ValueError("empty SEC ticker map")
+            # cache first, then publish the rows: a reader that sees the rows can rely on the cache being there
             self.cache.parent.mkdir(parents=True, exist_ok=True)
             self.cache.write_text(json.dumps({"retrievedAt": as_of, "doc": doc}))
+            if not self._index(doc, as_of):
+                raise ValueError("SEC ticker map has no usable rows")
         except Exception:  # noqa: BLE001 - an unreachable source leaves the directory to its other backings
             self._failed_at = time.monotonic()
         finally:
