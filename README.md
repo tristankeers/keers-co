@@ -2,11 +2,11 @@
 
 A research platform for three investment strategies: distressed and special situations, durable-moat compounders, and systematic quant. Research only. Paper portfolios only. No live trading.
 
-**Status: Phase 0 (foundation).** Nothing here makes investment decisions yet. This repository currently holds:
+**Status: Phase 1 in progress (engine ported; live data layer next).** Nothing here makes investment decisions yet. This repository currently holds:
 
 - `legacy/kci/`: KCI's calculation engine and dataset, copied unchanged from KCI's published page ([tristankeers/kci](https://github.com/tristankeers/kci), commit `2232610`). KCI's original source code could not be recovered, so the published page is the source of record. See `legacy/kci/SOURCE.json`.
 - `tests/legacy/`: tests that lock in what that engine produces today (the 19 hand-worked checks, the Dropbox worked case and the default model for all 100 companies).
-- `src/keers/`: the Python core. Empty for now. The first module will be a Python port of the KCI engine, checked against the frozen original.
+- `src/keers/valuation/kci_v1.py` and `kci_v1_defaults.py`: the KCI engine and its default assumptions ported to Python as calculation version `kci-v1`. The port matches the frozen JavaScript on all 100 companies and on 3,864 randomised cases. It keeps KCI's known issues on purpose; fixes come as version 2.
 
 KCI itself is a separate project and is never modified from here.
 
