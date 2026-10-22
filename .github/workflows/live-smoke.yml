@@ -30,8 +30,13 @@ jobs:
       - run: pip install -e .
       - name: Smoke test
         run: python scripts/live_smoke.py
+      - name: Distress screen on the test list
+        if: always()
+        run: python scripts/distress_screen.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: live-smoke
-          path: smoke-out/*.json
+          path: |
+            smoke-out/*.json
+            screen-out/distress.*

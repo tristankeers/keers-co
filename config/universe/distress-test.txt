@@ -1,0 +1,18 @@
+# Test list for the distress screen (22 Oct 2026). Companies chosen because they have carried heavy debt or
+# losses in recent years, plus two healthy controls (ADBE, INTU). Being on this list is not a finding.
+LUMN
+SATS
+XRX
+PLUG
+BYND
+AMC
+KSS
+CHTR
+WBD
+AAL
+NCLH
+PTON
+CCL
+SIRI
+ADBE
+INTU

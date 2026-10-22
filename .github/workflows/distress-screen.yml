@@ -1,0 +1,56 @@
+name: Distress screen
+
+# Runs the Strategy A distress screen on live data. Run by hand from the Actions tab.
+# Needs the SEC_USER_AGENT and TIINGO_TOKEN repository secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers separated by spaces (blank: config/universe/distress-test.txt)"
+        required: false
+        default: ""
+      as_of:
+        description: "As-of date, YYYY-MM-DD (blank: today)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      TICKERS: ${{ inputs.tickers }}
+      AS_OF: ${{ inputs.as_of }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+      - run: pip install -e .
+      - name: Screen
+        run: |
+          args=()
+          if [ -n "$AS_OF" ]; then args+=(--as-of "$AS_OF"); fi
+          # shellcheck disable=SC2086
+          python scripts/distress_screen.py "${args[@]}" $TICKERS
+      - name: Summary
+        if: always()
+        run: if [ -f screen-out/distress.md ]; then cat screen-out/distress.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: distress-screen
+          path: |
+            screen-out/distress.json
+            screen-out/distress.md
