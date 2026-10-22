@@ -17,7 +17,7 @@ from typing import Any
 
 from .models import Fact, Filing, PricePoint, RatePoint, RunRecord
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS prices (
     close REAL NOT NULL,
     open REAL, high REAL, low REAL, volume REAL,
     raw_sha256 TEXT NOT NULL,
+    adj_close REAL,
     PRIMARY KEY (ticker, day, source)
 );
 CREATE TABLE IF NOT EXISTS rates (
@@ -119,6 +120,11 @@ class Store:
         row = self.db.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
         if row is None:
             self.db.execute("INSERT INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+            self.db.commit()
+        elif int(row[0]) == 1:
+            # v1 -> v2: adjusted closes for return statistics.
+            self.db.execute("ALTER TABLE prices ADD COLUMN adj_close REAL")
+            self.db.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
             self.db.commit()
         elif int(row[0]) != SCHEMA_VERSION:
             raise RuntimeError(f"Store schema {row[0]} does not match code schema {SCHEMA_VERSION}")
@@ -241,12 +247,17 @@ class Store:
                 p.low,
                 p.volume,
                 p.raw_sha256,
+                p.adj_close,
             )
             for p in points
         ]
         with self.tx() as db:
             before = db.total_changes
-            db.executemany("INSERT OR REPLACE INTO prices VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            db.executemany(
+                "INSERT OR REPLACE INTO prices (ticker,day,source,close,open,high,low,volume,raw_sha256,adj_close) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                rows,
+            )
             return db.total_changes - before
 
     def last_price(self, ticker: str, on_or_before: date | None = None) -> PricePoint | None:
@@ -259,6 +270,17 @@ class Store:
         if r is None:
             return None
         return PricePoint(r[0], date.fromisoformat(r[1]), r[3], r[2], r[4], r[5], r[6], r[7], r[8])
+
+    def adjusted_closes(self, ticker: str, start: date, end: date) -> list[tuple[date, float | None]]:
+        """Daily (day, adjusted close), preferring a source that gives one; None where none does."""
+        q = (
+            "SELECT day, adj_close FROM prices WHERE ticker=? AND day>=? AND day<=? "
+            "ORDER BY day, CASE WHEN adj_close IS NULL THEN 1 ELSE 0 END"
+        )
+        out: dict[str, float | None] = {}
+        for day, adj in self.db.execute(q, (ticker.upper(), start.isoformat(), end.isoformat())):
+            out.setdefault(day, adj)
+        return [(date.fromisoformat(d), a) for d, a in out.items()]
 
     # rates -----------------------------------------------------------------------------------------------------
     def put_rates(self, points: Iterable[RatePoint]) -> int:

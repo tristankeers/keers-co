@@ -28,7 +28,10 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("snapshot", help="print a company snapshot as JSON")
     s.add_argument("ticker")
     s.add_argument("--as-of", type=date.fromisoformat, default=date.today())
-    s.add_argument("--analyse", action="store_true", help="also run KCI v1 if the snapshot is not blocked")
+    s.add_argument(
+        "--analyse", action="store_true", help="also run the valuation if the snapshot is not blocked"
+    )
+    s.add_argument("--calc-version", choices=sorted(snapshot.ENGINES), default=snapshot.DEFAULT_CALC_VERSION)
     sub.add_parser("status", help="show recent refresh runs")
     a = ap.parse_args(argv)
 
@@ -45,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if res["status"] == "ok" else 1
     if a.cmd == "snapshot":
         snap = snapshot.build(store, a.ticker, a.as_of)
-        out = snapshot.analyse(snap) if a.analyse else snap.as_dict()
+        out = snapshot.analyse(snap, a.calc_version) if a.analyse else snap.as_dict()
         if a.analyse and out.get("ran"):
             out["snapshot"] = snap.as_dict()
         print(json.dumps(out, indent=2, default=str))

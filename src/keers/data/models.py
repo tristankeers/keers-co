@@ -78,6 +78,7 @@ class PricePoint:
     low: float | None = None
     volume: float | None = None
     raw_sha256: str = ""
+    adj_close: float | None = None  # split- and dividend-adjusted close, when the source gives one
 
 
 @dataclass(frozen=True)
