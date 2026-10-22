@@ -154,11 +154,22 @@ def test_snapshot_numbers_and_provenance() -> None:
 
 
 def test_live_snapshot_runs_kci_v1() -> None:
-    out = snapshot.analyse(snapshot.build(with_market(load()), "EXW", date(2025, 11, 10)))
+    out = snapshot.analyse(snapshot.build(with_market(load()), "EXW", date(2025, 11, 10)), "kci-v1")
     assert out["ran"] is True
     assert out["analysis"]["calcVersion"] == "kci-v1"
     assert out["deal"]["dataStatus"] == "filed"  # never "verified" without a cross-check
     assert out["analysis"]["lbo"]["ok"] in (True, False)
+
+
+def test_live_snapshot_defaults_to_kci_v2_and_passes_live_rates() -> None:
+    out = snapshot.analyse(snapshot.build(with_market(load()), "EXW", date(2025, 11, 10)))
+    a = out["analysis"]
+    assert out["ran"] is True and a["calcVersion"] == "kci-v2" and a["engineVersion"] == "kci-v1"
+    assert out["deal"]["riskFree"] == pytest.approx(0.041)  # FRED's 4.1% as a decimal
+    # No benchmark prices in the store, so no beta, so the DCF refuses rather than using a house beta.
+    assert out["deal"]["beta"] is None
+    assert a["dcf"]["ok"] is False and "Beta is required" in a["dcf"]["errors"]
+    assert a["lboIn"]["entryEVOverride"] == pytest.approx(2200 + 0.3 * 2000)
 
 
 @pytest.mark.parametrize(
@@ -390,3 +401,21 @@ def test_live_code_never_reads_kci_dataset() -> None:
     src = Path(__file__).resolve().parents[2] / "src"
     offenders = [p for p in src.rglob("*.py") if "seed.json" in p.read_text() or "KCI_SEED" in p.read_text()]
     assert offenders == []
+
+
+def test_live_snapshot_with_price_history_gets_a_beta_and_a_dcf() -> None:
+    from .test_beta import fridays, market, put_series
+
+    store = with_market(load())
+    spy_days = fridays(105, date(2025, 11, 7))
+    m = market(104)
+    put_series(store, "SPY", spy_days, m)
+    put_series(store, "EXW", spy_days[:-1], [1.2 * r for r in m[:-1]])  # ends a week earlier than the price
+    snap = snapshot.build(store, "EXW", date(2025, 11, 10))
+    assert snap.values["beta"].known and snap.values["beta"].kind is Kind.DERIVED
+    assert snap.values["marketCap"].value == pytest.approx(2000)  # the stooq close still sets the price
+    a = snapshot.analyse(snap)["analysis"]
+    b = 0.67 * 1.2 + 0.33
+    assert a["dcfIn"]["beta"] == pytest.approx(b)
+    assert a["wacc"]["costOfEquity"] == pytest.approx(0.041 + b * 0.055 + 0.01)  # $2.0bn cap: 1% size premium
+    assert a["dcf"]["ok"] is True

@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from .beta import BENCHMARK
 from .fundamentals import ALL_CONCEPTS
 from .http import Fetcher, FetchError
 from .market import Market
@@ -58,6 +59,11 @@ def refresh(
             done["_rates"] = market.refresh_rates()
         except (FetchError, ParseError) as e:
             failed["_rates"] = str(e)
+    # The market benchmark, for betas. Not a company, so no filings.
+    try:
+        done["_benchmark"] = market.refresh_prices(BENCHMARK, today - timedelta(days=PRICE_HISTORY_DAYS))
+    except (FetchError, ParseError) as e:
+        failed["_benchmark"] = str(e)
     for t in tickers:
         try:
             info = sec.refresh_company(t, ALL_CONCEPTS)

@@ -10,9 +10,10 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from keers.valuation import kci_v1_defaults
+from keers.valuation import kci_v1_defaults, kci_v2_defaults
 
 from . import fundamentals as F
+from .beta import beta
 from .models import Kind, Value, missing
 from .store import Store
 
@@ -145,6 +146,8 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     else:
         v["ev"] = missing("USDm", "enterprise value: market cap or net debt missing")
 
+    v["beta"] = beta(store, ticker, as_of)
+
     for series in ("DGS10", "BAA10Y"):
         r = store.last_rate(series, as_of)
         v[f"rate_{series}"] = (
@@ -186,6 +189,10 @@ def check(snap: Snapshot) -> None:
         snap.warnings += [f"{k}: {w}" for w in val.warnings if f"{k}: {w}" not in snap.warnings]
 
 
+def _pct(v: float | None) -> float | None:
+    return v / 100 if v is not None else None
+
+
 def to_kci_deal(snap: Snapshot) -> dict[str, Any]:
     """Map a snapshot to the deal record KCI's ``analyse`` reads (USD millions)."""
 
@@ -206,6 +213,9 @@ def to_kci_deal(snap: Snapshot) -> dict[str, Any]:
         "ev": val("ev"),
         "netDebt": val("netDebt"),
         "revenueGrowth": val("revenueGrowth"),
+        "beta": val("beta"),
+        # FRED quotes percent; the engine takes decimals.
+        "riskFree": _pct(val("rate_DGS10")),
         # Live filings are not independently cross-checked yet, so they are never labelled "verified".
         "dataStatus": "filed",
         "reportingPeriod": f"TTM to {snap.values['revenue'].period_end}"
@@ -223,8 +233,12 @@ def to_kci_deal(snap: Snapshot) -> dict[str, Any]:
     }
 
 
-def analyse(snap: Snapshot) -> dict[str, Any]:
-    """Run KCI v1 on a live snapshot, unless the snapshot is blocked."""
+ENGINES = {"kci-v1": kci_v1_defaults.analyse, "kci-v2": kci_v2_defaults.analyse}
+DEFAULT_CALC_VERSION = "kci-v2"
+
+
+def analyse(snap: Snapshot, calc_version: str = DEFAULT_CALC_VERSION) -> dict[str, Any]:
+    """Run a calculation version (default ``kci-v2``) on a live snapshot, unless the snapshot is blocked."""
     if snap.blocked:
         return {
             "ticker": snap.ticker,
@@ -234,4 +248,4 @@ def analyse(snap: Snapshot) -> dict[str, Any]:
         }
     deal = to_kci_deal(snap)
     return {"ticker": snap.ticker, "asOf": snap.as_of.isoformat(), "ran": True, "deal": deal,
-            "analysis": kci_v1_defaults.analyse(deal)}  # fmt: skip
+            "calcVersion": calc_version, "analysis": ENGINES[calc_version](deal)}  # fmt: skip

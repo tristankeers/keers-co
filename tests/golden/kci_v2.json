@@ -1,0 +1,1720 @@
+[
+ {
+  "baseIrr": 0.042067432206987915,
+  "baseMoic": 1.228794094184911,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 38.27011389616575,
+  "exitMultiple": 29.36,
+  "id": "us-aapl",
+  "lboErrors": [],
+  "score": 72.65777777777778,
+  "ticker": "AAPL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.08069474792378953,
+  "baseMoic": 1.4740601454250695,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 12.952087701612903,
+  "exitMultiple": 9.99,
+  "id": "us-adbe",
+  "lboErrors": [],
+  "score": 80.33720529669455,
+  "ticker": "ADBE",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.01791153656641882,
+  "baseMoic": 1.092823895091744,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 22.706076443057725,
+  "exitMultiple": 17.51,
+  "id": "us-adp",
+  "lboErrors": [],
+  "score": 64.71004361936056,
+  "ticker": "ADP",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07152173006359788,
+  "baseMoic": 1.4125535274060506,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 27.140135371179042,
+  "exitMultiple": 20.81,
+  "id": "us-adsk",
+  "lboErrors": [],
+  "score": 75.27629154186278,
+  "ticker": "ADSK",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.007162707571612083,
+  "baseMoic": 1.0363302696183871,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 20.23371296296296,
+  "exitMultiple": 16.57,
+  "id": "us-akam",
+  "lboErrors": [],
+  "score": 41.504741328630224,
+  "ticker": "AKAM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05456246075941068,
+  "baseMoic": 1.3042520814701195,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 123.88506589958159,
+  "exitMultiple": 95.08,
+  "id": "us-amd",
+  "lboErrors": [],
+  "score": 68.3547367899987,
+  "ticker": "AMD",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.059618100118018685,
+  "baseMoic": 1.3358166150289017,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 66.1776853448276,
+  "exitMultiple": 50.24,
+  "id": "us-anet",
+  "lboErrors": [],
+  "score": 77.77777777777777,
+  "ticker": "ANET",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.025242610419475058,
+  "baseMoic": 0.880000018278894,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 4.262819930069931,
+  "exitMultiple": 3.42,
+  "id": "us-apa",
+  "lboErrors": [],
+  "score": 68.70740370740371,
+  "ticker": "APA",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.09466616336047906,
+  "baseMoic": 1.5718404842144438,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 21.16937707948244,
+  "exitMultiple": 16.3,
+  "id": "us-app",
+  "lboErrors": [],
+  "score": 73.10659272951325,
+  "ticker": "APP",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.04984434295952976,
+  "baseMoic": 1.2753358324082458,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 308.55804716981135,
+  "exitMultiple": 236.61,
+  "id": "us-arm",
+  "lboErrors": [],
+  "score": 56.443000387712985,
+  "ticker": "ARM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.06651534685977081,
+  "baseMoic": 1.379861654488219,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 37.5356245144189,
+  "exitMultiple": 29.16,
+  "id": "us-avav",
+  "lboErrors": [],
+  "score": 47.115374892183766,
+  "ticker": "AVAV",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07303358667962115,
+  "baseMoic": 1.4225468537522061,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 41.56611327975507,
+  "exitMultiple": 32.11,
+  "id": "us-avgo",
+  "lboErrors": [],
+  "score": 76.50210486031382,
+  "ticker": "AVGO",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05050757483171947,
+  "baseMoic": 1.2785565280024938,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 268.23887105565984,
+  "exitMultiple": 207.96,
+  "id": "us-axon",
+  "lboErrors": [],
+  "score": 22.364044168391995,
+  "ticker": "AXON",
+  "wacc": null
+ },
+ {
+  "baseIrr": null,
+  "baseMoic": null,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": null,
+  "exitMultiple": null,
+  "id": "us-ba",
+  "lboErrors": [
+   "Entry EBITDA must be positive",
+   "Entry multiple must be positive",
+   "Exit multiple must be positive"
+  ],
+  "score": 44.44444444444444,
+  "ticker": "BA",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.04306866649462751,
+  "baseMoic": 0.8024239381180246,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 14.60232644628099,
+  "exitMultiple": 11.2,
+  "id": "us-bkr",
+  "lboErrors": [],
+  "score": 49.29383509590582,
+  "ticker": "BKR",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.044320229975503486,
+  "baseMoic": 1.2421340154111526,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 32.65570545851062,
+  "exitMultiple": 25.67,
+  "id": "us-bsy",
+  "lboErrors": [],
+  "score": 65.24731387742642,
+  "ticker": "BSY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.039355876132464135,
+  "baseMoic": 1.2128898974247688,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 54.28361574074074,
+  "exitMultiple": 41.88,
+  "id": "us-cdns",
+  "lboErrors": [],
+  "score": 71.91440329218108,
+  "ticker": "CDNS",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.046162986932091046,
+  "baseMoic": 1.2531318072988278,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 15.153995024875623,
+  "exitMultiple": 12.35,
+  "id": "us-cdw",
+  "lboErrors": [],
+  "score": 40.11062920229428,
+  "ticker": "CDW",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03886431173959572,
+  "baseMoic": 1.2100244217643719,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 8.86642569081404,
+  "exitMultiple": 6.95,
+  "id": "us-cop",
+  "lboErrors": [],
+  "score": 75.5287571998899,
+  "ticker": "COP",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05084904917249733,
+  "baseMoic": 1.2814500372655018,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 22.863776744186044,
+  "exitMultiple": 18.14,
+  "id": "us-crm",
+  "lboErrors": [],
+  "score": 63.93234997061611,
+  "ticker": "CRM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.047282563656346185,
+  "baseMoic": 1.2588757406795519,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 3015.0456672281493,
+  "exitMultiple": 2310.2,
+  "id": "us-crwd",
+  "lboErrors": [],
+  "score": 33.333333333333336,
+  "ticker": "CRWD",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03513896201478062,
+  "baseMoic": 1.1884838303101717,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 32.06608261802575,
+  "exitMultiple": 24.86,
+  "id": "us-csco",
+  "lboErrors": [],
+  "score": 68.01190671356018,
+  "ticker": "CSCO",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.0615840921408191,
+  "baseMoic": 1.348254908188237,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 9.313532178217821,
+  "exitMultiple": 7.22,
+  "id": "us-ctsh",
+  "lboErrors": [],
+  "score": 68.58312345159347,
+  "ticker": "CTSH",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03836848670633082,
+  "baseMoic": 1.207139598538309,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 67.98795674258562,
+  "exitMultiple": 52.26,
+  "id": "us-cvlt",
+  "lboErrors": [],
+  "score": 51.5343533697632,
+  "ticker": "CVLT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.049861004917782115,
+  "baseMoic": 1.2754370391600571,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 11.603328859060403,
+  "exitMultiple": 9.06,
+  "id": "us-cvx",
+  "lboErrors": [],
+  "score": 67.59768853213785,
+  "ticker": "CVX",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.004648130719716044,
+  "baseMoic": 1.0234577113582186,
+  "customModel": true,
+  "dcfErrors": [],
+  "dcfEv": 7491.539458905969,
+  "decision": "Pass",
+  "entryMultiple": 15.41695772612309,
+  "exitMultiple": 12.55,
+  "id": "us-dbx",
+  "lboErrors": [],
+  "score": 56.22853747641415,
+  "ticker": "DBX",
+  "wacc": 0.08852499999999999
+ },
+ {
+  "baseIrr": 0.04722309788112687,
+  "baseMoic": 1.25935107204677,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 1454.4566948130278,
+  "exitMultiple": 1108.49,
+  "id": "us-ddog",
+  "lboErrors": [],
+  "score": 38.902291917973464,
+  "ticker": "DDOG",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.0819349158090244,
+  "baseMoic": 1.4825374817042714,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 23.402121827411168,
+  "exitMultiple": 18.31,
+  "id": "us-dell",
+  "lboErrors": [],
+  "score": 52.07054226089759,
+  "ticker": "DELL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.005063426398409584,
+  "baseMoic": 1.0255748163236256,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 40.03844673383902,
+  "exitMultiple": 30.49,
+  "id": "us-docu",
+  "lboErrors": [],
+  "score": 44.52548330515018,
+  "ticker": "DOCU",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.023665263465742187,
+  "baseMoic": 1.1240608760069668,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 24.53390342052314,
+  "exitMultiple": 18.87,
+  "id": "us-drs",
+  "lboErrors": [],
+  "score": 46.34335518105694,
+  "ticker": "DRS",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05775658596126412,
+  "baseMoic": 1.3172996660510745,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 9.592876681614351,
+  "exitMultiple": 7.66,
+  "id": "us-dvn",
+  "lboErrors": [],
+  "score": 70.0329917510934,
+  "ticker": "DVN",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.12956331992687842,
+  "baseMoic": 1.8388779530103174,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 7.408067586206896,
+  "exitMultiple": 5.75,
+  "id": "us-eog",
+  "lboErrors": [],
+  "score": 86.46385112205803,
+  "ticker": "EOG",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.17239043225745176,
+  "baseMoic": 2.214936743880761,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": 7.710184005452013,
+  "exitMultiple": 6.24,
+  "id": "us-eqt",
+  "lboErrors": [],
+  "score": 87.51529955842182,
+  "ticker": "EQT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.21749808578733054,
+  "baseMoic": 2.6751087095898374,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": 4.615957543593632,
+  "exitMultiple": 3.66,
+  "id": "us-exe",
+  "lboErrors": [],
+  "score": 89.88211367438053,
+  "ticker": "EXE",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.16519492334571068,
+  "baseMoic": 2.1477954542931768,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": 7.135490662139219,
+  "exitMultiple": 5.73,
+  "id": "us-fang",
+  "lboErrors": [],
+  "score": 85.86395528846009,
+  "ticker": "FANG",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.015715596596550183,
+  "baseMoic": 1.0810869030789023,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 34.9922343766923,
+  "exitMultiple": 26.58,
+  "id": "us-ffiv",
+  "lboErrors": [],
+  "score": 66.02473313192347,
+  "ticker": "FFIV",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05410342612540342,
+  "baseMoic": 1.301415948385824,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 66.1722923076923,
+  "exitMultiple": 50.59,
+  "id": "us-ftnt",
+  "lboErrors": [],
+  "score": 76.50953601953603,
+  "ticker": "FTNT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.030236143837632526,
+  "baseMoic": 1.160603593637375,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 18.50326395173454,
+  "exitMultiple": 14.41,
+  "id": "us-gd",
+  "lboErrors": [],
+  "score": 44.34024723884774,
+  "ticker": "GD",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05206627662240518,
+  "baseMoic": 1.2888889453931782,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 14.24126811594203,
+  "exitMultiple": 11.39,
+  "id": "us-gddy",
+  "lboErrors": [],
+  "score": 65.51661730500038,
+  "ticker": "GDDY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.18668894384400592,
+  "baseMoic": 2.3533389384411807,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": 10.0092030651341,
+  "exitMultiple": 8.37,
+  "id": "us-gen",
+  "lboErrors": [],
+  "score": 85.21337685066932,
+  "ticker": "GEN",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05910597102885852,
+  "baseMoic": 1.331805125766712,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 31.395505601755602,
+  "exitMultiple": 23.99,
+  "id": "us-googl",
+  "lboErrors": [],
+  "score": 61.95371195371195,
+  "ticker": "GOOGL",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.014809341171154063,
+  "baseMoic": 0.9281142204496774,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 10.07418115942029,
+  "exitMultiple": 8.09,
+  "id": "us-hal",
+  "lboErrors": [],
+  "score": 55.53333368099455,
+  "ticker": "HAL",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.03864374961838128,
+  "baseMoic": 0.821148627555326,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 20.11554800339847,
+  "exitMultiple": 16.78,
+  "id": "us-hcat",
+  "lboErrors": [],
+  "score": 16.599910992434356,
+  "ticker": "HCAT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.06392879796462045,
+  "baseMoic": 1.3632101835159873,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 14.075418803418804,
+  "exitMultiple": 11.4,
+  "id": "us-hii",
+  "lboErrors": [],
+  "score": 43.39598313397993,
+  "ticker": "HII",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07741691851758012,
+  "baseMoic": 1.4518406587052208,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 13.07894829612221,
+  "exitMultiple": 10.76,
+  "id": "us-hon",
+  "lboErrors": [],
+  "score": 61.84757588404735,
+  "ticker": "HON",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.09030714810995438,
+  "baseMoic": 1.5407930000856978,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 17.854252539912917,
+  "exitMultiple": 14.21,
+  "id": "us-hpe",
+  "lboErrors": [],
+  "score": 51.78123869072042,
+  "ticker": "HPE",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.021748368096078594,
+  "baseMoic": 1.1135757470337877,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 28.596213808463254,
+  "exitMultiple": 21.74,
+  "id": "us-hstm",
+  "lboErrors": [],
+  "score": 50.00701323146764,
+  "ticker": "HSTM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.037040928331055434,
+  "baseMoic": 1.19944264022277,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 20.879771098967822,
+  "exitMultiple": 16.86,
+  "id": "us-ibm",
+  "lboErrors": [],
+  "score": 52.46260591818968,
+  "ticker": "IBM",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.009556105046962592,
+  "baseMoic": 0.9536157618158279,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 39.90641448931117,
+  "exitMultiple": 30.98,
+  "id": "us-intc",
+  "lboErrors": [],
+  "score": 48.66181292084593,
+  "ticker": "INTC",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07354772488159073,
+  "baseMoic": 1.425958149097719,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 16.91991386861314,
+  "exitMultiple": 13.06,
+  "id": "us-intu",
+  "lboErrors": [],
+  "score": 74.28960259529603,
+  "ticker": "INTU",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.008961110905589462,
+  "baseMoic": 0.9559902968392662,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 12.978442028985507,
+  "exitMultiple": 10.29,
+  "id": "us-it",
+  "lboErrors": [],
+  "score": 57.201714568698904,
+  "ticker": "IT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05291709205593656,
+  "baseMoic": 1.2941090619260598,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 16.86916492146597,
+  "exitMultiple": 13.95,
+  "id": "us-kmi",
+  "lboErrors": [],
+  "score": 52.01154547217375,
+  "ticker": "KMI",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.036446079741503615,
+  "baseMoic": 1.1934809424415027,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 96.00264367816091,
+  "exitMultiple": 70.56,
+  "id": "us-ktos",
+  "lboErrors": [],
+  "score": 34.1374269005848,
+  "ticker": "KTOS",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.04756534460079909,
+  "baseMoic": 1.261553328068991,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 10.714781512605041,
+  "exitMultiple": 8.81,
+  "id": "us-ldos",
+  "lboErrors": [],
+  "score": 52.07511594188315,
+  "ticker": "LDOS",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03907398975563865,
+  "baseMoic": 1.21124603441624,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 16.353205314009664,
+  "exitMultiple": 13.11,
+  "id": "us-lhx",
+  "lboErrors": [],
+  "score": 49.91950114250285,
+  "ticker": "LHX",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.023908364494964036,
+  "baseMoic": 1.125396225482848,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 18.238901859504132,
+  "exitMultiple": 14.43,
+  "id": "us-lmt",
+  "lboErrors": [],
+  "score": 41.46115351229917,
+  "ticker": "LMT",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.0038288083705997483,
+  "baseMoic": 0.9810019956594093,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 59.070570726473534,
+  "exitMultiple": 45.34,
+  "id": "us-manh",
+  "lboErrors": [],
+  "score": 60.836696165191746,
+  "ticker": "MANH",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.04473658498762126,
+  "baseMoic": 1.2440860686906197,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 2523.680866425993,
+  "exitMultiple": 1901.97,
+  "id": "us-mdb",
+  "lboErrors": [],
+  "score": 39.31579852157469,
+  "ticker": "MDB",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.06416362523554667,
+  "baseMoic": 1.3624158838119305,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 22.40316979755608,
+  "exitMultiple": 17.28,
+  "id": "us-meta",
+  "lboErrors": [],
+  "score": 60.705817982856104,
+  "ticker": "META",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07981423490557715,
+  "baseMoic": 1.4680648546300528,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 13.028123376623377,
+  "exitMultiple": 10.42,
+  "id": "us-mpc",
+  "lboErrors": [],
+  "score": 52.089743461358154,
+  "ticker": "MPC",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.000779186281350863,
+  "baseMoic": 0.9961101351794789,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 78.10563731603891,
+  "exitMultiple": 60.92,
+  "id": "us-mrcy",
+  "lboErrors": [],
+  "score": 26.85975602114085,
+  "ticker": "MRCY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05779548640536471,
+  "baseMoic": 1.3243676011871632,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 96.97092631578948,
+  "exitMultiple": 74.7,
+  "id": "us-mrvl",
+  "lboErrors": [],
+  "score": 75.17014759120022,
+  "ticker": "MRVL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05560661422079104,
+  "baseMoic": 1.310721773126754,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 27.09661563014827,
+  "exitMultiple": 20.9,
+  "id": "us-msft",
+  "lboErrors": [],
+  "score": 63.40935265814178,
+  "ticker": "MSFT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.11747214051507787,
+  "baseMoic": 1.7425430775403559,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 11.959470599044469,
+  "exitMultiple": 9.05,
+  "id": "us-mu",
+  "lboErrors": [],
+  "score": 85.66002160347989,
+  "ticker": "MU",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.025416590044336454,
+  "baseMoic": 1.1337092698699518,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 14.682,
+  "exitMultiple": 11.75,
+  "id": "us-noc",
+  "lboErrors": [],
+  "score": 49.58868872492001,
+  "ticker": "NOC",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.059083143716425895,
+  "baseMoic": 1.3324480312594627,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 69.45727931034482,
+  "exitMultiple": 53.57,
+  "id": "us-now",
+  "lboErrors": [],
+  "score": 61.382624887084475,
+  "ticker": "NOW",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03739873039822583,
+  "baseMoic": 1.2015132397945034,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 26.520142857142858,
+  "exitMultiple": 20.28,
+  "id": "us-ntap",
+  "lboErrors": [],
+  "score": 68.63025379028471,
+  "ticker": "NTAP",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.020272649959293655,
+  "baseMoic": 1.105557217712497,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 63.8237714839022,
+  "exitMultiple": 48.57,
+  "id": "us-ntnx",
+  "lboErrors": [],
+  "score": 49.732434415876426,
+  "ticker": "NTNX",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07601994737766277,
+  "baseMoic": 1.4424528032001405,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 33.74308481144731,
+  "exitMultiple": 25.92,
+  "id": "us-nvda",
+  "lboErrors": [],
+  "score": 77.77777777777777,
+  "ticker": "NVDA",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.01099180474582426,
+  "baseMoic": 1.056180574864511,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 143.0523676012461,
+  "exitMultiple": 108.43,
+  "id": "us-okta",
+  "lboErrors": [],
+  "score": 48.257806731813254,
+  "ticker": "OKTA",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.0029037467307341763,
+  "baseMoic": 0.9855653393197007,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 24.43988805062059,
+  "exitMultiple": 18.55,
+  "id": "us-omcl",
+  "lboErrors": [],
+  "score": 31.906706810833363,
+  "ticker": "OMCL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.062037528575801595,
+  "baseMoic": 1.3374782858062526,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 19.227666860296253,
+  "exitMultiple": 15.68,
+  "id": "us-orcl",
+  "lboErrors": [],
+  "score": 52.58689127698712,
+  "ticker": "ORCL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.16891790090398384,
+  "baseMoic": 2.1823281139832615,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 6.579963556851312,
+  "exitMultiple": 5.24,
+  "id": "us-oxy",
+  "lboErrors": [],
+  "score": 87.58072983993296,
+  "ticker": "OXY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.051445002470141346,
+  "baseMoic": 1.2850878150424192,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 252.07978846153844,
+  "exitMultiple": 193.83,
+  "id": "us-panw",
+  "lboErrors": [],
+  "score": 55.20861252568569,
+  "ticker": "PANW",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.07332163348116807,
+  "baseMoic": 1.4244572325529832,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 17.4795487012987,
+  "exitMultiple": 13.72,
+  "id": "us-payx",
+  "lboErrors": [],
+  "score": 70.44117043450377,
+  "ticker": "PAYX",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.051952693669390204,
+  "baseMoic": 1.288193341845415,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 232.01575939849624,
+  "exitMultiple": 177.68,
+  "id": "us-pltr",
+  "lboErrors": [],
+  "score": 77.77777777777777,
+  "ticker": "PLTR",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.092938664565274,
+  "baseMoic": 1.5594769165736657,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 22.320195312499997,
+  "exitMultiple": 17.39,
+  "id": "us-ptc",
+  "lboErrors": [],
+  "score": 75.16319444444444,
+  "ticker": "PTC",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.021176805642274636,
+  "baseMoic": 0.8985065751841669,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 21.213359166666667,
+  "exitMultiple": 16.45,
+  "id": "us-qcom",
+  "lboErrors": [],
+  "score": 55.73632608296326,
+  "ticker": "QCOM",
+  "wacc": null
+ },
+ {
+  "baseIrr": null,
+  "baseMoic": null,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": null,
+  "exitMultiple": null,
+  "id": "us-qubt",
+  "lboErrors": [
+   "Entry EBITDA must be positive",
+   "Entry multiple must be positive",
+   "Exit multiple must be positive"
+  ],
+  "score": 44.44444444444444,
+  "ticker": "QUBT",
+  "wacc": null
+ },
+ {
+  "baseIrr": null,
+  "baseMoic": null,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": null,
+  "exitMultiple": null,
+  "id": "us-rgti",
+  "lboErrors": [
+   "Entry EBITDA must be positive",
+   "Entry multiple must be positive",
+   "Exit multiple must be positive"
+  ],
+  "score": 44.44444444444444,
+  "ticker": "RGTI",
+  "wacc": null
+ },
+ {
+  "baseIrr": null,
+  "baseMoic": null,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": null,
+  "exitMultiple": null,
+  "id": "us-rklb",
+  "lboErrors": [
+   "Entry EBITDA must be positive",
+   "Entry multiple must be positive",
+   "Exit multiple must be positive"
+  ],
+  "score": 44.44444444444444,
+  "ticker": "RKLB",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.0448619654743653,
+  "baseMoic": 1.2453591113607745,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 22.469545911949687,
+  "exitMultiple": 17.73,
+  "id": "us-rtx",
+  "lboErrors": [],
+  "score": 50.004280594646865,
+  "ticker": "RTX",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.009509966385621092,
+  "baseMoic": 0.9533460027366218,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 13.859399728997289,
+  "exitMultiple": 10.93,
+  "id": "us-slb",
+  "lboErrors": [],
+  "score": 51.803884124589864,
+  "ticker": "SLB",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.12741051564842742,
+  "baseMoic": 1.8214212807796324,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 11.24555980454642,
+  "exitMultiple": 8.75,
+  "id": "us-smci",
+  "lboErrors": [],
+  "score": 64.50126601086362,
+  "ticker": "SMCI",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.06786562677147889,
+  "baseMoic": 1.3886187873708753,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 60.96085576923077,
+  "exitMultiple": 47.7,
+  "id": "us-snps",
+  "lboErrors": [],
+  "score": 61.254173698441214,
+  "ticker": "SNPS",
+  "wacc": null
+ },
+ {
+  "baseIrr": null,
+  "baseMoic": null,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Further Research",
+  "entryMultiple": null,
+  "exitMultiple": null,
+  "id": "us-soun",
+  "lboErrors": [
+   "Entry EBITDA must be positive",
+   "Entry multiple must be positive",
+   "Exit multiple must be positive"
+  ],
+  "score": 44.44444444444444,
+  "ticker": "SOUN",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.0912340965738519,
+  "baseMoic": 1.547353840601887,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 21.656611764705882,
+  "exitMultiple": 18.05,
+  "id": "us-tdg",
+  "lboErrors": [],
+  "score": 63.662222222222226,
+  "ticker": "TDG",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.05368887252307489,
+  "baseMoic": 1.2988588820036224,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 154.31861408373246,
+  "exitMultiple": 118.7,
+  "id": "us-team",
+  "lboErrors": [],
+  "score": 51.824623710468465,
+  "ticker": "TEAM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.06446522001255428,
+  "baseMoic": 1.36665023400324,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 48.425153333333334,
+  "exitMultiple": 37.19,
+  "id": "us-ter",
+  "lboErrors": [],
+  "score": 75.9520634920635,
+  "ticker": "TER",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.0683322805898583,
+  "baseMoic": 1.3916555498690057,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 42.5553203252471,
+  "exitMultiple": 32.66,
+  "id": "us-tpl",
+  "lboErrors": [],
+  "score": 77.70390176234376,
+  "ticker": "TPL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03910691591574837,
+  "baseMoic": 1.2114379563029192,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 65.26969341161121,
+  "exitMultiple": 50.54,
+  "id": "us-ttwo",
+  "lboErrors": [],
+  "score": 45.90084695179954,
+  "ticker": "TTWO",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.047752092613413996,
+  "baseMoic": 1.2626782058199986,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 11.474369047619048,
+  "exitMultiple": 9.21,
+  "id": "us-txt",
+  "lboErrors": [],
+  "score": 50.46417344715665,
+  "ticker": "TXT",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.012518943846519668,
+  "baseMoic": 1.0641817020903972,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 41.705051033760796,
+  "exitMultiple": 32.32,
+  "id": "us-tyl",
+  "lboErrors": [],
+  "score": 52.586047835422534,
+  "ticker": "TYL",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.08080482133131794,
+  "baseMoic": 1.4748109951938289,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 12.682176382660687,
+  "exitMultiple": 9.82,
+  "id": "us-vlo",
+  "lboErrors": [],
+  "score": 58.90216386106666,
+  "ticker": "VLO",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.011655610992734794,
+  "baseMoic": 1.0596525146682485,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 30.83521848739496,
+  "exitMultiple": 23.97,
+  "id": "us-vrsn",
+  "lboErrors": [],
+  "score": 63.651465919701224,
+  "ticker": "VRSN",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.10701871897881252,
+  "baseMoic": 1.6625504120908288,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 18.395889495633742,
+  "exitMultiple": 14.84,
+  "id": "us-way",
+  "lboErrors": [],
+  "score": 70.30563588067423,
+  "ticker": "WAY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.03605251177305119,
+  "baseMoic": 1.1937375076464487,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 37.43013836477987,
+  "exitMultiple": 28.85,
+  "id": "us-wday",
+  "lboErrors": [],
+  "score": 54.23664950686196,
+  "ticker": "WDAY",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.02408263832468195,
+  "baseMoic": 1.1263542891657996,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 14.394792905504858,
+  "exitMultiple": 11.18,
+  "id": "us-xom",
+  "lboErrors": [],
+  "score": 54.20505083582179,
+  "ticker": "XOM",
+  "wacc": null
+ },
+ {
+  "baseIrr": -0.008883310859579965,
+  "baseMoic": 0.9563655987964278,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 21.536796992481204,
+  "exitMultiple": 15.32,
+  "id": "us-zm",
+  "lboErrors": [],
+  "score": 60.761451792473835,
+  "ticker": "ZM",
+  "wacc": null
+ },
+ {
+  "baseIrr": 0.040803670372972695,
+  "baseMoic": 1.2170661696021372,
+  "customModel": false,
+  "dcfErrors": [
+   "Beta is required"
+  ],
+  "dcfEv": null,
+  "decision": "Pass",
+  "entryMultiple": 1028.9548460661345,
+  "exitMultiple": 783.08,
+  "id": "us-zs",
+  "lboErrors": [],
+  "score": 33.333333333333336,
+  "ticker": "ZS",
+  "wacc": null
+ }
+]

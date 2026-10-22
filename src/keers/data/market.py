@@ -71,7 +71,8 @@ def parse_tiingo_json(doc: Any, ticker: str, raw_sha256: str) -> list[PricePoint
         try:
             out.append(
                 PricePoint(ticker.upper(), date.fromisoformat(str(r["date"])[:10]), float(r["close"]), "tiingo",
-                           r.get("open"), r.get("high"), r.get("low"), r.get("volume"), raw_sha256)
+                           r.get("open"), r.get("high"), r.get("low"), r.get("volume"), raw_sha256,
+                           float(r["adjClose"]) if r.get("adjClose") is not None else None)
             )  # fmt: skip
         except (KeyError, TypeError, ValueError) as e:
             raise ParseError(f"tiingo {ticker}: bad row {r!r}") from e

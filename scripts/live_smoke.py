@@ -20,6 +20,8 @@ from keers.data.http import Fetcher
 from keers.data.refresh import refresh, user_agent
 from keers.data.sec import FACTS_URL, concept_inventory
 from keers.data.store import Store
+from keers.valuation import kci_v1_defaults as V1
+from keers.valuation import kci_v2_defaults as V2
 
 AS_OF = date(2026, 10, 15)
 TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY"]
@@ -39,6 +41,7 @@ CHECKS = [
     ("INTU", "netDebtInclLeases", 1220.0, 0.05),
     ("WDAY", "netDebtInclLeases", 370.0, 0.05),
 ]
+BETA_RANGE = (0.3, 3.0)  # sanity bounds: every company here must get a measured beta inside them
 
 
 def main() -> int:
@@ -98,6 +101,25 @@ def main() -> int:
                 f"CHECK {t} {field}: live {got} vs KCI {want} (tolerance {tol:.1%}) -> {'PASS' if good else 'FAIL'}"
             )
             ok = ok and good
+        b = snap.values.get("beta")
+        good = b is not None and b.known and BETA_RANGE[0] <= (b.value or 0) <= BETA_RANGE[1]
+        print(
+            f"CHECK {t} beta: {b.value if b else None} ({b.method if b else 'not computed'}) -> {'PASS' if good else 'FAIL'}"
+        )
+        ok = ok and good
+        if not snap.blocked:
+            deal = snapshot.to_kci_deal(snap)
+            for name, mod in (("kci-v1", V1), ("kci-v2", V2)):
+                a = mod.analyse(deal)
+                base = a["scenarios"]["base"]["result"]
+                dcf = a["dcf"]
+                print(
+                    f"    {name}: entry {base['entry']['entryMultiple']:.2f}x, base IRR {base['returns']['irr']:.1%}, "
+                    f"WACC {a['wacc']['value']:.2%}, DCF EV / market EV "
+                    f"{dcf['primary']['ev'] / deal['ev']:.0%}, verdict {a['rec']['decision']}"
+                    if base["ok"] and dcf["ok"] and a["wacc"]["ok"]
+                    else f"    {name}: LBO {base.get('errors')} DCF {dcf.get('errors')}"
+                )
     print(f"\n{'ticker':6} {'field':8} {'live':>12} {'KCI':>12} {'diff':>8}  period end")
     for t, f, lv, kv, d, pe in rows:
         ls = f"{lv:,.1f}" if lv is not None else "—"
