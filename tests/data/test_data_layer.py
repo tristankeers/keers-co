@@ -274,6 +274,21 @@ def test_refresh_records_failures_and_keeps_good_companies() -> None:
     assert store.raw(snap.values["price"].sources[0]["raw_sha256"]) is not None  # raw bytes kept
 
 
+def test_refresh_reports_the_price_source_of_every_ticker() -> None:
+    from keers.data.refresh import price_report
+
+    store = Store(":memory:")
+    res = refresh(store, ["EXW"], fake_network(set()), today=date(2025, 11, 10), sources=("yahoo",))
+    assert res["priceSources"] == {"SPY": "yahoo", "EXW": "yahoo"}
+    assert store.runs(1)[0].detail["priceSources"] == res["priceSources"]
+    assert price_report(res) == {"bySource": {"yahoo": 2}, "tickers": res["priceSources"], "fallbacks": {}}
+    # Yahoo down: the fallback source is named for each ticker, with the reason.
+    res = refresh(store, ["EXW"], fake_network({"finance.yahoo.com"}), today=date(2025, 11, 10),
+                  sources=("yahoo", "stooq"))  # fmt: skip
+    rep = price_report(res)
+    assert rep["bySource"] == {"stooq": 2} and "HTTP 404" in rep["fallbacks"]["EXW"]["failed"]["yahoo"]
+
+
 # balance dates (found in the first live run: an old total-debt figure was used in place of the current one) ----
 def test_old_balance_is_never_used_for_the_current_period() -> None:
     old_total = ("us-gaap", "LongTermDebt", "USD", None, "2022-12-31", 9999 * fx.M,

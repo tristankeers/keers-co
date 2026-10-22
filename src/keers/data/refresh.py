@@ -76,14 +76,38 @@ def refresh(
         except (FetchError, ParseError, KeyError) as e:
             failed[t] = str(e)
     status = "ok" if not failed else ("partial" if done else "failed")
-    # A price that came from a fallback source is reported, never passed silently.
+    # Which source priced each ticker, and any fallback: reported on every run, never passed silently.
+    priced: dict[str, str] = {}
     fallbacks = {}
     for k, v in done.items():
         px = v if k == "_benchmark" else v.get("prices", {}) if isinstance(v, dict) else {}
-        if isinstance(px, dict) and px.get("fallbackFrom"):
-            fallbacks[k] = {"used": px["source"], "failed": px["fallbackFrom"]}
-    detail = {"ok": sorted(k for k in done if not k.startswith("_")), "failed": failed, "count": len(tickers)}
+        if not isinstance(px, dict) or "source" not in px:
+            continue
+        name = BENCHMARK if k == "_benchmark" else k
+        priced[name] = px["source"]
+        if px.get("fallbackFrom"):
+            fallbacks[name] = {"used": px["source"], "failed": px["fallbackFrom"]}
+    detail = {"ok": sorted(k for k in done if not k.startswith("_")), "failed": failed, "count": len(tickers),
+              "priceSources": priced}  # fmt: skip
     if fallbacks:
         detail["priceFallbacks"] = fallbacks
     store.finish_run(run, status, detail)
-    return {"status": status, "done": done, "failed": failed, "priceFallbacks": fallbacks}
+    return {
+        "status": status,
+        "done": done,
+        "failed": failed,
+        "priceSources": priced,
+        "priceFallbacks": fallbacks,
+    }
+
+
+def price_report(res: dict[str, Any]) -> dict[str, Any]:
+    """The price-source part of a refresh result, for logs: a count per source, each ticker's source, fallbacks."""
+    counts: dict[str, int] = {}
+    for src in res["priceSources"].values():
+        counts[src] = counts.get(src, 0) + 1
+    return {
+        "bySource": dict(sorted(counts.items())),
+        "tickers": res["priceSources"],
+        "fallbacks": res["priceFallbacks"],
+    }
