@@ -246,6 +246,11 @@ def fake_network(fail: set[str]) -> Fetcher:
             return fx.as_bytes(fx.submissions())
         if "companyfacts" in url:
             return fx.as_bytes(fx.company_facts(fx.base_rows()))
+        if "finance.yahoo.com" in url:
+            ticker = url.split("/chart/", 1)[1].split("?", 1)[0]
+            # Thu 6 and Fri 7 Nov 2025, 09:30 New York; the session that followed has closed.
+            rows = [(1762439400, 39.0), (1762525800, 40.0)]
+            return fx.as_bytes(fx.yahoo_chart(ticker, rows, 1762549200, (1762525800, 1762549200)))
         if "stooq" in url:
             return fx.as_bytes(fx.stooq_csv([("2025-11-06", 39.0), ("2025-11-07", 40.0)]))
         if "fredgraph" in url:

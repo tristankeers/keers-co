@@ -122,5 +122,40 @@ def fred_csv(series: str, points: list[tuple[str, str]]) -> str:
     return "observation_date," + series + "\n" + "".join(f"{d},{v}\n" for d, v in points)
 
 
+NY = -18000  # New York in November (EST, UTC-5)
+
+
+def yahoo_chart(
+    ticker: str,
+    rows: list[tuple[int, float | None]],
+    market_time: int,
+    session: tuple[int, int] | None,
+    interval: str = "1d",
+    adj: bool = True,
+    delayed: int = 0,
+) -> dict[str, Any]:
+    """A Yahoo v8 chart response in the shape the live endpoint returns. Rows are (unix time, close)."""
+    meta: dict[str, Any] = {
+        "currency": "USD", "symbol": ticker, "exchangeName": "NMS", "gmtoffset": NY,
+        "exchangeTimezoneName": "America/New_York", "regularMarketTime": market_time,
+        "regularMarketPrice": rows[-1][1] if rows else None, "dataGranularity": interval,
+    }  # fmt: skip
+    if delayed:
+        meta["exchangeDataDelayedBy"] = delayed
+    if session:
+        meta["currentTradingPeriod"] = {"regular": {"start": session[0], "end": session[1], "gmtoffset": NY}}
+    closes = [c for _, c in rows]
+    quote = {"open": closes, "high": closes, "low": closes, "close": closes, "volume": [1000] * len(rows)}
+    ind: dict[str, Any] = {"quote": [quote]}
+    if adj:
+        ind["adjclose"] = [{"adjclose": [None if c is None else c * 0.98 for c in closes]}]
+    return {"chart": {"result": [{"meta": meta, "timestamp": [t for t, _ in rows], "indicators": ind}],
+                      "error": None}}  # fmt: skip
+
+
+def yahoo_news(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"explains": [], "count": len(items), "quotes": [], "news": items}
+
+
 def as_bytes(doc: Any) -> bytes:
     return doc.encode() if isinstance(doc, str) else json.dumps(doc).encode()

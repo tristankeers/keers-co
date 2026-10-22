@@ -1,7 +1,7 @@
 """Run the Strategy A distress screen on live data: refresh, screen, print a table, save JSON and Markdown.
 
 Usage: python scripts/distress_screen.py [--as-of YYYY-MM-DD] [--universe FILE | TICKER ...]
-Needs SEC_USER_AGENT; TIINGO_TOKEN for prices. Run in GitHub Actions (the build sandbox cannot reach sec.gov).
+Needs SEC_USER_AGENT. Prices come from Yahoo, with TIINGO_TOKEN as the fallback. Run in GitHub Actions (the build sandbox cannot reach sec.gov).
 """
 
 from __future__ import annotations

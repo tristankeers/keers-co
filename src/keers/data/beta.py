@@ -54,7 +54,7 @@ def beta(store: Store, ticker: str, as_of: date, benchmark: str = BENCHMARK) -> 
         return missing("x", f"beta: last {benchmark} price {bench_daily[-1][0]} is stale")
     s, b = weekly_closes(stock_daily), weekly_closes(bench_daily)
     if s is None or b is None:
-        return missing("x", "beta: prices lack adjusted closes (needs Tiingo)")
+        return missing("x", "beta: prices lack adjusted closes (needs Yahoo or Tiingo)")
     # Only weeks where both traded, and only returns between consecutive weeks.
     weeks = sorted(set(s) & set(b))
     pairs = [(a, c) for a, c in zip(weeks, weeks[1:], strict=False) if _next_week(a) == c]
