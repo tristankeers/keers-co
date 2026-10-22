@@ -84,6 +84,21 @@ NET_BORROWED = tuple(f"us-gaap:{c}" for c in (
     "ProceedsFromRepaymentsOfCommercialPaper", "ProceedsFromRepaymentsOfShortTermDebt", "ProceedsFromRepaymentsOfDebt",
     "ProceedsFromRepaymentsOfLinesOfCredit",
 ))  # fmt: skip
+# Balance-sheet lines for the distress screen (Altman Z and near-term maturities).
+ASSETS = ("us-gaap:Assets",)
+ASSETS_CURRENT = ("us-gaap:AssetsCurrent",)
+LIABILITIES = ("us-gaap:Liabilities",)
+LIABILITIES_CURRENT = ("us-gaap:LiabilitiesCurrent",)
+LIABILITIES_AND_EQUITY = ("us-gaap:LiabilitiesAndStockholdersEquity",)
+RETAINED_EARNINGS = ("us-gaap:RetainedEarningsAccumulatedDeficit",)
+EQUITY = ("us-gaap:StockholdersEquity",)
+EQUITY_INCL_NCI = ("us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",)
+DEBT_DUE_12M = ("us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths",)
+BALANCE_SHEET = (
+    ASSETS + ASSETS_CURRENT + LIABILITIES + LIABILITIES_CURRENT + LIABILITIES_AND_EQUITY + RETAINED_EARNINGS
+    + EQUITY + EQUITY_INCL_NCI + DEBT_DUE_12M
+)  # fmt: skip
+
 ROLLFORWARD_TOLERANCE = 0.15  # of the larger of expected and found debt
 ROLLFORWARD_MIN_USDM = 50.0
 
@@ -95,7 +110,7 @@ DEBT_CONCEPTS = (
 ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
-    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED
+    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET
 )  # fmt: skip
 
 
