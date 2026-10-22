@@ -6,12 +6,14 @@ Only the standard library is used, so the data layer has no third-party runtime 
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlparse
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
@@ -59,6 +61,7 @@ class Fetcher:
             "www.sec.gov": 0.125,
             "data.sec.gov": 0.125,
             "query1.finance.yahoo.com": 0.5,  # unofficial endpoint: stay well clear of its throttling
+            "api.openfigi.com": 12.5,  # OpenFIGI search/filter without a key: 5 requests a minute
         }
         self.retries = retries
         self.timeout = timeout
@@ -83,9 +86,21 @@ class Fetcher:
 
     def get(self, url: str, headers: dict[str, str] | None = None) -> Response:
         """Fetch ``url``. Extra ``headers`` (e.g. an API token) are sent but never stored."""
+        return self._request(url, headers, None)
+
+    def post_json(self, url: str, payload: Any, headers: dict[str, str] | None = None) -> Response:
+        """POST a JSON body. The returned ``Response.url`` is ``url#<request JSON>`` so the stored copy says
+        exactly what was asked for. Extra ``headers`` (e.g. an API key) are sent but never stored."""
+        body = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        resp = self._request(url, {"Content-Type": "application/json", **(headers or {})}, body.encode())
+        return Response(f"{url}#{body}", resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
+
+    def _request(self, url: str, headers: dict[str, str] | None, data: bytes | None) -> Response:
         host = urlparse(url).netloc
         req = urllib.request.Request(  # noqa: S310
-            url, headers={"User-Agent": self.user_agent, "Accept-Encoding": "identity", **(headers or {})}
+            url,
+            data=data,
+            headers={"User-Agent": self.user_agent, "Accept-Encoding": "identity", **(headers or {})},
         )
         delay = 1.0
         last_error = ""

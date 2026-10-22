@@ -6,6 +6,7 @@
 | Treasury and credit rates | FRED | Official, free for research. |
 | Daily share prices | Yahoo Finance, then Tiingo as fallback | Yahoo is unofficial (see below). Tiingo is a licensed API on its free personal plan. |
 | Intraday bars, latest quotes, headlines | Yahoo Finance | Unofficial, personal use only. |
+| Company universe (listings worldwide) | SEC, Nasdaq Trader, OpenFIGI; Yahoo to confirm currency and symbol | See [universe.md](universe.md). OpenFIGI is free and openly licensed; `OPENFIGI_API_KEY` (free) makes it 4× faster. |
 | Stooq | Opt-in only (`KEERS_PRICE_SOURCES=stooq`) | Blocks scripted downloads at the moment. |
 
 ## Yahoo Finance: unofficial, personal use only

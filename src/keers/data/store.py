@@ -17,7 +17,7 @@ from typing import Any
 
 from .models import Fact, Filing, IntradayBar, NewsItem, PricePoint, Quote, RatePoint, RunRecord
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # When two sources have a close for the same day, the snapshot uses the first of these. The source is always
 # cited with the price, so the choice is visible.
@@ -121,6 +121,47 @@ CREATE TABLE IF NOT EXISTS news (
     raw_sha256 TEXT NOT NULL,
     PRIMARY KEY (uuid, source)
 );
+-- The global company universe (keers.universe). One row per listing; ``segment`` is the source batch the row
+-- came from (e.g. "sec-us", "openfigi:LN"), so a failed batch keeps its previous rows instead of vanishing.
+CREATE TABLE IF NOT EXISTS listings (
+    key TEXT PRIMARY KEY,  -- "<MIC>:<local ticker>", e.g. "XLON:VOD"
+    symbol TEXT NOT NULL,  -- Yahoo-style symbol, e.g. "VOD.L"
+    local_ticker TEXT NOT NULL,
+    name TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    mic TEXT NOT NULL,
+    country TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    currency_basis TEXT NOT NULL,
+    cik INTEGER,
+    isin TEXT, figi TEXT, composite_figi TEXT, share_class_figi TEXT, lei TEXT, sector TEXT, industry TEXT,
+    security_type TEXT NOT NULL,
+    coverage TEXT NOT NULL,
+    symbol_basis TEXT NOT NULL,
+    is_primary INTEGER NOT NULL,
+    primary_key TEXT,
+    segment TEXT NOT NULL,
+    source TEXT NOT NULL,
+    as_of TEXT NOT NULL,
+    raw_sha256 TEXT NOT NULL,
+    notes TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS listings_symbol ON listings(symbol);
+CREATE INDEX IF NOT EXISTS listings_segment ON listings(segment);
+CREATE INDEX IF NOT EXISTS listings_share_class ON listings(share_class_figi);
+-- Checks of a listing against Yahoo. Kept apart from ``listings`` so they survive a rebuild.
+CREATE TABLE IF NOT EXISTS listing_checks (
+    key TEXT PRIMARY KEY,
+    checked_at TEXT NOT NULL,
+    status TEXT NOT NULL,  -- ok, not-found, mismatch
+    yahoo_symbol TEXT NOT NULL,
+    currency TEXT,
+    exchange_name TEXT,
+    instrument_type TEXT,
+    yahoo_name TEXT,
+    raw_sha256 TEXT NOT NULL,
+    detail TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL,
@@ -168,6 +209,9 @@ class Store:
             if version == 2:
                 # v2 -> v3: intraday bars, quotes and news. The tables are created by SCHEMA above.
                 version = 3
+            if version == 3:
+                # v3 -> v4: the global company universe. The tables are created by SCHEMA above.
+                version = 4
             if version != SCHEMA_VERSION:
                 raise RuntimeError(f"Store schema {row[0]} does not match code schema {SCHEMA_VERSION}")
             if version != int(row[0]):
