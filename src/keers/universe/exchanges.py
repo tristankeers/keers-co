@@ -11,7 +11,7 @@ until a Yahoo check confirms or corrects it.
 - ``low``: Yahoo uses a different code system (Malaysia uses numeric codes; Bloomberg uses letters).
 
 ``hub`` marks an exchange that also lists many companies whose home market is elsewhere (Xetra lists thousands of
-US and Asian shares; Mexico's SIC lists foreign shares). When the same share class trades in several places, the
+US and Asian shares; Mexico's SIC, Vienna's and Milan's global markets and SIX quote foreign shares). When the same share class trades in several places, the
 listing on a non-hub exchange is kept as the company's primary listing.
 """
 
@@ -53,10 +53,10 @@ NON_US: tuple[Exchange, ...] = (
     Exchange("BB", "XBRU", "Euronext Brussels", "BE", "EUR", ".BR"),
     Exchange("PL", "XLIS", "Euronext Lisbon", "PT", "EUR", ".LS"),
     Exchange("ID", "XDUB", "Euronext Dublin", "IE", "EUR", ".IR"),
-    Exchange("IM", "XMIL", "Borsa Italiana", "IT", "EUR", ".MI"),
+    Exchange("IM", "XMIL", "Borsa Italiana", "IT", "EUR", ".MI", hub=True),
     Exchange("SM", "XMAD", "Bolsa de Madrid", "ES", "EUR", ".MC"),
-    Exchange("SW", "XSWX", "SIX Swiss Exchange", "CH", "CHF", ".SW"),
-    Exchange("AV", "XWBO", "Wiener Börse", "AT", "EUR", ".VI"),
+    Exchange("SW", "XSWX", "SIX Swiss Exchange", "CH", "CHF", ".SW", hub=True),
+    Exchange("AV", "XWBO", "Wiener Börse", "AT", "EUR", ".VI", hub=True),
     Exchange("SS", "XSTO", "Nasdaq Stockholm", "SE", "SEK", ".ST", class_dash=True),
     Exchange("NO", "XOSL", "Oslo Børs", "NO", "NOK", ".OL", class_dash=True),
     Exchange("DC", "XCSE", "Nasdaq Copenhagen", "DK", "DKK", ".CO", class_dash=True),

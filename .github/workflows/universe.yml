@@ -86,13 +86,13 @@ jobs:
           print(f"status: {r['status']}  capped: {r['capped']}  {r['stats']}")
           for seg, s in r["segments"].items():
               print(f"{seg:16} {s['status']:7} rows={s.get('rows', '-')!s:>6} total={s.get('total', '-')!s:>6} "
-                    f"{s.get('error', '')[:160]}")
+                    f"{s.get('error', '')[:160]} {s.get('excluded') or ''}")
           PY
       - name: Check a sample against Yahoo
         if: always()
         env:
           SAMPLE: ${{ inputs.check_sample || '3' }}
-        run: python -m keers.universe check --sample "$SAMPLE" > universe-out/check.json; python -c "import json; r=json.load(open('universe-out/check.json')); print('ok', r['ok'], 'mismatch', len(r['mismatch']), 'not found', len(r['not-found']), 'errors', len(r['errors']))"
+        run: python -m keers.universe check --sample "$SAMPLE" > universe-out/check.json; python -c "import json; r=json.load(open('universe-out/check.json')); print('ok', r['ok'], 'mismatch', len(r['mismatch']), 'not found', len(r['not-found']), 'errors', len(r['errors'])); [print(k, m['key'], m['symbol'], m['name'][:40], '|', m['detail'][:120]) for k in ('mismatch', 'not-found') for m in r[k][:60]]"
       - name: Stats and export
         if: always()
         run: |
