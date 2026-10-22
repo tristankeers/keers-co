@@ -1,0 +1,5575 @@
+{
+ "engine": "kci-v1",
+ "controlledCases": [
+  {
+   "area": "IRR",
+   "name": "Doubling over five years",
+   "ok": true,
+   "expected": "0.148698",
+   "actual": "0.148698"
+  },
+  {
+   "area": "IRR",
+   "name": "Par bond at 10%",
+   "ok": true,
+   "expected": "0.100000",
+   "actual": "0.100000"
+  },
+  {
+   "area": "LBO",
+   "name": "Unlevered yield equals cost of debt: IRR",
+   "ok": true,
+   "expected": "0.100000",
+   "actual": "0.100000"
+  },
+  {
+   "area": "LBO",
+   "name": "Same case: MOIC",
+   "ok": true,
+   "expected": "1.610510",
+   "actual": "1.610510"
+  },
+  {
+   "area": "LBO",
+   "name": "Same case: debt after five years",
+   "ok": true,
+   "expected": "194.745",
+   "actual": "194.745"
+  },
+  {
+   "area": "Sources & uses",
+   "name": "Sources equal uses with fees, cash and rollover",
+   "ok": true,
+   "expected": "1040.00",
+   "actual": "1040.00"
+  },
+  {
+   "area": "LBO",
+   "name": "Zero debt: MOIC",
+   "ok": true,
+   "expected": "1.500000",
+   "actual": "1.500000"
+  },
+  {
+   "area": "LBO",
+   "name": "Negative cash flow: cash never negative, shortfall funded",
+   "ok": true,
+   "expected": "cash ≥ 0, cures > 0",
+   "actual": "cash ≥ 0, cures > 0"
+  },
+  {
+   "area": "LBO",
+   "name": "Equity wiped out: proceeds floor at zero",
+   "ok": true,
+   "expected": "0 proceeds, −100% IRR",
+   "actual": "0 proceeds, −100% IRR"
+  },
+  {
+   "area": "LBO",
+   "name": "Zero EBITDA is rejected",
+   "ok": true,
+   "expected": "rejected",
+   "actual": "rejected"
+  },
+  {
+   "area": "Break-even",
+   "name": "Required exit multiple reproduces the target IRR",
+   "ok": true,
+   "expected": "0.200000",
+   "actual": "0.200000"
+  },
+  {
+   "area": "DCF",
+   "name": "Perpetuity of 100 at 10%, end-year",
+   "ok": true,
+   "expected": "1000.000000",
+   "actual": "1000.000000"
+  },
+  {
+   "area": "DCF",
+   "name": "Same perpetuity, mid-year convention",
+   "ok": true,
+   "expected": "1048.808848",
+   "actual": "1048.808848"
+  },
+  {
+   "area": "DCF",
+   "name": "Terminal growth at WACC is rejected",
+   "ok": true,
+   "expected": "rejected",
+   "actual": "rejected"
+  },
+  {
+   "area": "WACC",
+   "name": "CAPM build-up",
+   "ok": true,
+   "expected": "0.092750",
+   "actual": "0.092750"
+  },
+  {
+   "area": "EV bridge",
+   "name": "Enterprise to equity value",
+   "ok": true,
+   "expected": "67.00",
+   "actual": "67.00"
+  },
+  {
+   "area": "Comps",
+   "name": "Median and quartiles (Excel QUARTILE.INC)",
+   "ok": true,
+   "expected": "9, 7, 11",
+   "actual": "9, 7, 11"
+  },
+  {
+   "area": "Charts",
+   "name": "Equity value in the exit year equals sponsor proceeds",
+   "ok": true,
+   "expected": "664.6346",
+   "actual": "664.6346"
+  },
+  {
+   "area": "Charts",
+   "name": "Value-creation bridge sums to exit equity",
+   "ok": true,
+   "expected": "734.5961",
+   "actual": "734.5961"
+  }
+ ],
+ "dropbox": {
+  "irr": 0.004648130719716044,
+  "moic": 1.0234577113582186,
+  "allChecksPass": true,
+  "unleveredIrr": 0.027521002565890795,
+  "maxEntryMultipleAt20": 9.331779202893754,
+  "maxPricePerShareAt20": 24.263595806487693,
+  "dcfPerShare": 22.461628465000437,
+  "sponsorCashFlows": [
+   -8754.230250000002,
+   0,
+   0,
+   0,
+   0,
+   8959.584456367887
+  ]
+ },
+ "companies": [
+  {
+   "id": "us-aapl",
+   "ticker": "AAPL",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10618793554351638,
+    "moic": 1.6563213043629912,
+    "entryLeverage": 4,
+    "sponsorEquity": 4408880.64,
+    "exitEquity": 7302522.932425539,
+    "exitNetDebt": 54395.17250382126,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.035607181354702366,
+    "moic": 1.1911741683954937,
+    "entryLeverage": 4,
+    "sponsorEquity": 4408880.64,
+    "exitEquity": 5251744.729906992,
+    "exitNetDebt": 212048.59874137273,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10618793554351638,
+    "moic": 1.6563213043629912,
+    "entryLeverage": 4,
+    "sponsorEquity": 4408880.64,
+    "exitEquity": 7302522.932425539,
+    "exitNetDebt": 54395.17250382126,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15646704354037771,
+    "moic": 2.0685513426311157,
+    "entryLeverage": 4,
+    "sponsorEquity": 4408880.64,
+    "exitEquity": 9119995.967372332,
+    "exitNetDebt": -37224.2328556196,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 2126555.6043918803,
+    "equity": 2186555.6043918803,
+    "perShare": null,
+    "tvShareOfEV": 0.7033985810339198
+   },
+   "score": 72.65777777777778,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-adbe",
+   "ticker": "ADBE",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.16804725938899062,
+    "moic": 2.174212928215327,
+    "entryLeverage": 4,
+    "sponsorEquity": 63409.72,
+    "exitEquity": 137866.232998514,
+    "exitNetDebt": 2772.015081153636,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.052052742167485885,
+    "moic": 1.2888060420510707,
+    "entryLeverage": 4,
+    "sponsorEquity": 63409.72,
+    "exitEquity": 81722.83026076663,
+    "exitNetDebt": 11947.428478977352,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.16804725938899062,
+    "moic": 2.174212928215327,
+    "entryLeverage": 4,
+    "sponsorEquity": 63409.72,
+    "exitEquity": 137866.232998514,
+    "exitNetDebt": 2772.015081153636,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.24159705366731715,
+    "moic": 2.9505526363333803,
+    "entryLeverage": 4,
+    "sponsorEquity": 63409.72,
+    "exitEquity": 187093.71651516148,
+    "exitNetDebt": -2593.5136110349376,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 123054.13276336849,
+    "equity": 121904.13276336849,
+    "perShare": null,
+    "tvShareOfEV": 0.6970056752289457
+   },
+   "score": 80.33720529669455,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-adp",
+   "ticker": "ADP",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0852140268490609,
+    "moic": 1.5051403302408697,
+    "entryLeverage": 4,
+    "sponsorEquity": 90485.0775,
+    "exitEquity": 136192.73943022068,
+    "exitNetDebt": 4678.40719103154,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.005044170171320686,
+    "moic": 0.9750323054799765,
+    "entryLeverage": 4,
+    "sponsorEquity": 90485.0775,
+    "exitEquity": 88225.87372635935,
+    "exitNetDebt": 10550.49510564395,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0852140268490609,
+    "moic": 1.5051403302408697,
+    "entryLeverage": 4,
+    "sponsorEquity": 90485.0775,
+    "exitEquity": 136192.73943022068,
+    "exitNetDebt": 4678.40719103154,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.14611230785609036,
+    "moic": 1.9775882897673656,
+    "entryLeverage": 4,
+    "sponsorEquity": 90485.0775,
+    "exitEquity": 178942.22966269252,
+    "exitNetDebt": 1340.6101224744089,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 67306.71981494091,
+    "equity": 66166.71981494091,
+    "perShare": null,
+    "tvShareOfEV": 0.6813246005869829
+   },
+   "score": 64.71004361936056,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-adsk",
+   "ticker": "ADSK",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14128968309908058,
+    "moic": 1.9363303694230376,
+    "entryLeverage": 4,
+    "sponsorEquity": 40071.072499999995,
+    "exitEquity": 77590.83461710231,
+    "exitNetDebt": -407.16798483109415,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.059516409217012956,
+    "moic": 1.335175750532683,
+    "entryLeverage": 4,
+    "sponsorEquity": 40071.072499999995,
+    "exitEquity": 53501.92429983705,
+    "exitNetDebt": 1981.396051901837,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14128968309908058,
+    "moic": 1.9363303694230376,
+    "entryLeverage": 4,
+    "sponsorEquity": 40071.072499999995,
+    "exitEquity": 77590.83461710231,
+    "exitNetDebt": -407.16798483109415,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1984039014399387,
+    "moic": 2.471815612952361,
+    "entryLeverage": 4,
+    "sponsorEquity": 40071.072499999995,
+    "exitEquity": 99048.302633246,
+    "exitNetDebt": -1810.815548059507,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 33287.04299912804,
+    "equity": 33937.04299912804,
+    "perShare": null,
+    "tvShareOfEV": 0.7136450265826965
+   },
+   "score": 75.27629154186278,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-akam",
+   "ticker": "AKAM",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.05900547102507682,
+    "moic": 1.3319594971687287,
+    "entryLeverage": 4,
+    "sponsorEquity": 14217.39,
+    "exitEquity": 18936.98763545171,
+    "exitNetDebt": 3068.4618818358,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.04554433665419749,
+    "moic": 0.7920977800309974,
+    "entryLeverage": 4,
+    "sponsorEquity": 14217.39,
+    "exitEquity": 11261.563056834902,
+    "exitNetDebt": 3887.399090111067,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.05900547102507682,
+    "moic": 1.3319594971687287,
+    "entryLeverage": 4,
+    "sponsorEquity": 14217.39,
+    "exitEquity": 18936.98763545171,
+    "exitNetDebt": 3068.4618818358,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.12666789975322867,
+    "moic": 1.8154304032956816,
+    "entryLeverage": 4,
+    "sponsorEquity": 14217.39,
+    "exitEquity": 25810.68206151199,
+    "exitNetDebt": 2690.9584353405885,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 6224.393650651826,
+    "equity": 1504.3936506518257,
+    "perShare": null,
+    "tvShareOfEV": 0.6797477671385412
+   },
+   "score": 41.504741328630224,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-amd",
+   "ticker": "AMD",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11397864041522299,
+    "moic": 1.71547470414402,
+    "entryLeverage": 4,
+    "sponsorEquity": 895231.1199999999,
+    "exitEquity": 1535746.3407225194,
+    "exitNetDebt": 3664.55437374593,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.0492428809807417,
+    "moic": 1.2716867790621802,
+    "entryLeverage": 4,
+    "sponsorEquity": 895231.1199999999,
+    "exitEquity": 1138453.579509028,
+    "exitNetDebt": 13984.642130152088,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11397864041522299,
+    "moic": 1.71547470414402,
+    "entryLeverage": 4,
+    "sponsorEquity": 895231.1199999999,
+    "exitEquity": 1535746.3407225194,
+    "exitNetDebt": 3664.55437374593,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1617481147159905,
+    "moic": 2.116215455586407,
+    "entryLeverage": 4,
+    "sponsorEquity": 895231.1199999999,
+    "exitEquity": 1894501.9324659288,
+    "exitNetDebt": -2189.8285684126477,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 166828.62648824684,
+    "equity": 175658.62648824684,
+    "perShare": null,
+    "tvShareOfEV": 0.74297404452893
+   },
+   "score": 68.3547367899987,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-anet",
+   "ticker": "ANET",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.12382637059162119,
+    "moic": 1.7926524252426532,
+    "entryLeverage": 4,
+    "sponsorEquity": 221056.24,
+    "exitEquity": 396277.004751022,
+    "exitNetDebt": -1467.942124963206,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.06393816289773385,
+    "moic": 1.3632701809428798,
+    "entryLeverage": 4,
+    "sponsorEquity": 221056.24,
+    "exitEquity": 301359.38030335266,
+    "exitNetDebt": 3049.010020235857,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.12382637059162119,
+    "moic": 1.7926524252426532,
+    "entryLeverage": 4,
+    "sponsorEquity": 221056.24,
+    "exitEquity": 396277.004751022,
+    "exitNetDebt": -1467.942124963206,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16766023249042988,
+    "moic": 2.1706132389705584,
+    "entryLeverage": 4,
+    "sponsorEquity": 221056.24,
+    "exitEquity": 479827.6011010531,
+    "exitNetDebt": -4146.540976366192,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 95171.61226221011,
+    "equity": 108521.61226221011,
+    "perShare": null,
+    "tvShareOfEV": 0.7401076851749528
+   },
+   "score": 77.77777777777777,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-apa",
+   "ticker": "APA",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08945531048492486,
+    "moic": 1.5347834266501474,
+    "entryLeverage": 2.052,
+    "sponsorEquity": 8778.856000000002,
+    "exitEquity": 13473.64269374821,
+    "exitNetDebt": 3575.179772253916,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.2886113820141387,
+    "moic": 0.18219420592968236,
+    "entryLeverage": 2.052,
+    "sponsorEquity": 8778.856000000002,
+    "exitEquity": 1599.456697891028,
+    "exitNetDebt": 5929.932905262724,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08945531048492486,
+    "moic": 1.5347834266501474,
+    "entryLeverage": 2.052,
+    "sponsorEquity": 8778.856000000002,
+    "exitEquity": 13473.64269374821,
+    "exitNetDebt": 3575.179772253916,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.22237241094490118,
+    "moic": 2.729088983904484,
+    "entryLeverage": 2.052,
+    "sponsorEquity": 8778.856000000002,
+    "exitEquity": 23958.279200883786,
+    "exitNetDebt": 2258.0329547161746,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 18567.8084848754,
+    "equity": 15127.8084848754,
+    "perShare": null,
+    "tvShareOfEV": 0.6056615704811074
+   },
+   "score": 68.70740370740371,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-app",
+   "ticker": "APP",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1684479744779212,
+    "moic": 2.1779449600660277,
+    "entryLeverage": 4,
+    "sponsorEquity": 69425.175,
+    "exitEquity": 151204.20999295198,
+    "exitNetDebt": -1843.9177634914213,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.09050756014403896,
+    "moic": 1.542209605495208,
+    "entryLeverage": 4,
+    "sponsorEquity": 69425.175,
+    "exitEquity": 107068.17174818578,
+    "exitNetDebt": 2992.0557904591133,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1684479744779212,
+    "moic": 2.1779449600660277,
+    "entryLeverage": 4,
+    "sponsorEquity": 69425.175,
+    "exitEquity": 151204.20999295198,
+    "exitNetDebt": -1843.9177634914213,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.22211898937514157,
+    "moic": 2.726261190599763,
+    "entryLeverage": 4,
+    "sponsorEquity": 69425.175,
+    "exitEquity": 189271.16025309692,
+    "exitNetDebt": -4744.9643971258465,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 112902.93966365726,
+    "equity": 112442.93966365726,
+    "perShare": null,
+    "tvShareOfEV": 0.7390552952204312
+   },
+   "score": 73.10659272951325,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-arm",
+   "ticker": "ARM",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10696905791173586,
+    "moic": 1.6618218203606008,
+    "entryLeverage": 4,
+    "sponsorEquity": 253045.96500000003,
+    "exitEquity": 420771.7551025427,
+    "exitNetDebt": 3975,
+    "cures": 153.11443634947923,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.0429133038280622,
+    "moic": 1.233101976804029,
+    "entryLeverage": 4,
+    "sponsorEquity": 253045.96500000003,
+    "exitEquity": 313204.39598044433,
+    "exitNetDebt": 3975,
+    "cures": 951.191660320856,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10696905791173586,
+    "moic": 1.6618218203606008,
+    "entryLeverage": 4,
+    "sponsorEquity": 253045.96500000003,
+    "exitEquity": 420771.7551025427,
+    "exitNetDebt": 3975,
+    "cures": 153.11443634947923,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15453677433975482,
+    "moic": 2.0513456896094855,
+    "entryLeverage": 4,
+    "sponsorEquity": 253045.96500000003,
+    "exitEquity": 519084.74957582273,
+    "exitNetDebt": 3780.6223444312723,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 4566.662981778695,
+    "equity": 7976.662981778695,
+    "perShare": null,
+    "tvShareOfEV": 0.7468174763326179
+   },
+   "score": 56.443000387712985,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-avav",
+   "ticker": "AVAV",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1287775926946989,
+    "moic": 1.8324912026371667,
+    "entryLeverage": 4,
+    "sponsorEquity": 5726.653090000001,
+    "exitEquity": 10494.041407979948,
+    "exitNetDebt": 312.374308745109,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.01845967240730851,
+    "moic": 1.095769442906993,
+    "entryLeverage": 4,
+    "sponsorEquity": 5726.653090000001,
+    "exitEquity": 6275.091466150911,
+    "exitNetDebt": 699.1041579201161,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1287775926946989,
+    "moic": 1.8324912026371667,
+    "entryLeverage": 4,
+    "sponsorEquity": 5726.653090000001,
+    "exitEquity": 10494.041407979948,
+    "exitNetDebt": 312.374308745109,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.20285827974886556,
+    "moic": 2.518096154604234,
+    "entryLeverage": 4,
+    "sponsorEquity": 5726.653090000001,
+    "exitEquity": 14420.263124681458,
+    "exitNetDebt": 99.03382744220784,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 3070.838089540225,
+    "equity": 2800.838089540225,
+    "perShare": null,
+    "tvShareOfEV": 0.7514276274596614
+   },
+   "score": 47.115374892183766,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-avgo",
+   "ticker": "AVGO",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.13664281359421698,
+    "moic": 1.8972303013272942,
+    "entryLeverage": 4,
+    "sponsorEquity": 1517988.315,
+    "exitEquity": 2879973.4282787615,
+    "exitNetDebt": -37915.934250647755,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.07376543594008694,
+    "moic": 1.4274046278691261,
+    "entryLeverage": 4,
+    "sponsorEquity": 1517988.315,
+    "exitEquity": 2166783.5458822567,
+    "exitNetDebt": 12006.500859216794,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.13664281359421698,
+    "moic": 1.8972303013272942,
+    "entryLeverage": 4,
+    "sponsorEquity": 1517988.315,
+    "exitEquity": 2879973.4282787615,
+    "exitNetDebt": -37915.934250647755,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1819658902024755,
+    "moic": 2.3068784823491963,
+    "entryLeverage": 4,
+    "sponsorEquity": 1517988.315,
+    "exitEquity": 3501814.580331014,
+    "exitNetDebt": -68319.8049661832,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 1158100.228737559,
+    "equity": 1128100.228737559,
+    "perShare": null,
+    "tvShareOfEV": 0.7393996197863933
+   },
+   "score": 76.50210486031382,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-axon",
+   "ticker": "AXON",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10570165063560377,
+    "moic": 1.6486520879860096,
+    "entryLeverage": 4,
+    "sponsorEquity": 34615.15349,
+    "exitEquity": 57564.33737410275,
+    "exitNetDebt": 619.1675,
+    "cures": 300.8471590048814,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.0406690963998952,
+    "moic": 0.8148527758880809,
+    "entryLeverage": 4,
+    "sponsorEquity": 34615.15349,
+    "exitEquity": 28724.241501159697,
+    "exitNetDebt": 619.1675,
+    "cures": 635.6824292298356,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10570165063560377,
+    "moic": 1.6486520879860096,
+    "entryLeverage": 4,
+    "sponsorEquity": 34615.15349,
+    "exitEquity": 57564.33737410275,
+    "exitNetDebt": 619.1675,
+    "cures": 300.8471590048814,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.19804536448868365,
+    "moic": 2.4631009835134416,
+    "entryLeverage": 4,
+    "sponsorEquity": 34615.15349,
+    "exitEquity": 85699.53180526839,
+    "exitNetDebt": 617.4873430279619,
+    "cures": 178.19537344123827,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -1005.0078051305877,
+    "equity": -2165.0078051305877,
+    "perShare": null,
+    "tvShareOfEV": 0.6706915581482208
+   },
+   "score": 22.364044168391995,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ba",
+   "ticker": "BA",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "downside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "base": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "upside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -206484.05579228298,
+    "equity": -235544.05579228298,
+    "perShare": null,
+    "tvShareOfEV": 0.7192589520444663
+   },
+   "score": 44.44444444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-bkr",
+   "ticker": "BKR",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.030985671645364282,
+    "moic": 1.1648316114423278,
+    "entryLeverage": 4,
+    "sponsorEquity": 37241.799999999996,
+    "exitEquity": 43380.425907012876,
+    "exitNetDebt": 11409.359989294873,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.12774174713932368,
+    "moic": 0.5049233280334782,
+    "entryLeverage": 4,
+    "sponsorEquity": 37241.799999999996,
+    "exitEquity": 18804.253597957184,
+    "exitNetDebt": 15482.06985772068,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.030985671645364282,
+    "moic": 1.1648316114423278,
+    "entryLeverage": 4,
+    "sponsorEquity": 37241.799999999996,
+    "exitEquity": 43380.425907012876,
+    "exitNetDebt": 11409.359989294873,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.12011087112787763,
+    "moic": 1.7632141452526982,
+    "entryLeverage": 4,
+    "sponsorEquity": 37241.799999999996,
+    "exitEquity": 65665.26855467193,
+    "exitNetDebt": 9423.810234984714,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 30698.293030115536,
+    "equity": 31468.293030115536,
+    "perShare": null,
+    "tvShareOfEV": 0.6596309152171256
+   },
+   "score": 49.29383509590582,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-bsy",
+   "ticker": "BSY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10369971981484596,
+    "moic": 1.6377765990075641,
+    "entryLeverage": 4,
+    "sponsorEquity": 10514.199592500001,
+    "exitEquity": 17219.91004989137,
+    "exitNetDebt": 138.43539008491206,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.026943510242499524,
+    "moic": 1.1421753250402489,
+    "entryLeverage": 4,
+    "sponsorEquity": 10514.199592500001,
+    "exitEquity": 12009.05933710174,
+    "exitNetDebt": 596.5359961757547,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10369971981484596,
+    "moic": 1.6377765990075641,
+    "entryLeverage": 4,
+    "sponsorEquity": 10514.199592500001,
+    "exitEquity": 17219.91004989137,
+    "exitNetDebt": 138.43539008491206,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15785816445859535,
+    "moic": 2.0810226723154264,
+    "entryLeverage": 4,
+    "sponsorEquity": 10514.199592500001,
+    "exitEquity": 21880.28773324212,
+    "exitNetDebt": -127.52592542000565,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 5824.82532898962,
+    "equity": 4704.82532898962,
+    "perShare": null,
+    "tvShareOfEV": 0.6998995163801662
+   },
+   "score": 65.24731387742642,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-cdns",
+   "ticker": "CDNS",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09958340401909127,
+    "moic": 1.6074626182216116,
+    "entryLeverage": 4,
+    "sponsorEquity": 84415.12000000001,
+    "exitEquity": 135694.14981269155,
+    "exitNetDebt": 660.937261397986,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.03535084380996263,
+    "moic": 1.1897006775542283,
+    "entryLeverage": 4,
+    "sponsorEquity": 84415.12000000001,
+    "exitEquity": 100428.7254598215,
+    "exitNetDebt": 2683.066042384137,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09958340401909127,
+    "moic": 1.6074626182216116,
+    "entryLeverage": 4,
+    "sponsorEquity": 84415.12000000001,
+    "exitEquity": 135694.14981269155,
+    "exitNetDebt": 660.937261397986,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.14618261534115473,
+    "moic": 1.9781949332711675,
+    "entryLeverage": 4,
+    "sponsorEquity": 84415.12000000001,
+    "exitEquity": 166989.56267547762,
+    "exitNetDebt": -516.5104622809786,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 27624.007742223122,
+    "equity": 26504.007742223122,
+    "perShare": null,
+    "tvShareOfEV": 0.7046117305714648
+   },
+   "score": 71.91440329218108,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-cdw",
+   "ticker": "CDW",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10582981643392744,
+    "moic": 1.6536419387926682,
+    "entryLeverage": 4,
+    "sponsorEquity": 18075.087499999998,
+    "exitEquity": 29889.722737347118,
+    "exitNetDebt": 1751.8934294370515,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.06386206389138602,
+    "moic": 0.7189508886847922,
+    "entryLeverage": 4,
+    "sponsorEquity": 18075.087499999998,
+    "exitEquity": 12995.100221180377,
+    "exitNetDebt": 4544.458178624771,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10582981643392744,
+    "moic": 1.6536419387926682,
+    "entryLeverage": 4,
+    "sponsorEquity": 18075.087499999998,
+    "exitEquity": 29889.722737347118,
+    "exitNetDebt": 1751.8934294370515,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.20548851975993226,
+    "moic": 2.5457478992666336,
+    "entryLeverage": 4,
+    "sponsorEquity": 18075.087499999998,
+    "exitEquity": 46014.616032185586,
+    "exitNetDebt": 251.28174230065315,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 19931.68782060266,
+    "equity": 13861.68782060266,
+    "perShare": null,
+    "tvShareOfEV": 0.6873095983385489
+   },
+   "score": 40.11062920229428,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-cop",
+   "ticker": "COP",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14130775000402795,
+    "moic": 1.936483637269884,
+    "entryLeverage": 4,
+    "sponsorEquity": 87621.225,
+    "exitEquity": 169677.0684900429,
+    "exitNetDebt": 74060.2044725653,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.08021714714145323,
+    "moic": 0.6583040768729528,
+    "entryLeverage": 4,
+    "sponsorEquity": 87621.225,
+    "exitEquity": 57681.4096381023,
+    "exitNetDebt": 92344.2818980856,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14130775000402795,
+    "moic": 1.936483637269884,
+    "entryLeverage": 4,
+    "sponsorEquity": 87621.225,
+    "exitEquity": 169677.0684900429,
+    "exitNetDebt": 74060.2044725653,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2492939868481714,
+    "moic": 3.0431492178418496,
+    "entryLeverage": 4,
+    "sponsorEquity": 87621.225,
+    "exitEquity": 266644.46232509473,
+    "exitNetDebt": 65601.53536553407,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 166453.3768931079,
+    "equity": 150853.3768931079,
+    "perShare": null,
+    "tvShareOfEV": 0.6874373969641467
+   },
+   "score": 75.5287571998899,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-crm",
+   "ticker": "CRM",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11219313412969328,
+    "moic": 1.7017707261652932,
+    "entryLeverage": 4,
+    "sponsorEquity": 190424.94999999998,
+    "exitEquity": 324059.6054414896,
+    "exitNetDebt": 2046.5630745356757,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.02527310969257346,
+    "moic": 1.1329163263441624,
+    "entryLeverage": 4,
+    "sponsorEquity": 190424.94999999998,
+    "exitEquity": 215735.5347982708,
+    "exitNetDebt": 14734.535661584672,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11219313412969328,
+    "moic": 1.7017707261652932,
+    "entryLeverage": 4,
+    "sponsorEquity": 190424.94999999998,
+    "exitEquity": 324059.6054414896,
+    "exitNetDebt": 2046.5630745356757,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17181358717018436,
+    "moic": 2.2094930850607413,
+    "entryLeverage": 4,
+    "sponsorEquity": 190424.94999999998,
+    "exitEquity": 420742.6102480373,
+    "exitNetDebt": -5400.501694335679,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 161354.18500177813,
+    "equity": 130374.18500177813,
+    "perShare": null,
+    "tvShareOfEV": 0.6950838528424836
+   },
+   "score": 63.93234997061611,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-crwd",
+   "ticker": "CRWD",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10407862555005587,
+    "moic": 1.6359071020261198,
+    "entryLeverage": 4,
+    "sponsorEquity": 252730.91729999997,
+    "exitEquity": 417964.2924840959,
+    "exitNetDebt": 400.725,
+    "cures": 2762.9869482514277,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -1,
+    "moic": 0,
+    "entryLeverage": 4,
+    "sponsorEquity": 252730.91729999997,
+    "exitEquity": -3916.861230828667,
+    "exitNetDebt": 400.725,
+    "cures": 3032.3525989576083,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10407862555005587,
+    "moic": 1.6359071020261198,
+    "entryLeverage": 4,
+    "sponsorEquity": 252730.91729999997,
+    "exitEquity": 417964.2924840959,
+    "exitNetDebt": 400.725,
+    "cures": 2762.9869482514277,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.27018762653260275,
+    "moic": 3.2889297089210694,
+    "entryLeverage": 4,
+    "sponsorEquity": 252730.91729999997,
+    "exitEquity": 839976.7571838996,
+    "exitNetDebt": 400.725,
+    "cures": 2664.251196761035,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -9451.224254096716,
+    "equity": -5251.224254096716,
+    "perShare": null,
+    "tvShareOfEV": 0.7164653837205711
+   },
+   "score": 33.333333333333336,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-csco",
+   "ticker": "CSCO",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09773041030639495,
+    "moic": 1.593963887639536,
+    "entryLeverage": 4,
+    "sponsorEquity": 403545.75999999995,
+    "exitEquity": 643237.368450051,
+    "exitNetDebt": 10386.187725928618,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.019840979500613233,
+    "moic": 1.103220426995176,
+    "entryLeverage": 4,
+    "sponsorEquity": 403545.75999999995,
+    "exitEquity": 445199.9256592928,
+    "exitNetDebt": 28112.70534983475,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09773041030639495,
+    "moic": 1.593963887639536,
+    "entryLeverage": 4,
+    "sponsorEquity": 403545.75999999995,
+    "exitEquity": 643237.368450051,
+    "exitNetDebt": 10386.187725928618,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15229012908881767,
+    "moic": 2.0314643621459223,
+    "entryLeverage": 4,
+    "sponsorEquity": 403545.75999999995,
+    "exitEquity": 819788.8299350914,
+    "exitNetDebt": 274.4641211924063,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 217300.25339925473,
+    "equity": 202030.25339925473,
+    "perShare": null,
+    "tvShareOfEV": 0.6968367298874416
+   },
+   "score": 68.01190671356018,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ctsh",
+   "ticker": "CTSH",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.16545751442191686,
+    "moic": 2.150216706606742,
+    "entryLeverage": 4,
+    "sponsorEquity": 14574.82,
+    "exitEquity": 31339.021459786072,
+    "exitNetDebt": 4332.771206307447,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.03138703015947639,
+    "moic": 0.8526119199609764,
+    "entryLeverage": 4,
+    "sponsorEquity": 14574.82,
+    "exitEquity": 12426.665263285639,
+    "exitNetDebt": 8325.704800712698,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.16545751442191686,
+    "moic": 2.150216706606742,
+    "entryLeverage": 4,
+    "sponsorEquity": 14574.82,
+    "exitEquity": 31339.021459786072,
+    "exitNetDebt": 4332.771206307447,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2713653530375575,
+    "moic": 3.321634631284275,
+    "entryLeverage": 4,
+    "sponsorEquity": 14574.82,
+    "exitEquity": 48412.22685673468,
+    "exitNetDebt": 2145.944261086558,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 38468.67228971084,
+    "equity": 37428.67228971084,
+    "perShare": null,
+    "tvShareOfEV": 0.678488550148753
+   },
+   "score": 68.58312345159347,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-cvlt",
+   "ticker": "CVLT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09820218535227421,
+    "moic": 1.5973920473645242,
+    "entryLeverage": 4,
+    "sponsorEquity": 6086.69299,
+    "exitEquity": 9722.834976975397,
+    "exitNetDebt": 54.55259319461726,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.0004929999084938724,
+    "moic": 0.9975374297505157,
+    "entryLeverage": 4,
+    "sponsorEquity": 6086.69299,
+    "exitEquity": 6071.704080925081,
+    "exitNetDebt": 232.10517467689718,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09820218535227421,
+    "moic": 1.5973920473645242,
+    "entryLeverage": 4,
+    "sponsorEquity": 6086.69299,
+    "exitEquity": 9722.834976975397,
+    "exitNetDebt": 54.55259319461726,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16691933871167386,
+    "moic": 2.1637355777333416,
+    "entryLeverage": 4,
+    "sponsorEquity": 6086.69299,
+    "exitEquity": 13169.99417320313,
+    "exitNetDebt": -43.29890186857645,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 1469.054880164899,
+    "equity": 1489.054880164899,
+    "perShare": null,
+    "tvShareOfEV": 0.7128392637828537
+   },
+   "score": 51.5343533697632,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-cvx",
+   "ticker": "CVX",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.13497870197873046,
+    "moic": 1.883382627244545,
+    "entryLeverage": 4,
+    "sponsorEquity": 277067.69,
+    "exitEquity": 521824.4739167772,
+    "exitNetDebt": 106932.94744401681,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.022431104406928165,
+    "moic": 0.8927644194625569,
+    "entryLeverage": 4,
+    "sponsorEquity": 277067.69,
+    "exitEquity": 247356.1754146817,
+    "exitNetDebt": 150222.59056071358,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.13497870197873046,
+    "moic": 1.883382627244545,
+    "entryLeverage": 4,
+    "sponsorEquity": 277067.69,
+    "exitEquity": 521824.4739167772,
+    "exitNetDebt": 106932.94744401681,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.22572132276347223,
+    "moic": 2.7666785686670683,
+    "entryLeverage": 4,
+    "sponsorEquity": 277067.69,
+    "exitEquity": 766557.239993091,
+    "exitNetDebt": 85159.98263959473,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 395521.8565208633,
+    "equity": 366981.8565208633,
+    "perShare": null,
+    "tvShareOfEV": 0.6944820549268703
+   },
+   "score": 67.59768853213785,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-dbx",
+   "ticker": "DBX",
+   "dataStatus": "verified",
+   "customModel": true,
+   "lbo": {
+    "irr": 0.004648130719716044,
+    "moic": 1.0234577113582186,
+    "entryLeverage": 5.5,
+    "sponsorEquity": 8754.230250000002,
+    "exitEquity": 8959.584456367887,
+    "exitNetDebt": 3090.34546781834,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.17714531163455605,
+    "moic": 0.37723826586962916,
+    "entryLeverage": 5.5,
+    "sponsorEquity": 8754.230250000002,
+    "exitEquity": 3302.430638533451,
+    "exitNetDebt": 3906.8544222980963,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.004648130719716044,
+    "moic": 1.0234577113582186,
+    "entryLeverage": 5.5,
+    "sponsorEquity": 8754.230250000002,
+    "exitEquity": 8959.584456367887,
+    "exitNetDebt": 3090.34546781834,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.056860578731756886,
+    "moic": 1.3185253814818652,
+    "entryLeverage": 5.5,
+    "sponsorEquity": 8754.230250000002,
+    "exitEquity": 11542.674779961337,
+    "exitNetDebt": 2694.412154742694,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.08852499999999999,
+    "ev": 7491.539458905969,
+    "equity": 5019.239458905969,
+    "perShare": 23.083330844858207,
+    "tvShareOfEV": 0.6994094801429236
+   },
+   "score": 56.22853747641415,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ddog",
+   "ticker": "DDOG",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1058060688806638,
+    "moic": 1.652970754409452,
+    "entryLeverage": 4,
+    "sponsorEquity": 93947.25652499999,
+    "exitEquity": 155470.45441726054,
+    "exitNetDebt": 310.875,
+    "cures": 107.91898402142463,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.44382546539705736,
+    "moic": 0.055756596405562915,
+    "entryLeverage": 4,
+    "sponsorEquity": 93947.25652499999,
+    "exitEquity": 5266.773588410243,
+    "exitNetDebt": 310.875,
+    "cures": 512.8419734939005,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1058060688806638,
+    "moic": 1.652970754409452,
+    "entryLeverage": 4,
+    "sponsorEquity": 93947.25652499999,
+    "exitEquity": 155470.45441726054,
+    "exitNetDebt": 310.875,
+    "cures": 107.91898402142463,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.26612600927246133,
+    "moic": 3.253180163230847,
+    "entryLeverage": 4,
+    "sponsorEquity": 93947.25652499999,
+    "exitEquity": 305743.7720566413,
+    "exitNetDebt": 221.56085646093945,
+    "cures": 35.78674826171881,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -989.5530143805443,
+    "equity": 2720.4469856194555,
+    "perShare": null,
+    "tvShareOfEV": 0.6537714099871278
+   },
+   "score": 38.902291917973464,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-dell",
+   "ticker": "DELL",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1468355653008464,
+    "moic": 1.983835983726914,
+    "entryLeverage": 4,
+    "sponsorEquity": 266629.20749999996,
+    "exitEquity": 528948.6161510899,
+    "exitNetDebt": 21079.614849668207,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.026385005659695968,
+    "moic": 1.1390728336846085,
+    "entryLeverage": 4,
+    "sponsorEquity": 266629.20749999996,
+    "exitEquity": 303710.08693010645,
+    "exitNetDebt": 45033.94133169291,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1468355653008464,
+    "moic": 1.983835983726914,
+    "entryLeverage": 4,
+    "sponsorEquity": 266629.20749999996,
+    "exitEquity": 528948.6161510899,
+    "exitNetDebt": 21079.614849668207,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2261908027824736,
+    "moic": 2.7719811430774106,
+    "entryLeverage": 4,
+    "sponsorEquity": 266629.20749999996,
+    "exitEquity": 739091.135383674,
+    "exitNetDebt": 8316.935981817594,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 238151.87338544155,
+    "equity": 214511.87338544155,
+    "perShare": null,
+    "tvShareOfEV": 0.751084201015462
+   },
+   "score": 52.07054226089759,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-docu",
+   "ticker": "DOCU",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.06448362477096764,
+    "moic": 1.3667683859864566,
+    "entryLeverage": 4,
+    "sponsorEquity": 12147.3212125,
+    "exitEquity": 16602.57460766767,
+    "exitNetDebt": 1045.3953867544722,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.033730710721326995,
+    "moic": 0.8423467088646172,
+    "entryLeverage": 4,
+    "sponsorEquity": 12147.3212125,
+    "exitEquity": 10232.256044870725,
+    "exitNetDebt": 1501.5173278860607,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.06448362477096764,
+    "moic": 1.3667683859864566,
+    "entryLeverage": 4,
+    "sponsorEquity": 12147.3212125,
+    "exitEquity": 16602.57460766767,
+    "exitNetDebt": 1045.3953867544722,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.13158660949425122,
+    "moic": 1.8554061773559831,
+    "entryLeverage": 4,
+    "sponsorEquity": 12147.3212125,
+    "exitEquity": 22538.21481599987,
+    "exitNetDebt": 821.8785014507445,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 3034.4640254324477,
+    "equity": 3634.4640254324477,
+    "perShare": null,
+    "tvShareOfEV": 0.6913430971957432
+   },
+   "score": 44.52548330515018,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-drs",
+   "ticker": "DRS",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08792721922015032,
+    "moic": 1.524049992923385,
+    "entryLeverage": 4,
+    "sponsorEquity": 7750.149750000002,
+    "exitEquity": 11811.615671642678,
+    "exitNetDebt": 1029.2144080895828,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.028313741438304958,
+    "moic": 0.8662241853213699,
+    "entryLeverage": 4,
+    "sponsorEquity": 7750.149750000002,
+    "exitEquity": 6713.367153312371,
+    "exitNetDebt": 1565.5068515215282,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08792721922015032,
+    "moic": 1.524049992923385,
+    "entryLeverage": 4,
+    "sponsorEquity": 7750.149750000002,
+    "exitEquity": 11811.615671642678,
+    "exitNetDebt": 1029.2144080895828,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1637851341540355,
+    "moic": 2.1348335862557914,
+    "entryLeverage": 4,
+    "sponsorEquity": 7750.149750000002,
+    "exitEquity": 16545.279984811932,
+    "exitNetDebt": 759.3023062285974,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 3832.056533772791,
+    "equity": 3842.056533772791,
+    "perShare": null,
+    "tvShareOfEV": 0.697347650983984
+   },
+   "score": 46.34335518105694,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-dvn",
+   "ticker": "DVN",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10276278895491472,
+    "moic": 1.5160906983342661,
+    "entryLeverage": 4,
+    "sponsorEquity": 35622.979999999996,
+    "exitEquity": 71001.83312989304,
+    "exitNetDebt": 33450,
+    "cures": 11209.200428191396,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.1048654173214432,
+    "moic": 0.6585448016235628,
+    "entryLeverage": 4,
+    "sponsorEquity": 35622.979999999996,
+    "exitEquity": 33277.783811699774,
+    "exitNetDebt": 33450,
+    "cures": 14909.320505079408,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10276278895491472,
+    "moic": 1.5160906983342661,
+    "entryLeverage": 4,
+    "sponsorEquity": 35622.979999999996,
+    "exitEquity": 71001.83312989304,
+    "exitNetDebt": 33450,
+    "cures": 11209.200428191396,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2098947583837502,
+    "moic": 2.312898661497323,
+    "entryLeverage": 4,
+    "sponsorEquity": 35622.979999999996,
+    "exitEquity": 106055.71214368645,
+    "exitNetDebt": 33450,
+    "cures": 10231.044609546958,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 8766.523412727123,
+    "equity": -2173.4765872728767,
+    "perShare": null,
+    "tvShareOfEV": 0.7251572008867948
+   },
+   "score": 70.0329917510934,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-eog",
+   "ticker": "EOG",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.23257536160542047,
+    "moic": 2.8449026581213324,
+    "entryLeverage": 3.449,
+    "sponsorEquity": 37233.53749999999,
+    "exitEquity": 105925.78980501028,
+    "exitNetDebt": 26963.22255106058,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.026162597816475085,
+    "moic": 1.137839237308311,
+    "entryLeverage": 3.449,
+    "sponsorEquity": 37233.53749999999,
+    "exitEquity": 42365.77991129039,
+    "exitNetDebt": 36240.153215336555,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.23257536160542047,
+    "moic": 2.8449026581213324,
+    "entryLeverage": 3.449,
+    "sponsorEquity": 37233.53749999999,
+    "exitEquity": 105925.78980501028,
+    "exitNetDebt": 26963.22255106058,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.34043362949853706,
+    "moic": 4.327395364555592,
+    "entryLeverage": 3.449,
+    "sponsorEquity": 37233.53749999999,
+    "exitEquity": 161124.23758350677,
+    "exitNetDebt": 22332.99140647954,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 106766.98388161472,
+    "equity": 103416.98388161472,
+    "perShare": null,
+    "tvShareOfEV": 0.7118883329676294
+   },
+   "score": 86.46385112205803,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-eqt",
+   "ticker": "EQT",
+   "dataStatus": "verified",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.2733312628184311,
+    "moic": 3.347395361690421,
+    "entryLeverage": 3.7439999999999998,
+    "sponsorEquity": 18722.960880000006,
+    "exitEquity": 62673.15240682322,
+    "exitNetDebt": 8667.601855674782,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.10127721519468025,
+    "moic": 1.619881591382402,
+    "entryLeverage": 3.7439999999999998,
+    "sponsorEquity": 18722.960880000006,
+    "exitEquity": 30328.97966568487,
+    "exitNetDebt": 13515.250333581891,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.2733312628184311,
+    "moic": 3.347395361690421,
+    "entryLeverage": 3.7439999999999998,
+    "sponsorEquity": 18722.960880000006,
+    "exitEquity": 62673.15240682322,
+    "exitNetDebt": 8667.601855674782,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.3704414851150677,
+    "moic": 4.833953675546335,
+    "entryLeverage": 3.7439999999999998,
+    "sponsorEquity": 18722.960880000006,
+    "exitEquity": 90505.92556298626,
+    "exitNetDebt": 6058.025381031,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 92592.63143265774,
+    "equity": 83445.23143265775,
+    "perShare": null,
+    "tvShareOfEV": 0.7399450481171337
+   },
+   "score": 87.51529955842182,
+   "decision": "Proceed"
+  },
+  {
+   "id": "us-exe",
+   "ticker": "EXE",
+   "dataStatus": "verified",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.3019346643820141,
+    "moic": 3.740640329269479,
+    "entryLeverage": 2.196,
+    "sponsorEquity": 10892.488000000003,
+    "exitEquity": 40744.87989888386,
+    "exitNetDebt": 137.7104529596295,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.06993491106363361,
+    "moic": 1.402125191006213,
+    "entryLeverage": 2.196,
+    "sponsorEquity": 10892.488000000003,
+    "exitEquity": 15272.631817532887,
+    "exitNetDebt": 3987.2553000915414,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.3019346643820141,
+    "moic": 3.740640329269479,
+    "entryLeverage": 2.196,
+    "sponsorEquity": 10892.488000000003,
+    "exitEquity": 40744.87989888386,
+    "exitNetDebt": 137.7104529596295,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.42231447569896263,
+    "moic": 5.820739328479209,
+    "entryLeverage": 2.196,
+    "sponsorEquity": 10892.488000000003,
+    "exitEquity": 63402.33328658786,
+    "exitNetDebt": -2098.7504022970747,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 68219.31057437896,
+    "equity": 65197.310574378964,
+    "perShare": null,
+    "tvShareOfEV": 0.7419618053310286
+   },
+   "score": 89.88211367438053,
+   "decision": "Proceed"
+  },
+  {
+   "id": "us-fang",
+   "ticker": "FANG",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.2625168628700021,
+    "moic": 3.2076423408736723,
+    "entryLeverage": 3.439,
+    "sponsorEquity": 30013.25050000001,
+    "exitEquity": 96271.77309104794,
+    "exitNetDebt": 18051.044714224256,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.07344770885425864,
+    "moic": 1.4252940328459875,
+    "entryLeverage": 3.439,
+    "sponsorEquity": 30013.25050000001,
+    "exitEquity": 42777.70684396187,
+    "exitNetDebt": 25549.816319637954,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.2625168628700021,
+    "moic": 3.2076423408736723,
+    "entryLeverage": 3.439,
+    "sponsorEquity": 30013.25050000001,
+    "exitEquity": 96271.77309104794,
+    "exitNetDebt": 18051.044714224256,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.3653243051956704,
+    "moic": 4.744376078963289,
+    "entryLeverage": 3.439,
+    "sponsorEquity": 30013.25050000001,
+    "exitEquity": 142394.147724133,
+    "exitNetDebt": 14174.691311248644,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 100753.77688118965,
+    "equity": 88603.77688118965,
+    "perShare": null,
+    "tvShareOfEV": 0.718525950212621
+   },
+   "score": 85.86395528846009,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-ffiv",
+   "ticker": "FFIV",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.081443723399303,
+    "moic": 1.4791752173030477,
+    "entryLeverage": 4,
+    "sponsorEquity": 21620.17685,
+    "exitEquity": 31980.02979022907,
+    "exitNetDebt": 808.1313951313706,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.0038985653662427784,
+    "moic": 1.0196454086445657,
+    "entryLeverage": 4,
+    "sponsorEquity": 21620.17685,
+    "exitEquity": 22044.914059186027,
+    "exitNetDebt": 1660.9267280472272,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.081443723399303,
+    "moic": 1.4791752173030477,
+    "entryLeverage": 4,
+    "sponsorEquity": 21620.17685,
+    "exitEquity": 31980.02979022907,
+    "exitNetDebt": 808.1313951313706,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1359256284569228,
+    "moic": 1.89125239265597,
+    "entryLeverage": 4,
+    "sponsorEquity": 21620.17685,
+    "exitEquity": 40889.21119720771,
+    "exitNetDebt": 330.13057222784846,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 9744.112280933268,
+    "equity": 11094.112280933268,
+    "perShare": null,
+    "tvShareOfEV": 0.6899468029254326
+   },
+   "score": 66.02473313192347,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ftnt",
+   "ticker": "FTNT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11590156813462818,
+    "moic": 1.730331999576552,
+    "entryLeverage": 4,
+    "sponsorEquity": 124832.95000000001,
+    "exitEquity": 216002.44798653977,
+    "exitNetDebt": 929.410931499109,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.052923068566369344,
+    "moic": 1.294145790100518,
+    "entryLeverage": 4,
+    "sponsorEquity": 124832.95000000001,
+    "exitEquity": 161552.03670832847,
+    "exitNetDebt": 3427.8117819880285,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11590156813462818,
+    "moic": 1.730331999576552,
+    "entryLeverage": 4,
+    "sponsorEquity": 124832.95000000001,
+    "exitEquity": 216002.44798653977,
+    "exitNetDebt": 929.410931499109,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16197833612615092,
+    "moic": 2.1183131187301405,
+    "entryLeverage": 4,
+    "sponsorEquity": 124832.95000000001,
+    "exitEquity": 264435.2756347837,
+    "exitNetDebt": -510.7279743416502,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 34683.09589560154,
+    "equity": 38183.09589560154,
+    "perShare": null,
+    "tvShareOfEV": 0.7156251859186703
+   },
+   "score": 76.50953601953603,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-gd",
+   "ticker": "GD",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09674360977960558,
+    "moic": 1.5868123184530165,
+    "entryLeverage": 4,
+    "sponsorEquity": 73166.9575,
+    "exitEquity": 116102.22946472833,
+    "exitNetDebt": 10782.2347119303,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.03913515601572809,
+    "moic": 0.8190520823042214,
+    "entryLeverage": 4,
+    "sponsorEquity": 73166.9575,
+    "exitEquity": 59927.548896239474,
+    "exitNetDebt": 18362.931076707242,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09674360977960558,
+    "moic": 1.5868123184530165,
+    "entryLeverage": 4,
+    "sponsorEquity": 73166.9575,
+    "exitEquity": 116102.22946472833,
+    "exitNetDebt": 10782.2347119303,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.18163215057184795,
+    "moic": 2.3036234725081473,
+    "entryLeverage": 4,
+    "sponsorEquity": 73166.9575,
+    "exitEquity": 168549.12070900603,
+    "exitNetDebt": 6843.184248741499,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 56812.98541773381,
+    "equity": 51662.98541773381,
+    "perShare": null,
+    "tvShareOfEV": 0.6925310729067918
+   },
+   "score": 44.34024723884774,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-gddy",
+   "ticker": "GDDY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.12082261343686823,
+    "moic": 1.7688231880785568,
+    "entryLeverage": 4,
+    "sponsorEquity": 10831.155,
+    "exitEquity": 19158.398117673,
+    "exitNetDebt": 885.3721216194748,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.0047028554232978245,
+    "moic": 1.0237364881814892,
+    "entryLeverage": 4,
+    "sponsorEquity": 10831.155,
+    "exitEquity": 11088.24858264938,
+    "exitNetDebt": 2186.5300824417,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.12082261343686823,
+    "moic": 1.7688231880785568,
+    "entryLeverage": 4,
+    "sponsorEquity": 10831.155,
+    "exitEquity": 19158.398117673,
+    "exitNetDebt": 885.3721216194748,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.19447834867372193,
+    "moic": 2.4315959439935884,
+    "entryLeverage": 4,
+    "sponsorEquity": 10831.155,
+    "exitEquity": 26336.992566765875,
+    "exitNetDebt": 144.68477806488886,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 14881.067489800507,
+    "equity": 12251.067489800507,
+    "perShare": null,
+    "tvShareOfEV": 0.6835876339770014
+   },
+   "score": 65.51661730500038,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-gen",
+   "ticker": "GEN",
+   "dataStatus": "verified",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.2612344438056087,
+    "moic": 3.1913843663359494,
+    "entryLeverage": 4,
+    "sponsorEquity": 12314.4225,
+    "exitEquity": 39300.05544695566,
+    "exitNetDebt": -2297.721206694775,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.14308755320219935,
+    "moic": 1.9516299725518018,
+    "entryLeverage": 4,
+    "sponsorEquity": 12314.4225,
+    "exitEquity": 24033.196045666293,
+    "exitNetDebt": 269.1617670011874,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.2612344438056087,
+    "moic": 3.1913843663359494,
+    "entryLeverage": 4,
+    "sponsorEquity": 12314.4225,
+    "exitEquity": 39300.05544695566,
+    "exitNetDebt": -2297.721206694775,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.33683859501254143,
+    "moic": 4.269675569785843,
+    "entryLeverage": 4,
+    "sponsorEquity": 12314.4225,
+    "exitEquity": 52578.588904271106,
+    "exitNetDebt": -3875.6414425158036,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 44480.77298584306,
+    "equity": 36888.77298584306,
+    "perShare": null,
+    "tvShareOfEV": 0.7178391596361674
+   },
+   "score": 85.21337685066932,
+   "decision": "Proceed"
+  },
+  {
+   "id": "us-googl",
+   "ticker": "GOOGL",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11006660959837972,
+    "moic": 1.648159561730046,
+    "entryLeverage": 4,
+    "sponsorEquity": 3591554.5100000007,
+    "exitEquity": 6387277.3931389535,
+    "exitNetDebt": 649350,
+    "cures": 283845.3854047458,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.031087654826898202,
+    "moic": 1.1547564741283012,
+    "entryLeverage": 4,
+    "sponsorEquity": 3591554.5100000007,
+    "exitEquity": 4560098.679272338,
+    "exitNetDebt": 649350,
+    "cures": 357415.4948788636,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11006660959837972,
+    "moic": 1.648159561730046,
+    "entryLeverage": 4,
+    "sponsorEquity": 3591554.5100000007,
+    "exitEquity": 6387277.3931389535,
+    "exitNetDebt": 649350,
+    "cures": 283845.3854047458,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16500971898312045,
+    "moic": 2.0863540195434793,
+    "entryLeverage": 4,
+    "sponsorEquity": 3591554.5100000007,
+    "exitEquity": 8047746.253993388,
+    "exitNetDebt": 649350,
+    "cures": 265770.84255657875,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -28089.694930100497,
+    "equity": 91910.3050698995,
+    "perShare": null,
+    "tvShareOfEV": 0.507225866306556
+   },
+   "score": 61.95371195371195,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-hal",
+   "ticker": "HAL",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.061472754692720274,
+    "moic": 1.3475480410711276,
+    "entryLeverage": 4,
+    "sponsorEquity": 18631.315000000002,
+    "exitEquity": 25106.592030829117,
+    "exitNetDebt": 9114.46992251929,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.16205743814757428,
+    "moic": 0.41311527284535576,
+    "entryLeverage": 4,
+    "sponsorEquity": 18631.315000000002,
+    "exitEquity": 7696.88077969277,
+    "exitNetDebt": 12603.003595384665,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.061472754692720274,
+    "moic": 1.3475480410711276,
+    "entryLeverage": 4,
+    "sponsorEquity": 18631.315000000002,
+    "exitEquity": 25106.592030829117,
+    "exitNetDebt": 9114.46992251929,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16950626469950997,
+    "moic": 2.1878259170530097,
+    "entryLeverage": 4,
+    "sponsorEquity": 18631.315000000002,
+    "exitEquity": 40762.0738257785,
+    "exitNetDebt": 7381.645813169963,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 27690.157635778043,
+    "equity": 21540.157635778043,
+    "perShare": null,
+    "tvShareOfEV": 0.6604257698374871
+   },
+   "score": 55.53333368099455,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-hcat",
+   "ticker": "HCAT",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.00488232494626656,
+    "moic": 1.0246511623455967,
+    "entryLeverage": 4,
+    "sponsorEquity": 162.375115,
+    "exitEquity": 166.37785032074993,
+    "exitNetDebt": 5.869591478379106,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.2758577168755908,
+    "moic": 0.19912213251846447,
+    "entryLeverage": 4,
+    "sponsorEquity": 162.375115,
+    "exitEquity": 32.332479166730906,
+    "exitNetDebt": 31.741092891323174,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.00488232494626656,
+    "moic": 1.0246511623455967,
+    "entryLeverage": 4,
+    "sponsorEquity": 162.375115,
+    "exitEquity": 166.37785032074993,
+    "exitNetDebt": 5.869591478379106,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.13078333764510958,
+    "moic": 1.8488300961023525,
+    "entryLeverage": 4,
+    "sponsorEquity": 162.375115,
+    "exitEquity": 300.20399947008053,
+    "exitNetDebt": -8.769542670524356,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 107.01039852366486,
+    "equity": 40.470398523664855,
+    "perShare": null,
+    "tvShareOfEV": 0.6185845397335397
+   },
+   "score": 16.599910992434356,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-hii",
+   "ticker": "HII",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.12288211206568983,
+    "moic": 1.785133980885046,
+    "entryLeverage": 4,
+    "sponsorEquity": 9372.25,
+    "exitEquity": 16730.72195234987,
+    "exitNetDebt": 3047.4972912427215,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.07260312935877555,
+    "moic": 0.6927887099688288,
+    "entryLeverage": 4,
+    "sponsorEquity": 9372.25,
+    "exitEquity": 6636.706836110023,
+    "exitNetDebt": 4387.5,
+    "cures": 207.44831293675733,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.12288211206568983,
+    "moic": 1.785133980885046,
+    "entryLeverage": 4,
+    "sponsorEquity": 9372.25,
+    "exitEquity": 16730.72195234987,
+    "exitNetDebt": 3047.4972912427215,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2315125267775034,
+    "moic": 2.832658167103247,
+    "entryLeverage": 4,
+    "sponsorEquity": 9372.25,
+    "exitEquity": 26548.38050663341,
+    "exitNetDebt": 2288.229969960309,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 7579.875091210553,
+    "equity": 4659.875091210553,
+    "perShare": null,
+    "tvShareOfEV": 0.7160304024760253
+   },
+   "score": 43.39598313397993,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-hon",
+   "ticker": "HON",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14053172617870285,
+    "moic": 1.929909094830084,
+    "entryLeverage": 4,
+    "sponsorEquity": 61428.98999999999,
+    "exitEquity": 118552.36648722627,
+    "exitNetDebt": 8407.76958847674,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.012927284004250111,
+    "moic": 1.0663293101199252,
+    "entryLeverage": 4,
+    "sponsorEquity": 61428.98999999999,
+    "exitEquity": 65503.53252806378,
+    "exitNetDebt": 16733.627366365723,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14053172617870285,
+    "moic": 1.929909094830084,
+    "entryLeverage": 4,
+    "sponsorEquity": 61428.98999999999,
+    "exitEquity": 118552.36648722627,
+    "exitNetDebt": 8407.76958847674,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.22033386603762156,
+    "moic": 2.706408312680812,
+    "entryLeverage": 4,
+    "sponsorEquity": 61428.98999999999,
+    "exitEquity": 166251.92917558644,
+    "exitNetDebt": 3815.9427046670535,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 89104.7746529973,
+    "equity": 63344.774652997294,
+    "perShare": null,
+    "tvShareOfEV": 0.6954867637983767
+   },
+   "score": 61.84757588404735,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-hpe",
+   "ticker": "HPE",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.15711518934591073,
+    "moic": 2.0743544762066954,
+    "entryLeverage": 4,
+    "sponsorEquity": 74320.9725,
+    "exitEquity": 154168.0419814097,
+    "exitNetDebt": 11704.19549977676,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.037103595436893816,
+    "moic": 1.199805088228913,
+    "entryLeverage": 4,
+    "sponsorEquity": 74320.9725,
+    "exitEquity": 89170.68096762113,
+    "exitNetDebt": 19344.684951167237,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.15711518934591073,
+    "moic": 2.0743544762066954,
+    "entryLeverage": 4,
+    "sponsorEquity": 74320.9725,
+    "exitEquity": 154168.0419814097,
+    "exitNetDebt": 11704.19549977676,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.23505522068448959,
+    "moic": 2.87363681623121,
+    "entryLeverage": 4,
+    "sponsorEquity": 74320.9725,
+    "exitEquity": 213571.48279410732,
+    "exitNetDebt": 7739.201840595568,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 78062.6861722442,
+    "equity": 63952.6861722442,
+    "perShare": null,
+    "tvShareOfEV": 0.7405206452173563
+   },
+   "score": 51.78123869072042,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-hstm",
+   "ticker": "HSTM",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08962605575163154,
+    "moic": 1.5359865010559042,
+    "entryLeverage": 4,
+    "sponsorEquity": 831.8391499999999,
+    "exitEquity": 1277.6937054498173,
+    "exitNetDebt": 7.2925456718663,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.011666438139596558,
+    "moic": 0.9430130808010553,
+    "entryLeverage": 4,
+    "sponsorEquity": 831.8391499999999,
+    "exitEquity": 784.4351995724311,
+    "exitNetDebt": 61.21508972209108,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08962605575163154,
+    "moic": 1.5359865010559042,
+    "entryLeverage": 4,
+    "sponsorEquity": 831.8391499999999,
+    "exitEquity": 1277.6937054498173,
+    "exitNetDebt": 7.2925456718663,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15840385825831915,
+    "moic": 2.085931184063979,
+    "entryLeverage": 4,
+    "sponsorEquity": 831.8391499999999,
+    "exitEquity": 1735.1592231102736,
+    "exitNetDebt": -23.483658562333098,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 534.5900893007379,
+    "equity": 584.1500893007378,
+    "perShare": null,
+    "tvShareOfEV": 0.6893443288674644
+   },
+   "score": 50.00701323146764,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ibm",
+   "ticker": "IBM",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0939155369328096,
+    "moic": 1.5664587155064096,
+    "entryLeverage": 4,
+    "sponsorEquity": 221775.305,
+    "exitEquity": 347401.8594013422,
+    "exitNetDebt": 10873.048175072738,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.002022794525025903,
+    "moic": 0.9899268616646771,
+    "entryLeverage": 4,
+    "sponsorEquity": 221775.305,
+    "exitEquity": 219541.33167337658,
+    "exitNetDebt": 26892.394410677505,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0939155369328096,
+    "moic": 1.5664587155064096,
+    "entryLeverage": 4,
+    "sponsorEquity": 221775.305,
+    "exitEquity": 347401.8594013422,
+    "exitNetDebt": 10873.048175072738,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15828334137573447,
+    "moic": 2.0848463395191366,
+    "entryLeverage": 4,
+    "sponsorEquity": 221775.305,
+    "exitEquity": 462367.43282499,
+    "exitNetDebt": 1796.637112300792,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 177726.03947662344,
+    "equity": 120586.03947662344,
+    "perShare": null,
+    "tvShareOfEV": 0.6853788722563194
+   },
+   "score": 52.46260591818968,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-intc",
+   "ticker": "INTC",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.04805444618692892,
+    "moic": 1.2607520948744138,
+    "entryLeverage": 4,
+    "sponsorEquity": 470210.38,
+    "exitEquity": 603135.5478364613,
+    "exitNetDebt": 63150,
+    "cures": 8183.072835421195,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.02982681384259076,
+    "moic": 0.863876729083028,
+    "entryLeverage": 4,
+    "sponsorEquity": 470210.38,
+    "exitEquity": 423894.3868506635,
+    "exitNetDebt": 63150,
+    "cures": 20478.132122106992,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.04805444618692892,
+    "moic": 1.2607520948744138,
+    "entryLeverage": 4,
+    "sponsorEquity": 470210.38,
+    "exitEquity": 603135.5478364613,
+    "exitNetDebt": 63150,
+    "cures": 8183.072835421195,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.10227636373022972,
+    "moic": 1.6233899948786275,
+    "entryLeverage": 4,
+    "sponsorEquity": 470210.38,
+    "exitEquity": 768817.6134977723,
+    "exitNetDebt": 63150,
+    "cures": 3377.369045633809,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 49555.00078226874,
+    "equity": 28995.00078226874,
+    "perShare": null,
+    "tvShareOfEV": 0.6874103040943407
+   },
+   "score": 48.66181292084593,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-intu",
+   "ticker": "INTU",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.15061757280287663,
+    "moic": 2.0167636846300194,
+    "entryLeverage": 4,
+    "sponsorEquity": 65411.524999999994,
+    "exitEquity": 131919.58817626862,
+    "exitNetDebt": 508.13609268587606,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.050754219954476265,
+    "moic": 1.2808719476983443,
+    "entryLeverage": 4,
+    "sponsorEquity": 65411.524999999994,
+    "exitEquity": 83783.78742866893,
+    "exitNetDebt": 7247.037338817208,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.15061757280287663,
+    "moic": 2.0167636846300194,
+    "entryLeverage": 4,
+    "sponsorEquity": 65411.524999999994,
+    "exitEquity": 131919.58817626862,
+    "exitNetDebt": 508.13609268587606,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.21692242577106707,
+    "moic": 2.668790434508797,
+    "entryLeverage": 4,
+    "sponsorEquity": 65411.524999999994,
+    "exitEquity": 174569.652226633,
+    "exitNetDebt": -3456.2131097449965,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 90341.77802960458,
+    "equity": 89121.77802960458,
+    "perShare": null,
+    "tvShareOfEV": 0.7025982041780876
+   },
+   "score": 74.28960259529603,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-it",
+   "ticker": "IT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.061354389065981965,
+    "moic": 1.3467968781274635,
+    "entryLeverage": 4,
+    "sponsorEquity": 9302.404999999999,
+    "exitEquity": 12528.450013077305,
+    "exitNetDebt": 2012.7540822632254,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.08491880762292539,
+    "moic": 0.6416499238119115,
+    "entryLeverage": 4,
+    "sponsorEquity": 9302.404999999999,
+    "exitEquity": 5968.887459517544,
+    "exitNetDebt": 3223.856186705356,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.061354389065981965,
+    "moic": 1.3467968781274635,
+    "entryLeverage": 4,
+    "sponsorEquity": 9302.404999999999,
+    "exitEquity": 12528.450013077305,
+    "exitNetDebt": 2012.7540822632254,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1462900440430952,
+    "moic": 1.9791221622837936,
+    "entryLeverage": 4,
+    "sponsorEquity": 9302.404999999999,
+    "exitEquity": 18410.59589803957,
+    "exitNetDebt": 1364.237041623091,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 11383.26229752508,
+    "equity": 9543.26229752508,
+    "perShare": null,
+    "tvShareOfEV": 0.6605334759906629
+   },
+   "score": 57.201714568698904,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-kmi",
+   "ticker": "KMI",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0981081011919403,
+    "moic": 1.5967079131454371,
+    "entryLeverage": 4,
+    "sponsorEquity": 79805.65,
+    "exitEquity": 127426.31286871515,
+    "exitNetDebt": 25312.719734903723,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.006368043359580595,
+    "moic": 0.9691235152499578,
+    "entryLeverage": 4,
+    "sponsorEquity": 79805.65,
+    "exitEquity": 78844.85821689661,
+    "exitNetDebt": 28650,
+    "cures": 1551.222448359527,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0981081011919403,
+    "moic": 1.5967079131454371,
+    "entryLeverage": 4,
+    "sponsorEquity": 79805.65,
+    "exitEquity": 127426.31286871515,
+    "exitNetDebt": 25312.719734903723,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16492832682773673,
+    "moic": 2.1453395011291168,
+    "entryLeverage": 4,
+    "sponsorEquity": 79805.65,
+    "exitEquity": 171210.21335828488,
+    "exitNetDebt": 23221.017571919743,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 40076.70309717733,
+    "equity": 7736.703097177327,
+    "perShare": null,
+    "tvShareOfEV": 0.7000947121143912
+   },
+   "score": 52.01154547217375,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ktos",
+   "ticker": "KTOS",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10210218068986548,
+    "moic": 1.6058952655108574,
+    "entryLeverage": 4,
+    "sponsorEquity": 5983.288,
+    "exitEquity": 10064.455169763747,
+    "exitNetDebt": 326.24999999999994,
+    "cures": 283.9047527989229,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.04431915851472147,
+    "moic": 0.8064009585641805,
+    "entryLeverage": 4,
+    "sponsorEquity": 5983.288,
+    "exitEquity": 5180.400796706417,
+    "exitNetDebt": 326.24999999999994,
+    "cures": 440.8124945359525,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10210218068986548,
+    "moic": 1.6058952655108574,
+    "entryLeverage": 4,
+    "sponsorEquity": 5983.288,
+    "exitEquity": 10064.455169763747,
+    "exitNetDebt": 326.24999999999994,
+    "cures": 283.9047527989229,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.19427655366814228,
+    "moic": 2.390757580300143,
+    "entryLeverage": 4,
+    "sponsorEquity": 5983.288,
+    "exitEquity": 14869.249892924207,
+    "exitNetDebt": 326.24999999999994,
+    "cures": 236.18402654376945,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -775.117854038135,
+    "equity": 464.88214596186504,
+    "perShare": null,
+    "tvShareOfEV": 0.6944899656612855
+   },
+   "score": 34.1374269005848,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ldos",
+   "ticker": "LDOS",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11562423495703258,
+    "moic": 1.7281828852632997,
+    "entryLeverage": 4,
+    "sponsorEquity": 12562.595000000001,
+    "exitEquity": 21710.461673494305,
+    "exitNetDebt": 2593.5335270746004,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.06588645444520055,
+    "moic": 0.7112108100792336,
+    "entryLeverage": 4,
+    "sponsorEquity": 12562.595000000001,
+    "exitEquity": 8934.65336664733,
+    "exitNetDebt": 5160.140972169183,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11562423495703258,
+    "moic": 1.7281828852632997,
+    "entryLeverage": 4,
+    "sponsorEquity": 12562.595000000001,
+    "exitEquity": 21710.461673494305,
+    "exitNetDebt": 2593.5335270746004,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.21665969002524893,
+    "moic": 2.665910694929027,
+    "entryLeverage": 4,
+    "sponsorEquity": 12562.595000000001,
+    "exitEquity": 33490.756366561924,
+    "exitNetDebt": 1204.3572432584142,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 21728.48507778537,
+    "equity": 15898.485077785372,
+    "perShare": null,
+    "tvShareOfEV": 0.6710954652388934
+   },
+   "score": 52.07511594188315,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-lhx",
+   "ticker": "LHX",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1024555993130882,
+    "moic": 1.6285666530179823,
+    "entryLeverage": 4,
+    "sponsorEquity": 39944.884999999995,
+    "exitEquity": 65052.907669638196,
+    "exitNetDebt": 3948.3085844866473,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.017400292234919672,
+    "moic": 0.9159740143810676,
+    "entryLeverage": 4,
+    "sponsorEquity": 39944.884999999995,
+    "exitEquity": 36588.47666744009,
+    "exitNetDebt": 8175.796134491731,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1024555993130882,
+    "moic": 1.6285666530179823,
+    "entryLeverage": 4,
+    "sponsorEquity": 39944.884999999995,
+    "exitEquity": 65052.907669638196,
+    "exitNetDebt": 3948.3085844866473,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17897140125066585,
+    "moic": 2.2778040032918696,
+    "entryLeverage": 4,
+    "sponsorEquity": 39944.884999999995,
+    "exitEquity": 90986.61896403333,
+    "exitNetDebt": 1617.8309096852895,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 41359.58349885464,
+    "equity": 31879.58349885464,
+    "perShare": null,
+    "tvShareOfEV": 0.6841050964241051
+   },
+   "score": 49.91950114250285,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-lmt",
+   "ticker": "LMT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08616266499542605,
+    "moic": 1.5117304219542016,
+    "entryLeverage": 4,
+    "sponsorEquity": 106962.66,
+    "exitEquity": 161698.7071351438,
+    "exitNetDebt": 15549.044902965674,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.04770026190035588,
+    "moic": 0.7831921474869261,
+    "entryLeverage": 4,
+    "sponsorEquity": 106962.66,
+    "exitEquity": 83772.31538631393,
+    "exitNetDebt": 26223.798398226423,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08616266499542605,
+    "moic": 1.5117304219542016,
+    "entryLeverage": 4,
+    "sponsorEquity": 106962.66,
+    "exitEquity": 161698.7071351438,
+    "exitNetDebt": 15549.044902965674,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16970889348757856,
+    "moic": 2.1897218887581813,
+    "entryLeverage": 4,
+    "sponsorEquity": 106962.66,
+    "exitEquity": 234218.47788179916,
+    "exitNetDebt": 9992.907256593711,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 81576.55876887124,
+    "equity": 64826.55876887124,
+    "perShare": null,
+    "tvShareOfEV": 0.6854944908339452
+   },
+   "score": 41.46115351229917,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-manh",
+   "ticker": "MANH",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.054254081088017644,
+    "moic": 1.302346221535162,
+    "entryLeverage": 4,
+    "sponsorEquity": 12323.361355000003,
+    "exitEquity": 16049.283097296688,
+    "exitNetDebt": 293.9845440681351,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.014932928826458622,
+    "moic": 0.92753222809954,
+    "entryLeverage": 4,
+    "sponsorEquity": 12323.361355000003,
+    "exitEquity": 11430.314815278918,
+    "exitNetDebt": 558.9216292897028,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.054254081088017644,
+    "moic": 1.302346221535162,
+    "entryLeverage": 4,
+    "sponsorEquity": 12323.361355000003,
+    "exitEquity": 16049.283097296688,
+    "exitNetDebt": 293.9845440681351,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.10409152212936598,
+    "moic": 1.6406856348359034,
+    "entryLeverage": 4,
+    "sponsorEquity": 12323.361355000003,
+    "exitEquity": 20218.761948040417,
+    "exitNetDebt": 147.0238473441716,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 2834.777020818857,
+    "equity": 2964.777020818857,
+    "perShare": null,
+    "tvShareOfEV": 0.6807554961174179
+   },
+   "score": 60.836696165191746,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-mdb",
+   "ticker": "MDB",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10545280409293598,
+    "moic": 1.6488877353028804,
+    "entryLeverage": 4,
+    "sponsorEquity": 27002.426612499992,
+    "exitEquity": 44726.12977638345,
+    "exitNetDebt": 51.9325,
+    "cures": 122.60368446429172,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -1,
+    "moic": 0,
+    "entryLeverage": 4,
+    "sponsorEquity": 27002.426612499992,
+    "exitEquity": -111808.10212670387,
+    "exitNetDebt": 51.9325,
+    "cures": 377.22254562176227,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10545280409293598,
+    "moic": 1.6488877353028804,
+    "entryLeverage": 4,
+    "sponsorEquity": 27002.426612499992,
+    "exitEquity": 44726.12977638345,
+    "exitNetDebt": 51.9325,
+    "cures": 122.60368446429172,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.49934313693498444,
+    "moic": 7.56994127881431,
+    "entryLeverage": 4,
+    "sponsorEquity": 27002.426612499992,
+    "exitEquity": 204726.78648543806,
+    "exitNetDebt": -1.9147181110732632,
+    "cures": 42.27280391406254,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -861.6017945952731,
+    "equity": 1498.398205404727,
+    "perShare": null,
+    "tvShareOfEV": 0.6725767771139407
+   },
+   "score": 39.31579852157469,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-meta",
+   "ticker": "META",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10958627528758982,
+    "moic": 1.6215243036579432,
+    "entryLeverage": 4,
+    "sponsorEquity": 1519188.9200000002,
+    "exitEquity": 2798030.9595892327,
+    "exitNetDebt": 411225,
+    "cures": 206367.06042980106,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.019563565756379284,
+    "moic": 1.0917608807381949,
+    "entryLeverage": 4,
+    "sponsorEquity": 1519188.9200000002,
+    "exitEquity": 1927222.01940851,
+    "exitNetDebt": 411225,
+    "cures": 246052.95064242263,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10958627528758982,
+    "moic": 1.6215243036579432,
+    "entryLeverage": 4,
+    "sponsorEquity": 1519188.9200000002,
+    "exitEquity": 2798030.9595892327,
+    "exitNetDebt": 411225,
+    "cures": 206367.06042980106,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17002456835238916,
+    "moic": 2.0879975174664147,
+    "entryLeverage": 4,
+    "sponsorEquity": 1519188.9200000002,
+    "exitEquity": 3588285.6195339095,
+    "exitNetDebt": 411225,
+    "cures": 199340.7188129573,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -136111.26035676943,
+    "equity": -156111.26035676943,
+    "perShare": null,
+    "tvShareOfEV": 0.7011039232850108
+   },
+   "score": 60.705817982856104,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-mpc",
+   "ticker": "MPC",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14844106362644216,
+    "moic": 1.997761151679908,
+    "entryLeverage": 4,
+    "sponsorEquity": 107502.70000000001,
+    "exitEquity": 214764.71776069968,
+    "exitNetDebt": 29540.353787808825,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.03758095404423595,
+    "moic": 0.8256976428648835,
+    "entryLeverage": 4,
+    "sponsorEquity": 107502.70000000001,
+    "exitEquity": 88764.72599161071,
+    "exitNetDebt": 49932.336763616404,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14844106362644216,
+    "moic": 1.997761151679908,
+    "entryLeverage": 4,
+    "sponsorEquity": 107502.70000000001,
+    "exitEquity": 214764.71776069968,
+    "exitNetDebt": 29540.353787808825,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2541417587736846,
+    "moic": 3.102652545555142,
+    "entryLeverage": 4,
+    "sponsorEquity": 107502.70000000001,
+    "exitEquity": 333543.52580905077,
+    "exitNetDebt": 19164.302831764177,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 128423.93802990655,
+    "equity": 101903.93802990655,
+    "perShare": null,
+    "tvShareOfEV": 0.7153558305728428
+   },
+   "score": 52.089743461358154,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-mrcy",
+   "ticker": "MRCY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.05299430732988701,
+    "moic": 1.2945836465067488,
+    "entryLeverage": 4,
+    "sponsorEquity": 4713.64774,
+    "exitEquity": 6102.211279597496,
+    "exitNetDebt": 189.80687467570598,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.05829613784431284,
+    "moic": 0.7418849243388956,
+    "entryLeverage": 4,
+    "sponsorEquity": 4713.64774,
+    "exitEquity": 3515.0551191040695,
+    "exitNetDebt": 300.67500000000007,
+    "cures": 24.358120189686208,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.05299430732988701,
+    "moic": 1.2945836465067488,
+    "entryLeverage": 4,
+    "sponsorEquity": 4713.64774,
+    "exitEquity": 6102.211279597496,
+    "exitNetDebt": 189.80687467570598,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.12762942584962256,
+    "moic": 1.8231903017688433,
+    "entryLeverage": 4,
+    "sponsorEquity": 4713.64774,
+    "exitEquity": 8593.876845522627,
+    "exitNetDebt": 117.68377189625699,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 585.8114420422188,
+    "equity": 295.8114420422188,
+    "perShare": null,
+    "tvShareOfEV": 0.6913237769357462
+   },
+   "score": 26.85975602114085,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-mrvl",
+   "ticker": "MRVL",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11714884436132553,
+    "moic": 1.7400238576950193,
+    "entryLeverage": 4,
+    "sponsorEquity": 207291.375,
+    "exitEquity": 360691.93799440487,
+    "exitNetDebt": -87.90396876402292,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.05571181143494071,
+    "moic": 1.3113750077779407,
+    "entryLeverage": 4,
+    "sponsorEquity": 207291.375,
+    "exitEquity": 271836.728502925,
+    "exitNetDebt": 2857.7783824087655,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11714884436132553,
+    "moic": 1.7400238576950193,
+    "entryLeverage": 4,
+    "sponsorEquity": 207291.375,
+    "exitEquity": 360691.93799440487,
+    "exitNetDebt": -87.90396876402292,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16247280576742434,
+    "moic": 2.1228241037194704,
+    "entryLeverage": 4,
+    "sponsorEquity": 207291.375,
+    "exitEquity": 440043.12734315166,
+    "exitNetDebt": -1812.7558848504814,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 54738.68061030024,
+    "equity": 53378.68061030024,
+    "perShare": null,
+    "tvShareOfEV": 0.7414038020961033
+   },
+   "score": 75.17014759120022,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-msft",
+   "ticker": "MSFT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11085748441520238,
+    "moic": 1.6826137549376519,
+    "entryLeverage": 4,
+    "sponsorEquity": 3410207.1999999993,
+    "exitEquity": 5824227.180638127,
+    "exitNetDebt": 728400,
+    "cures": 51209.398757057876,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.03244350856318526,
+    "moic": 1.1673458972491948,
+    "entryLeverage": 4,
+    "sponsorEquity": 3410207.1999999993,
+    "exitEquity": 4155038.3989327587,
+    "exitNetDebt": 728400,
+    "cures": 149182.01678993885,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11085748441520238,
+    "moic": 1.6826137549376519,
+    "entryLeverage": 4,
+    "sponsorEquity": 3410207.1999999993,
+    "exitEquity": 5824227.180638127,
+    "exitNetDebt": 728400,
+    "cures": 51209.398757057876,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1647798559864529,
+    "moic": 2.1394990098498283,
+    "entryLeverage": 4,
+    "sponsorEquity": 3410207.1999999993,
+    "exitEquity": 7327785.953636967,
+    "exitNetDebt": 728400,
+    "cures": 14793.662305286216,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 743816.9699355331,
+    "equity": 693816.9699355331,
+    "perShare": null,
+    "tvShareOfEV": 0.7156781275840853
+   },
+   "score": 63.40935265814178,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-mu",
+   "ticker": "MU",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.20586136675915345,
+    "moic": 2.5496872224998577,
+    "entryLeverage": 4,
+    "sponsorEquity": 587814.8500000001,
+    "exitEquity": 1498744.0122406706,
+    "exitNetDebt": 169637.57949554134,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.08443609530134502,
+    "moic": 1.4997532885407108,
+    "entryLeverage": 4,
+    "sponsorEquity": 587814.8500000001,
+    "exitEquity": 881577.2543405647,
+    "exitNetDebt": 248896.00904226454,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.20586136675915345,
+    "moic": 2.5496872224998577,
+    "entryLeverage": 4,
+    "sponsorEquity": 587814.8500000001,
+    "exitEquity": 1498744.0122406706,
+    "exitNetDebt": 169637.57949554134,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.281015189083771,
+    "moic": 3.44962110460849,
+    "entryLeverage": 4,
+    "sponsorEquity": 587814.8500000001,
+    "exitEquity": 2027738.5121622742,
+    "exitNetDebt": 127668.37661172159,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 1530545.671401244,
+    "equity": 1600545.671401244,
+    "perShare": null,
+    "tvShareOfEV": 0.7396108167425905
+   },
+   "score": 85.66002160347989,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-noc",
+   "ticker": "NOC",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0910572548344212,
+    "moic": 1.5461004520243204,
+    "entryLeverage": 4,
+    "sponsorEquity": 59981.425,
+    "exitEquity": 92737.30830556288,
+    "exitNetDebt": 12246.75295883392,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.04688418519985585,
+    "moic": 0.7865537006412341,
+    "entryLeverage": 4,
+    "sponsorEquity": 59981.425,
+    "exitEquity": 47178.61180348464,
+    "exitNetDebt": 19258.56643539611,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0910572548344212,
+    "moic": 1.5461004520243204,
+    "entryLeverage": 4,
+    "sponsorEquity": 59981.425,
+    "exitEquity": 92737.30830556288,
+    "exitNetDebt": 12246.75295883392,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1748984656020115,
+    "moic": 2.238729814739039,
+    "entryLeverage": 4,
+    "sponsorEquity": 59981.425,
+    "exitEquity": 134282.2044780336,
+    "exitNetDebt": 8593.939050612113,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 59513.83365005924,
+    "equity": 45203.83365005924,
+    "perShare": null,
+    "tvShareOfEV": 0.6799435331843324
+   },
+   "score": 49.58868872492001,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-now",
+   "ticker": "NOW",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11931771590156856,
+    "moic": 1.7569802831342383,
+    "entryLeverage": 4,
+    "sponsorEquity": 148221.42500000002,
+    "exitEquity": 260422.12126306028,
+    "exitNetDebt": 2736.1002300163764,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.04581081966563193,
+    "moic": 1.2510240334962242,
+    "entryLeverage": 4,
+    "sponsorEquity": 148221.42500000002,
+    "exitEquity": 185428.5649540581,
+    "exitNetDebt": 5905.629482816008,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11931771590156856,
+    "moic": 1.7569802831342383,
+    "entryLeverage": 4,
+    "sponsorEquity": 148221.42500000002,
+    "exitEquity": 260422.12126306028,
+    "exitNetDebt": 2736.1002300163764,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17258130611250166,
+    "moic": 2.2167403716929313,
+    "entryLeverage": 4,
+    "sponsorEquity": 148221.42500000002,
+    "exitEquity": 328568.41674735595,
+    "exitNetDebt": 1004.5122913511095,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 36202.96276360541,
+    "equity": 34452.96276360541,
+    "perShare": null,
+    "tvShareOfEV": 0.7270681139440303
+   },
+   "score": 61.382624887084475,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ntap",
+   "ticker": "NTAP",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10506190605944202,
+    "moic": 1.6479082970048793,
+    "entryLeverage": 4,
+    "sponsorEquity": 35610.5,
+    "exitEquity": 58682.83841049225,
+    "exitNetDebt": 1941.1734255096694,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.019829638005489467,
+    "moic": 1.1031590846361155,
+    "entryLeverage": 4,
+    "sponsorEquity": 35610.5,
+    "exitEquity": 39284.04658343439,
+    "exitNetDebt": 3890.252756702932,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10506190605944202,
+    "moic": 1.6479082970048793,
+    "entryLeverage": 4,
+    "sponsorEquity": 35610.5,
+    "exitEquity": 58682.83841049225,
+    "exitNetDebt": 1941.1734255096694,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1637051014506256,
+    "moic": 2.1340996320137613,
+    "entryLeverage": 4,
+    "sponsorEquity": 35610.5,
+    "exitEquity": 75996.35494582605,
+    "exitNetDebt": 857.1770957719032,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 22758.87294889,
+    "equity": 23808.87294889,
+    "perShare": null,
+    "tvShareOfEV": 0.6982449014813364
+   },
+   "score": 68.63025379028471,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ntnx",
+   "ticker": "NTNX",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08152829130487066,
+    "moic": 1.479753658470654,
+    "entryLeverage": 4,
+    "sponsorEquity": 17116.3053075,
+    "exitEquity": 25327.9153982738,
+    "exitNetDebt": 548.0915435994062,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.006213613233685021,
+    "moic": 0.9693156321567549,
+    "entryLeverage": 4,
+    "sponsorEquity": 17116.3053075,
+    "exitEquity": 16591.10229932738,
+    "exitNetDebt": 978.982415725945,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08152829130487066,
+    "moic": 1.479753658470654,
+    "entryLeverage": 4,
+    "sponsorEquity": 17116.3053075,
+    "exitEquity": 25327.9153982738,
+    "exitNetDebt": 548.0915435994062,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.14347822729820087,
+    "moic": 1.9549673049355387,
+    "entryLeverage": 4,
+    "sponsorEquity": 17116.3053075,
+    "exitEquity": 33461.81725745713,
+    "exitNetDebt": 321.71250652816985,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 3462.196351497919,
+    "equity": 4302.196351497919,
+    "perShare": null,
+    "tvShareOfEV": 0.702949738397375
+   },
+   "score": 49.732434415876426,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-nvda",
+   "ticker": "NVDA",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14272898415125457,
+    "moic": 1.9485709102183415,
+    "entryLeverage": 4,
+    "sponsorEquity": 4568447.760000001,
+    "exitEquity": 8901944.409988144,
+    "exitNetDebt": -66147.81031648093,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.07650485651363681,
+    "moic": 1.4457059457207242,
+    "entryLeverage": 4,
+    "sponsorEquity": 4568447.760000001,
+    "exitEquity": 6604632.089346525,
+    "exitNetDebt": 117512.54690277705,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14272898415125457,
+    "moic": 1.9485709102183415,
+    "entryLeverage": 4,
+    "sponsorEquity": 4568447.760000001,
+    "exitEquity": 8901944.409988144,
+    "exitNetDebt": -66147.81031648093,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1898734415744986,
+    "moic": 2.385084966924576,
+    "entryLeverage": 4,
+    "sponsorEquity": 4568447.760000001,
+    "exitEquity": 10896136.074556254,
+    "exitNetDebt": -176003.1242923105,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 4178470.0912646092,
+    "equity": 4208470.091264609,
+    "perShare": null,
+    "tvShareOfEV": 0.739306869284717
+   },
+   "score": 77.77777777777777,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-okta",
+   "ticker": "OKTA",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.07038362006575435,
+    "moic": 1.4050677724313054,
+    "entryLeverage": 4,
+    "sponsorEquity": 34485.68075,
+    "exitEquity": 48454.71863217965,
+    "exitNetDebt": 52.25885383101922,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.018047043311016087,
+    "moic": 0.9129634911860561,
+    "entryLeverage": 4,
+    "sponsorEquity": 34485.68075,
+    "exitEquity": 31484.16749344777,
+    "exitNetDebt": 496.2019174480095,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.07038362006575435,
+    "moic": 1.4050677724313054,
+    "entryLeverage": 4,
+    "sponsorEquity": 34485.68075,
+    "exitEquity": 48454.71863217965,
+    "exitNetDebt": 52.25885383101922,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.13329048627550255,
+    "moic": 1.8694171168482387,
+    "entryLeverage": 4,
+    "sponsorEquity": 34485.68075,
+    "exitEquity": 64468.12188021381,
+    "exitNetDebt": -196.77165159896845,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 3899.6991425602905,
+    "equity": 6139.69914256029,
+    "perShare": null,
+    "tvShareOfEV": 0.6986269310312058
+   },
+   "score": 48.257806731813254,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-omcl",
+   "ticker": "OMCL",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.061257206966334965,
+    "moic": 1.3461803989141883,
+    "entryLeverage": 4,
+    "sponsorEquity": 1267.0479750000002,
+    "exitEquity": 1705.6751484289148,
+    "exitNetDebt": 284.82133942413236,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.12139486001010283,
+    "moic": 0.54778883835181,
+    "entryLeverage": 4,
+    "sponsorEquity": 1267.0479750000002,
+    "exitEquity": 740.9507691151861,
+    "exitNetDebt": 308.17500000000007,
+    "cures": 85.57317614386511,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.061257206966334965,
+    "moic": 1.3461803989141883,
+    "entryLeverage": 4,
+    "sponsorEquity": 1267.0479750000002,
+    "exitEquity": 1705.6751484289148,
+    "exitNetDebt": 284.82133942413236,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16601135562753855,
+    "moic": 2.155330625307552,
+    "entryLeverage": 4,
+    "sponsorEquity": 1267.0479750000002,
+    "exitEquity": 2730.9073042514183,
+    "exitNetDebt": 232.36351590954808,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 330.7834824087073,
+    "equity": 420.7834824087073,
+    "perShare": null,
+    "tvShareOfEV": 0.7044829965258904
+   },
+   "score": 31.906706810833363,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-orcl",
+   "ticker": "ORCL",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0704190609756381,
+    "moic": 1.3242143405134863,
+    "entryLeverage": 4,
+    "sponsorEquity": 420517.56000000006,
+    "exitEquity": 785350.3439148122,
+    "exitNetDebt": 129112.5,
+    "cures": 172551.34122506855,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.027750031978177665,
+    "moic": 0.8933560893967766,
+    "entryLeverage": 4,
+    "sponsorEquity": 420517.56000000006,
+    "exitEquity": 530712.2826910137,
+    "exitNetDebt": 129112.5,
+    "cures": 173548.22070046852,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0704190609756381,
+    "moic": 1.3242143405134863,
+    "entryLeverage": 4,
+    "sponsorEquity": 420517.56000000006,
+    "exitEquity": 785350.3439148122,
+    "exitNetDebt": 129112.5,
+    "cures": 172551.34122506855,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.13490245212928526,
+    "moic": 1.694325758032494,
+    "entryLeverage": 4,
+    "sponsorEquity": 420517.56000000006,
+    "exitEquity": 1016942.0377799072,
+    "exitNetDebt": 129112.5,
+    "cures": 179686.9950914678,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -364628.4499043678,
+    "equity": -496698.4499043678,
+    "perShare": null,
+    "tvShareOfEV": 0.7169322215843441
+   },
+   "score": 52.58689127698712,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-oxy",
+   "ticker": "OXY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.26272023584628157,
+    "moic": 3.2102266943438074,
+    "entryLeverage": 3.144,
+    "sponsorEquity": 32111.432000000023,
+    "exitEquity": 103084.97620000603,
+    "exitNetDebt": 14800.69740308404,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.06454799302940645,
+    "moic": 1.3671816715469771,
+    "entryLeverage": 3.144,
+    "sponsorEquity": 32111.432000000023,
+    "exitEquity": 43902.16127752712,
+    "exitNetDebt": 23641.21784145953,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.26272023584628157,
+    "moic": 3.2102266943438074,
+    "entryLeverage": 3.144,
+    "sponsorEquity": 32111.432000000023,
+    "exitEquity": 103084.97620000603,
+    "exitNetDebt": 14800.69740308404,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.3694958115543311,
+    "moic": 4.817298321497945,
+    "entryLeverage": 3.144,
+    "sponsorEquity": 32111.432000000023,
+    "exitEquity": 154690.3474744955,
+    "exitNetDebt": 10043.211322584051,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 115557.70997279367,
+    "equity": 105087.70997279367,
+    "perShare": null,
+    "tvShareOfEV": 0.7148346751046325
+   },
+   "score": 87.58072983993296,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-panw",
+   "ticker": "PANW",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1091634127295383,
+    "moic": 1.6787177277320195,
+    "entryLeverage": 4,
+    "sponsorEquity": 304079.77,
+    "exitEquity": 510464.10054367513,
+    "exitNetDebt": 1723.6336586113425,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.03270888702097999,
+    "moic": 1.174598851563473,
+    "entryLeverage": 4,
+    "sponsorEquity": 304079.77,
+    "exitEquity": 357171.74862568505,
+    "exitNetDebt": 3694.9366534133437,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1091634127295383,
+    "moic": 1.6787177277320195,
+    "entryLeverage": 4,
+    "sponsorEquity": 304079.77,
+    "exitEquity": 510464.10054367513,
+    "exitNetDebt": 1723.6336586113425,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.16494146614378552,
+    "moic": 2.1454604911169133,
+    "entryLeverage": 4,
+    "sponsorEquity": 304079.77,
+    "exitEquity": 652391.1326829181,
+    "exitNetDebt": 665.4821226878992,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 19323.655358155076,
+    "equity": 19823.655358155076,
+    "perShare": null,
+    "tvShareOfEV": 0.7360841273253147
+   },
+   "score": 55.20861252568569,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-payx",
+   "ticker": "PAYX",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.14433533864744963,
+    "moic": 1.9623051732337309,
+    "entryLeverage": 4,
+    "sponsorEquity": 31434.04,
+    "exitEquity": 61683.179307636026,
+    "exitNetDebt": 985.3882364855276,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.05217895074328492,
+    "moic": 1.2895792799342984,
+    "entryLeverage": 4,
+    "sponsorEquity": 31434.04,
+    "exitEquity": 40536.68666862594,
+    "exitNetDebt": 3736.5955305141238,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.14433533864744963,
+    "moic": 1.9623051732337309,
+    "entryLeverage": 4,
+    "sponsorEquity": 31434.04,
+    "exitEquity": 61683.179307636026,
+    "exitNetDebt": 985.3882364855276,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.20600162303384623,
+    "moic": 2.551170364928686,
+    "entryLeverage": 4,
+    "sponsorEquity": 31434.04,
+    "exitEquity": 80193.59129798292,
+    "exitNetDebt": -627.6205441351149,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 39014.34166710358,
+    "equity": 35324.34166710358,
+    "perShare": null,
+    "tvShareOfEV": 0.7021972047550294
+   },
+   "score": 70.44117043450377,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-pltr",
+   "ticker": "PLTR",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11072133495814404,
+    "moic": 1.6905404621181532,
+    "entryLeverage": 4,
+    "sponsorEquity": 474193.72000000003,
+    "exitEquity": 801643.6705423262,
+    "exitNetDebt": -1166.9081710813302,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.05805201304669132,
+    "moic": 1.3259742463160846,
+    "entryLeverage": 4,
+    "sponsorEquity": 474193.72000000003,
+    "exitEquity": 628768.6604848205,
+    "exitNetDebt": 1459.920908600849,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11072133495814404,
+    "moic": 1.6905404621181532,
+    "entryLeverage": 4,
+    "sponsorEquity": 474193.72000000003,
+    "exitEquity": 801643.6705423262,
+    "exitNetDebt": -1166.9081710813302,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.15012169198669156,
+    "moic": 2.0124216129711554,
+    "entryLeverage": 4,
+    "sponsorEquity": 474193.72000000003,
+    "exitEquity": 954277.6908631925,
+    "exitNetDebt": -2723.1308288892633,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 55695.87041385399,
+    "equity": 64895.87041385399,
+    "perShare": null,
+    "tvShareOfEV": 0.7401046140472083
+   },
+   "score": 77.77777777777777,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ptc",
+   "ticker": "PTC",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.16255356577883168,
+    "moic": 2.123561596759465,
+    "entryLeverage": 4,
+    "sponsorEquity": 17882.68,
+    "exitEquity": 37974.97249513855,
+    "exitNetDebt": -679.544972635998,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.08154565843948744,
+    "moic": 1.4798724713965679,
+    "entryLeverage": 4,
+    "sponsorEquity": 17882.68,
+    "exitEquity": 26464.085846793976,
+    "exitNetDebt": 590.7093860976296,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.16255356577883168,
+    "moic": 2.123561596759465,
+    "entryLeverage": 4,
+    "sponsorEquity": 17882.68,
+    "exitEquity": 37974.97249513855,
+    "exitNetDebt": -679.544972635998,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.21862810000580762,
+    "moic": 2.687546213680171,
+    "entryLeverage": 4,
+    "sponsorEquity": 17882.68,
+    "exitEquity": 48060.52892445412,
+    "exitNetDebt": -1433.9024282053806,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 20306.188625240797,
+    "equity": 19056.188625240797,
+    "perShare": null,
+    "tvShareOfEV": 0.7165962128552321
+   },
+   "score": 75.16319444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-qcom",
+   "ticker": "QCOM",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.04182578270511847,
+    "moic": 1.227370003065358,
+    "entryLeverage": 4,
+    "sponsorEquity": 156416.4,
+    "exitEquity": 191980.79734747225,
+    "exitNetDebt": 22523.73361758056,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.05852215135564817,
+    "moic": 0.7396913351592413,
+    "entryLeverage": 4,
+    "sponsorEquity": 156416.4,
+    "exitEquity": 115699.85575680195,
+    "exitNetDebt": 32145.093202095468,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.04182578270511847,
+    "moic": 1.227370003065358,
+    "entryLeverage": 4,
+    "sponsorEquity": 156416.4,
+    "exitEquity": 191980.79734747225,
+    "exitNetDebt": 22523.73361758056,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1069999308412892,
+    "moic": 1.6624093342301192,
+    "entryLeverage": 4,
+    "sponsorEquity": 156416.4,
+    "exitEquity": 260028.083386672,
+    "exitNetDebt": 17542.025520772997,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 89994.94382232704,
+    "equity": 83034.94382232704,
+    "perShare": null,
+    "tvShareOfEV": 0.6649303081455185
+   },
+   "score": 55.73632608296326,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-qubt",
+   "ticker": "QUBT",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "downside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "base": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "upside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "dcf": {
+    "ok": false,
+    "errors": [
+     "EBITDA margin for year 1 must be a number between -100% and 100%"
+    ]
+   },
+   "score": 44.44444444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-rgti",
+   "ticker": "RGTI",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "downside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "base": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "upside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "dcf": {
+    "ok": false,
+    "errors": [
+     "EBITDA margin for year 1 must be a number between -100% and 100%"
+    ]
+   },
+   "score": 44.44444444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-rklb",
+   "ticker": "RKLB",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "downside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "base": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "upside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -9328.555211456694,
+    "equity": -7078.555211456694,
+    "perShare": null,
+    "tvShareOfEV": 0.7360617450281016
+   },
+   "score": 44.44444444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-rtx",
+   "ticker": "RTX",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.10744643510384494,
+    "moic": 1.6657646726578503,
+    "entryLeverage": 4,
+    "sponsorEquity": 228814.675,
+    "exitEquity": 381151.4022006874,
+    "exitNetDebt": 17291.24840178375,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.00268948285022744,
+    "moic": 1.0135199422319159,
+    "entryLeverage": 4,
+    "sponsorEquity": 228814.675,
+    "exitEquity": 231908.2361878146,
+    "exitNetDebt": 34272.32074879352,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.10744643510384494,
+    "moic": 1.6657646726578503,
+    "entryLeverage": 4,
+    "sponsorEquity": 228814.675,
+    "exitEquity": 381151.4022006874,
+    "exitNetDebt": 17291.24840178375,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.177362262248703,
+    "moic": 2.262301881683653,
+    "entryLeverage": 4,
+    "sponsorEquity": 228814.675,
+    "exitEquity": 517647.86980933347,
+    "exitNetDebt": 8077.9109366214725,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 163241.9165868184,
+    "equity": 132691.9165868184,
+    "perShare": null,
+    "tvShareOfEV": 0.6991140710192649
+   },
+   "score": 50.004280594646865,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-slb",
+   "ticker": "SLB",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.06029397206303705,
+    "moic": 1.340082271938249,
+    "entryLeverage": 4,
+    "sponsorEquity": 54625.384999999995,
+    "exitEquity": 73202.51003630154,
+    "exitNetDebt": 17141.63900557971,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.08876254039856951,
+    "moic": 0.6282866374752524,
+    "entryLeverage": 4,
+    "sponsorEquity": 54625.384999999995,
+    "exitEquity": 34320.399462441084,
+    "exitNetDebt": 23261.375294009747,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.06029397206303705,
+    "moic": 1.340082271938249,
+    "entryLeverage": 4,
+    "sponsorEquity": 54625.384999999995,
+    "exitEquity": 73202.51003630154,
+    "exitNetDebt": 17141.63900557971,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1464820746620502,
+    "moic": 1.980780466018145,
+    "entryLeverage": 4,
+    "sponsorEquity": 54625.384999999995,
+    "exitEquity": 108200.89555672057,
+    "exitNetDebt": 14130.651414384192,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 48452.41649074035,
+    "equity": 39762.41649074035,
+    "perShare": null,
+    "tvShareOfEV": 0.667559609996684
+   },
+   "score": 51.803884124589864,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-smci",
+   "ticker": "SMCI",
+   "dataStatus": "verified",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.21645599256143122,
+    "moic": 2.663679761149035,
+    "entryLeverage": 4,
+    "sponsorEquity": 15096.423749999998,
+    "exitEquity": 40212.03840860462,
+    "exitNetDebt": 1644.1704110145274,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.014007281765155113,
+    "moic": 0.9318983397044074,
+    "entryLeverage": 4,
+    "sponsorEquity": 15096.423749999998,
+    "exitEquity": 14068.332228099182,
+    "exitNetDebt": 6818.89712934553,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.21645599256143122,
+    "moic": 2.663679761149035,
+    "entryLeverage": 4,
+    "sponsorEquity": 15096.423749999998,
+    "exitEquity": 40212.03840860462,
+    "exitNetDebt": 1644.1704110145274,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.3410940595190848,
+    "moic": 4.338066386776952,
+    "entryLeverage": 4,
+    "sponsorEquity": 15096.423749999998,
+    "exitEquity": 65489.28843041626,
+    "exitNetDebt": -1153.97231695333,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 40072.18206041123,
+    "equity": 38873.382060411226,
+    "perShare": null,
+    "tvShareOfEV": 0.758202964437685
+   },
+   "score": 64.50126601086362,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-snps",
+   "ticker": "SNPS",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.12565470099221043,
+    "moic": 1.8072820992477114,
+    "entryLeverage": 4,
+    "sponsorEquity": 93772.79999999999,
+    "exitEquity": 169473.90283633576,
+    "exitNetDebt": -1432.9311431411911,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.05438742069534157,
+    "moic": 1.3031700185166044,
+    "entryLeverage": 4,
+    "sponsorEquity": 93772.79999999999,
+    "exitEquity": 122201.90151235383,
+    "exitNetDebt": 1032.2336519261357,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.12565470099221043,
+    "moic": 1.8072820992477114,
+    "entryLeverage": 4,
+    "sponsorEquity": 93772.79999999999,
+    "exitEquity": 169473.90283633576,
+    "exitNetDebt": -1432.9311431411911,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1774077459341245,
+    "moic": 2.2627389000232334,
+    "entryLeverage": 4,
+    "sponsorEquity": 93772.79999999999,
+    "exitEquity": 212183.36232409862,
+    "exitNetDebt": -2874.537574425309,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 44210.055486381825,
+    "equity": 36980.055486381825,
+    "perShare": null,
+    "tvShareOfEV": 0.7422505928741294
+   },
+   "score": 61.254173698441214,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-soun",
+   "ticker": "SOUN",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "downside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "base": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "upside": {
+    "ok": false,
+    "errors": [
+     "Entry EBITDA must be positive"
+    ]
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -5560.288199982197,
+    "equity": -5360.288199982197,
+    "perShare": null,
+    "tvShareOfEV": 0.7370231089740089
+   },
+   "score": 44.44444444444444,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-tdg",
+   "ticker": "TDG",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.141494199991749,
+    "moic": 1.9380659245173422,
+    "entryLeverage": 4,
+    "sponsorEquity": 74666.575,
+    "exitEquity": 144708.74470791846,
+    "exitNetDebt": 104.27125261561287,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.06263254336087509,
+    "moic": 1.3549259503392865,
+    "entryLeverage": 4,
+    "sponsorEquity": 74666.575,
+    "exitEquity": 101167.68009045461,
+    "exitNetDebt": 4757.577099845875,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.141494199991749,
+    "moic": 1.9380659245173422,
+    "entryLeverage": 4,
+    "sponsorEquity": 74666.575,
+    "exitEquity": 144708.74470791846,
+    "exitNetDebt": 104.27125261561287,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.19603600342734562,
+    "moic": 2.4474919133582587,
+    "entryLeverage": 4,
+    "sponsorEquity": 74666.575,
+    "exitEquity": 182745.83851065792,
+    "exitNetDebt": -2665.9553209947717,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 70885.53506250454,
+    "equity": 40185.53506250454,
+    "perShare": null,
+    "tvShareOfEV": 0.7091165658815642
+   },
+   "score": 63.662222222222226,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-team",
+   "ticker": "TEAM",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1120258078592258,
+    "moic": 1.7004909786375653,
+    "entryLeverage": 4,
+    "sponsorEquity": 51523.95932500001,
+    "exitEquity": 87616.02801585138,
+    "exitNetDebt": 90.31460089685578,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.008239469502962213,
+    "moic": 0.9594759703889681,
+    "entryLeverage": 4,
+    "sponsorEquity": 51523.95932500001,
+    "exitEquity": 49436.00087163611,
+    "exitNetDebt": 947.1584219264846,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1120258078592258,
+    "moic": 1.7004909786375653,
+    "entryLeverage": 4,
+    "sponsorEquity": 51523.95932500001,
+    "exitEquity": 87616.02801585138,
+    "exitNetDebt": 90.31460089685578,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.19248331241962285,
+    "moic": 2.4113572168970228,
+    "entryLeverage": 4,
+    "sponsorEquity": 51523.95932500001,
+    "exitEquity": 124242.67116144742,
+    "exitNetDebt": -377.90153024161054,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 6208.498727254802,
+    "equity": 6218.498727254802,
+    "perShare": null,
+    "tvShareOfEV": 0.7483234128602425
+   },
+   "score": 51.824623710468465,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-ter",
+   "ticker": "TER",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.1265531745281901,
+    "moic": 1.8145062922520232,
+    "entryLeverage": 4,
+    "sponsorEquity": 51418.825,
+    "exitEquity": 93299.78150270563,
+    "exitNetDebt": 1179.0987965347576,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.05878473001923841,
+    "moic": 1.3305718955792554,
+    "entryLeverage": 4,
+    "sponsorEquity": 51418.825,
+    "exitEquity": 68416.443448708,
+    "exitNetDebt": 2583.014551553317,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.1265531745281901,
+    "moic": 1.8145062922520232,
+    "entryLeverage": 4,
+    "sponsorEquity": 51418.825,
+    "exitEquity": 93299.78150270563,
+    "exitNetDebt": 1179.0987965347576,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17544979717467374,
+    "moic": 2.243987466385849,
+    "entryLeverage": 4,
+    "sponsorEquity": 51418.825,
+    "exitEquity": 115383.19883628734,
+    "exitNetDebt": 394.93397557164985,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 24549.447849756216,
+    "equity": 24959.447849756216,
+    "perShare": null,
+    "tvShareOfEV": 0.7415930270205918
+   },
+   "score": 75.9520634920635,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-tpl",
+   "ticker": "TPL",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.13296877025340814,
+    "moic": 1.8667651927399687,
+    "entryLeverage": 4,
+    "sponsorEquity": 21951.586635,
+    "exitEquity": 40978.4578556339,
+    "exitNetDebt": 42.1429442278278,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.07228943502516971,
+    "moic": 1.4176209905057056,
+    "entryLeverage": 4,
+    "sponsorEquity": 21951.586635,
+    "exitEquity": 31119.029988680508,
+    "exitNetDebt": 676.6772978778631,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.13296877025340814,
+    "moic": 1.8667651927399687,
+    "entryLeverage": 4,
+    "sponsorEquity": 21951.586635,
+    "exitEquity": 40978.4578556339,
+    "exitNetDebt": 42.1429442278278,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.17664433920234635,
+    "moic": 2.255412841731955,
+    "entryLeverage": 4,
+    "sponsorEquity": 21951.586635,
+    "exitEquity": 49509.890392970556,
+    "exitNetDebt": -336.3969988142509,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 11028.845984986603,
+    "equity": 11258.845984986603,
+    "perShare": null,
+    "tvShareOfEV": 0.7190021815450299
+   },
+   "score": 77.70390176234376,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-ttwo",
+   "ticker": "TTWO",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09744121821512253,
+    "moic": 1.5918653808856782,
+    "entryLeverage": 4,
+    "sponsorEquity": 36851.83275,
+    "exitEquity": 58663.15677691406,
+    "exitNetDebt": 524.9260452229298,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.0035356943802246576,
+    "moic": 1.0178039260354323,
+    "entryLeverage": 4,
+    "sponsorEquity": 36851.83275,
+    "exitEquity": 37507.94005455112,
+    "exitNetDebt": 1818.9463943717292,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09744121821512253,
+    "moic": 1.5918653808856782,
+    "entryLeverage": 4,
+    "sponsorEquity": 36851.83275,
+    "exitEquity": 58663.15677691406,
+    "exitNetDebt": 524.9260452229298,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1629839822086544,
+    "moic": 2.1274955782878004,
+    "entryLeverage": 4,
+    "sponsorEquity": 36851.83275,
+    "exitEquity": 78402.11122742656,
+    "exitNetDebt": -208.26370166158358,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 9626.574567192218,
+    "equity": 8516.574567192218,
+    "perShare": null,
+    "tvShareOfEV": 0.71097464459818
+   },
+   "score": 45.90084695179954,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-txt",
+   "ticker": "TXT",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.11810078067580027,
+    "moic": 1.747449981693117,
+    "entryLeverage": 4,
+    "sponsorEquity": 9613.62,
+    "exitEquity": 16799.320093004586,
+    "exitNetDebt": 3583.354402247694,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.08994604820556887,
+    "moic": 0.6242171541445231,
+    "entryLeverage": 4,
+    "sponsorEquity": 9613.62,
+    "exitEquity": 6000.98651742687,
+    "exitNetDebt": 5509.36066866788,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.11810078067580027,
+    "moic": 1.747449981693117,
+    "entryLeverage": 4,
+    "sponsorEquity": 9613.62,
+    "exitEquity": 16799.320093004586,
+    "exitNetDebt": 3583.354402247694,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.22860833607070535,
+    "moic": 2.7994150193695737,
+    "entryLeverage": 4,
+    "sponsorEquity": 9613.62,
+    "exitEquity": 26912.51221851172,
+    "exitNetDebt": 2621.4189746096417,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 12341.173242573772,
+    "equity": 9561.173242573772,
+    "perShare": null,
+    "tvShareOfEV": 0.6928269901060332
+   },
+   "score": 50.46417344715665,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-tyl",
+   "ticker": "TYL",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.07161453932945708,
+    "moic": 1.4131653711282202,
+    "entryLeverage": 4,
+    "sponsorEquity": 13450.22256,
+    "exitEquity": 19007.38875575956,
+    "exitNetDebt": 239.17671368573178,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.00983616097202851,
+    "moic": 0.951777225986561,
+    "entryLeverage": 4,
+    "sponsorEquity": 13450.22256,
+    "exitEquity": 12801.61551705866,
+    "exitNetDebt": 721.9108684369194,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.07161453932945708,
+    "moic": 1.4131653711282202,
+    "entryLeverage": 4,
+    "sponsorEquity": 13450.22256,
+    "exitEquity": 19007.38875575956,
+    "exitNetDebt": 239.17671368573178,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1289882122391952,
+    "moic": 1.8342014710060974,
+    "entryLeverage": 4,
+    "sponsorEquity": 13450.22256,
+    "exitEquity": 24670.418004911397,
+    "exitNetDebt": -34.04308565575877,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 5086.523111140814,
+    "equity": 4606.523111140814,
+    "perShare": null,
+    "tvShareOfEV": 0.6867484696200298
+   },
+   "score": 52.586047835422534,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-vlo",
+   "ticker": "VLO",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.16594749062500835,
+    "moic": 2.1547404290114547,
+    "entryLeverage": 4,
+    "sponsorEquity": 85142.99000000002,
+    "exitEquity": 183461.04279991804,
+    "exitNetDebt": 5626.635087008637,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.00770004539823674,
+    "moic": 0.962088132136955,
+    "entryLeverage": 4,
+    "sponsorEquity": 85142.99000000002,
+    "exitEquity": 81915.06021365545,
+    "exitNetDebt": 24418.250600398966,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.16594749062500835,
+    "moic": 2.1547404290114547,
+    "entryLeverage": 4,
+    "sponsorEquity": 85142.99000000002,
+    "exitEquity": 183461.04279991804,
+    "exitNetDebt": 5626.635087008637,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.26816352422298095,
+    "moic": 3.2800184589415577,
+    "entryLeverage": 4,
+    "sponsorEquity": 85142.99000000002,
+    "exitEquity": 279270.57884947653,
+    "exitNetDebt": -4757.858377512457,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 156851.59058224654,
+    "equity": 153381.59058224654,
+    "perShare": null,
+    "tvShareOfEV": 0.7038296932561987
+   },
+   "score": 58.90216386106666,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-vrsn",
+   "ticker": "VRSN",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.0725307937726423,
+    "moic": 1.4192171513832734,
+    "entryLeverage": 4,
+    "sponsorEquity": 24630.607500000002,
+    "exitEquity": 34956.18061298949,
+    "exitNetDebt": 952.7314139433399,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.003113996751517433,
+    "moic": 1.0156672559481632,
+    "entryLeverage": 4,
+    "sponsorEquity": 24630.607500000002,
+    "exitEquity": 25016.50153186125,
+    "exitNetDebt": 1900.06440850745,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.0725307937726423,
+    "moic": 1.4192171513832734,
+    "entryLeverage": 4,
+    "sponsorEquity": 24630.607500000002,
+    "exitEquity": 34956.18061298949,
+    "exitNetDebt": 952.7314139433399,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.12092403329039844,
+    "moic": 1.7696236102573355,
+    "entryLeverage": 4,
+    "sponsorEquity": 24630.607500000002,
+    "exitEquity": 43586.90456698141,
+    "exitNetDebt": 407.31617339829177,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 12431.292429860701,
+    "equity": 11121.292429860701,
+    "perShare": null,
+    "tvShareOfEV": 0.680944579390621
+   },
+   "score": 63.651465919701224,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-way",
+   "ticker": "WAY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.17034180039140384,
+    "moic": 2.1956523842757045,
+    "entryLeverage": 4,
+    "sponsorEquity": 4933.287109999999,
+    "exitEquity": 10831.783605388098,
+    "exitNetDebt": -103.54646654629494,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.07981700690216098,
+    "moic": 1.4680836981117107,
+    "entryLeverage": 4,
+    "sponsorEquity": 4933.287109999999,
+    "exitEquity": 7242.478384295632,
+    "exitNetDebt": 333.1521397476461,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.17034180039140384,
+    "moic": 2.1956523842757045,
+    "entryLeverage": 4,
+    "sponsorEquity": 4933.287109999999,
+    "exitEquity": 10831.783605388098,
+    "exitNetDebt": -103.54646654629494,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.2318455493956083,
+    "moic": 2.836490241673559,
+    "entryLeverage": 4,
+    "sponsorEquity": 4933.287109999999,
+    "exitEquity": 13993.22074688895,
+    "exitNetDebt": -360.99855884812087,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 6507.822368938558,
+    "equity": 5217.822368938558,
+    "perShare": null,
+    "tvShareOfEV": 0.7164237113942384
+   },
+   "score": 70.30563588067423,
+   "decision": "Further Research"
+  },
+  {
+   "id": "us-wday",
+   "ticker": "WDAY",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.098652652632329,
+    "moic": 1.600670876253848,
+    "entryLeverage": 4,
+    "sponsorEquity": 41020.487499999996,
+    "exitEquity": 65660.29967098501,
+    "exitNetDebt": 1420.8543229687732,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": 0.008144197790685627,
+    "moic": 1.0413896924459438,
+    "entryLeverage": 4,
+    "sponsorEquity": 41020.487499999996,
+    "exitEquity": 42718.31286160768,
+    "exitNetDebt": 3222.663796741804,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.098652652632329,
+    "moic": 1.600670876253848,
+    "entryLeverage": 4,
+    "sponsorEquity": 41020.487499999996,
+    "exitEquity": 65660.29967098501,
+    "exitNetDebt": 1420.8543229687732,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1617309485013858,
+    "moic": 2.1160591121618793,
+    "entryLeverage": 4,
+    "sponsorEquity": 41020.487499999996,
+    "exitEquity": 86801.77635969745,
+    "exitNetDebt": 433.8557325576105,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 17330.8668602894,
+    "equity": 16960.8668602894,
+    "perShare": null,
+    "tvShareOfEV": 0.7039616225146311
+   },
+   "score": 54.23664950686196,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-xom",
+   "ticker": "XOM",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09861410030442741,
+    "moic": 1.6003900538442104,
+    "entryLeverage": 4,
+    "sponsorEquity": 520813.6299999999,
+    "exitEquity": 833504.9533584985,
+    "exitNetDebt": 186445.89659842956,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.04860732816699655,
+    "moic": 0.779469290546434,
+    "entryLeverage": 4,
+    "sponsorEquity": 520813.6299999999,
+    "exitEquity": 405958.23068301287,
+    "exitNetDebt": 245576.97111813104,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09861410030442741,
+    "moic": 1.6003900538442104,
+    "entryLeverage": 4,
+    "sponsorEquity": 520813.6299999999,
+    "exitEquity": 833504.9533584985,
+    "exitNetDebt": 186445.89659842956,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.1856713188109559,
+    "moic": 2.343265899173837,
+    "entryLeverage": 4,
+    "sponsorEquity": 520813.6299999999,
+    "exitEquity": 1220404.8190039396,
+    "exitNetDebt": 158667.61726777937,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 421693.06376441475,
+    "equity": 389913.06376441475,
+    "perShare": null,
+    "tvShareOfEV": 0.6936308143833723
+   },
+   "score": 54.20505083582179,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-zm",
+   "ticker": "ZM",
+   "dataStatus": "crosschecked",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.08001462156113429,
+    "moic": 1.4694275418613292,
+    "entryLeverage": 4,
+    "sponsorEquity": 15797.79,
+    "exitEquity": 23213.70772654149,
+    "exitNetDebt": 1346.0322860175263,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -0.01975102960265069,
+    "moic": 0.9050695921959122,
+    "entryLeverage": 4,
+    "sponsorEquity": 15797.79,
+    "exitEquity": 14298.099352896661,
+    "exitNetDebt": 2545.63944453633,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.08001462156113429,
+    "moic": 1.4694275418613292,
+    "entryLeverage": 4,
+    "sponsorEquity": 15797.79,
+    "exitEquity": 23213.70772654149,
+    "exitNetDebt": 1346.0322860175263,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.14565363551911642,
+    "moic": 1.9736343172224424,
+    "entryLeverage": 4,
+    "sponsorEquity": 15797.79,
+    "exitEquity": 31179.06048027353,
+    "exitNetDebt": 678.2942745755024,
+    "cures": 0,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": 12814.87640903024,
+    "equity": 20004.87640903024,
+    "perShare": null,
+    "tvShareOfEV": 0.6758740604551239
+   },
+   "score": 60.761451792473835,
+   "decision": "Pass"
+  },
+  {
+   "id": "us-zs",
+   "ticker": "ZS",
+   "dataStatus": "sourced",
+   "customModel": false,
+   "lbo": {
+    "irr": 0.09654882485191088,
+    "moic": 1.564031037985986,
+    "entryLeverage": 4,
+    "sponsorEquity": 35092.494450000006,
+    "exitEquity": 58041.73349515526,
+    "exitNetDebt": 164.44250000000002,
+    "cures": 2017.851882957694,
+    "allChecksPass": true
+   },
+   "downside": {
+    "irr": -1,
+    "moic": 0,
+    "entryLeverage": 4,
+    "sponsorEquity": 35092.494450000006,
+    "exitEquity": -25641.060202744957,
+    "exitNetDebt": 164.44250000000002,
+    "cures": 2140.699593958708,
+    "allChecksPass": true
+   },
+   "base": {
+    "irr": 0.09654882485191088,
+    "moic": 1.564031037985986,
+    "entryLeverage": 4,
+    "sponsorEquity": 35092.494450000006,
+    "exitEquity": 58041.73349515526,
+    "exitNetDebt": 164.44250000000002,
+    "cures": 2017.851882957694,
+    "allChecksPass": true
+   },
+   "upside": {
+    "irr": 0.3171174045308951,
+    "moic": 3.8471514186289117,
+    "entryLeverage": 4,
+    "sponsorEquity": 35092.494450000006,
+    "exitEquity": 142651.06830392857,
+    "exitNetDebt": 164.44250000000002,
+    "cures": 1987.1660003723994,
+    "allChecksPass": true
+   },
+   "dcf": {
+    "wacc": 0.10585,
+    "ev": -7335.619978378065,
+    "equity": -5735.619978378065,
+    "perShare": null,
+    "tvShareOfEV": 0.7203853973649088
+   },
+   "score": 33.333333333333336,
+   "decision": "Pass"
+  }
+ ]
+}

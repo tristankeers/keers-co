@@ -1,0 +1,43 @@
+{
+  "source": {
+    "repository": "https://github.com/tristankeers/kci",
+    "commit": "22326104497578fd69da26c0e0831ade0c042d52",
+    "file": "index.html",
+    "raw_url": "https://raw.githubusercontent.com/tristankeers/kci/22326104497578fd69da26c0e0831ade0c042d52/index.html",
+    "sha256": "a6d1a7874bb704b45a2fc22d07b586d44d151667b73de2c587708738be3e199d"
+  },
+  "slices": {
+    "engine.js": {
+      "lines": [
+        484,
+        1279
+      ],
+      "what": "Calculation engine: IRR, DCF, LBO, comps, WACC, scenarios, scoring, recommendation",
+      "sha256": "41bd3d3df22877e73b337aa414b90ee6635ca0978df1327dbfb93f1f8bbc00da"
+    },
+    "model_setup.js": {
+      "lines": [
+        2283,
+        2444
+      ],
+      "what": "Default assumptions (defaultLBO, defaultDCF, defaultScenarios) and analyse()",
+      "sha256": "2bacad94f7db15965980c3e61e499b881cbd29aaef49c39d949c496e461bf4b6"
+    },
+    "controlled_cases.js": {
+      "lines": [
+        2503,
+        2547
+      ],
+      "what": "The 19 hand-worked checks shown on KCI's Model validation page",
+      "sha256": "86ce9d1abe708ee028b0b7cb8945ad0d7c2c2cf499b388c6c4151dad87b0a967"
+    },
+    "seed.json": {
+      "lines": [
+        482,
+        482
+      ],
+      "what": "The 100-company dataset (prices to 13-15 Oct 2026)",
+      "sha256": "5d3c368d4cf721150754eaff51fc66a8b64ece39d76e6705419a43309df74ef5"
+    }
+  }
+}
