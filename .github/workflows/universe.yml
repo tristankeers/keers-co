@@ -86,7 +86,7 @@ jobs:
           print(f"status: {r['status']}  capped: {r['capped']}  {r['stats']}")
           for seg, s in r["segments"].items():
               print(f"{seg:16} {s['status']:7} rows={s.get('rows', '-')!s:>6} total={s.get('total', '-')!s:>6} "
-                    f"{s.get('error', '')[:160]} {s.get('excluded') or ''}")
+                    f"{s.get('error', '')[:160]} {s.get('excluded') or ''} {s.get('warnings') or ''}")
           PY
       - name: Check a sample against Yahoo
         if: always()
