@@ -5,6 +5,7 @@ A thin layer: every route calls one ``Workbench`` method and returns its JSON. N
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import time
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from keers.data.market import price_sources
@@ -48,6 +49,9 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     async def _timing(request: Request, call_next: Any) -> Any:
         t = time.monotonic()
         response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            # The browser must check for a newer version every time, or an update needs a forced reload.
+            response.headers["Cache-Control"] = "no-cache"
         took = time.monotonic() - t
         if took > SLOW_REQUEST or response.status_code >= 500:
             log.warning("%s %s -> %s in %.1fs", request.method, request.url.path, response.status_code, took)
@@ -109,7 +113,16 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(STATIC / "index.html")
+    def index() -> HTMLResponse:
+        return HTMLResponse(index_html())
 
     return app
+
+
+def index_html() -> str:
+    """The page, with the script and stylesheet addresses tagged by their content, so a new version always loads."""
+    html = (STATIC / "index.html").read_text()
+    for name in ("app.js", "app.css"):
+        tag = hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12]
+        html = html.replace(f'"/static/{name}"', f'"/static/{name}?v={tag}"')
+    return html
