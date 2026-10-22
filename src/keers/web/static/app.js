@@ -359,8 +359,10 @@ async function companyView(symbol, tab) {
   const c = current.company;
   document.title = `${c.symbol} · Keers & Co`;
   const body = h("div", {});
-  fill(view, companyHeader(c), tabsBar(c, tab), body);
-  if (!STATUS) loadStatus();
+  const bar = tabsBar(c, tab);
+  fill(view, companyHeader(c), bar, body);
+  if (!STATUS) await loadStatus();
+  if (current.company === c && needsAutoLoad(c)) autoLoad(c, tab, $("#refresh-btn", bar));
   const render = { overview: overviewTab, valuation: valuationTab, distress: distressTab, chart: chartTab, news: newsTab }[tab];
   try { await render(c, body); } catch (e) { fill(body, h("p", { class: "err" }, e.message)); }
   if (tab === "overview" || tab === "chart") refreshQuote(c);
@@ -411,17 +413,49 @@ async function refreshQuote(c) {
   } catch { /* the header keeps the stored price */ }
 }
 
+// Fetch filings, prices and rates now, then redraw the page. Shows progress in place of the button's label.
+async function runRefresh(c, tab, btn, note) {
+  btn.disabled = true; btn.textContent = "Refreshing…";
+  const started = Date.now();
+  const tick = note ? setInterval(() => { note.textContent = `${Math.round((Date.now() - started) / 1000)}s`; }, 1000) : null;
+  try {
+    const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/refresh`, { method: "POST", timeout: 180000 });
+    const errs = Object.entries(r.errors || {});
+    if (current.symbol !== c.symbol) return;  // the user moved on
+    current.company = null;
+    STATUS = null; await loadStatus();  // rates may be new
+    await companyView(c.symbol, currentTab());
+    if (errs.length) view.prepend(h("div", { class: "callout bad", style: "margin-bottom:12px" }, h("strong", {}, "Some sources failed. "), errs.map(([k, v]) => `${k}: ${v}`).join(" · ")));
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Refresh from sources";
+    if (current.symbol === c.symbol) $("#auto-load")?.replaceWith(h("div", { class: "callout bad", style: "margin-bottom:12px" }, `Loading from the sources failed: ${e.message}`));
+  } finally { if (tick) clearInterval(tick); }
+}
+function currentTab() {
+  const t = location.hash.replace(/^#\/?/, "").split("/")[2];
+  return TABS.some(([k]) => k === t) ? t : "overview";
+}
+// A company opened for the first time loads its SEC filings, prices and rates by itself, once per visit.
+const autoLoaded = new Set();
+function needsAutoLoad(c) {
+  if (!STATUS?.live || autoLoaded.has(c.symbol)) return false;
+  const noFilings = STATUS.secEnabled && c.listing?.cik != null && !c.sec;
+  const noRates = !STATUS.rates?.DGS10 || !STATUS.rates?.BAA10Y;
+  return noFilings || noRates || !c.loaded;
+}
+function autoLoad(c, tab, btn) {
+  autoLoaded.add(c.symbol);
+  const note = h("span", { class: "faint" });
+  const what = STATUS.secEnabled && c.listing?.cik != null && !c.sec ? "SEC filings, prices and interest rates" : "prices and interest rates";
+  view.insertBefore(h("div", { id: "auto-load", class: "callout", style: "margin-bottom:12px" },
+    h("strong", {}, `Loading ${what} for ${c.symbol}… `), "First visit only; usually 10 to 40 seconds. The page updates by itself. ", note),
+    view.children[2] || null);
+  runRefresh(c, tab, btn, note);
+}
+
 function tabsBar(c, tab) {
-  const btn = h("button", { class: "btn primary", title: "Fetch filings, prices and rates from the live sources now", onclick: async () => {
-    btn.disabled = true; btn.textContent = "Refreshing…";
-    try {
-      const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/refresh`, { method: "POST", timeout: 180000 });
-      const errs = Object.entries(r.errors || {});
-      current.company = null;
-      await companyView(c.symbol, tab);
-      if (errs.length) view.prepend(h("div", { class: "callout bad", style: "margin-bottom:12px" }, h("strong", {}, "Some sources failed. "), errs.map(([k, v]) => `${k}: ${v}`).join(" · ")));
-    } catch (e) { btn.disabled = false; btn.textContent = "Refresh from sources"; alert(e.message); }
-  } }, "Refresh from sources");
+  const btn = h("button", { class: "btn primary", id: "refresh-btn", title: "Fetch filings, prices and rates from the live sources now",
+    onclick: () => runRefresh(c, tab, btn) }, "Refresh from sources");
   return h("nav", { class: "tabs" },
     TABS.map(([k, label]) => h("a", { href: `#/c/${encodeURIComponent(c.symbol)}/${k}`, "aria-current": k === tab ? "page" : null }, label)),
     h("span", { class: "spacer" }), btn);
@@ -436,7 +470,7 @@ async function overviewTab(c, body) {
 
   if (!c.loaded) {
     left.append(h("div", { class: "callout warn" }, h("strong", {}, "Nothing stored for this listing yet. "),
-      "Press Refresh from sources to load its filings (SEC filers) and prices."));
+      STATUS?.live ? "Loading it from the sources now." : "Live sources are off, so there is nothing to load (KEERS_OFFLINE)."));
   }
   if (c.listing?.coverage === "prices-only" && !c.sec) {
     left.append(h("div", { class: "callout" }, c.listing.coverageText));

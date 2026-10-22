@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 import urllib.request
@@ -211,8 +212,13 @@ def test_refresh_needs_live_sources(client: TestClient) -> None:
 
 
 def test_front_end_is_served(client: TestClient) -> None:
-    assert "Keers &amp; Co" in client.get("/").text
-    assert client.get("/static/app.js").status_code == 200
+    page = client.get("/")
+    assert "Keers &amp; Co" in page.text and page.headers["cache-control"] == "no-cache"
+    # script and stylesheet addresses change with their content, so an update never needs a forced reload
+    assert re.search(r'"/static/app\.js\?v=[0-9a-f]{12}"', page.text)
+    assert re.search(r'"/static/app\.css\?v=[0-9a-f]{12}"', page.text)
+    js = client.get("/static/app.js")
+    assert js.status_code == 200 and js.headers["cache-control"] == "no-cache"
     js = client.get("/static/vendor/lightweight-charts.standalone.production.js").text
     assert "Lightweight Charts" in js[:300]
 
