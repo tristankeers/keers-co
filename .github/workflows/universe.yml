@@ -1,0 +1,112 @@
+name: Global company universe
+
+# Builds the global listing table from SEC, Nasdaq Trader and OpenFIGI, checks a sample against Yahoo, and
+# uploads the result as a CSV plus coverage stats. See docs/universe.md.
+#
+# - Run by hand from the Actions tab for a full build (about 2-4 hours without an OpenFIGI key, under 1 hour
+#   with one). OPENFIGI_API_KEY is optional and free (openfigi.com/api); add it as a repository secret.
+# - Runs weekly so listings stay fresh. The database is cached between runs, so an exchange that fails keeps
+#   last week's rows (flagged stale after 14 days) instead of vanishing.
+# - On a pull request that touches the universe code it runs a short probe: one OpenFIGI page per exchange.
+
+on:
+  workflow_dispatch:
+    inputs:
+      exchanges:
+        description: "Optional: Bloomberg exchange codes, comma-separated (e.g. LN,JT). Empty = all"
+        required: false
+        default: ""
+      max_pages:
+        description: "Optional: cap OpenFIGI pages per exchange (a partial test build)"
+        required: false
+        default: ""
+      check_sample:
+        description: "Listings per exchange to check against Yahoo"
+        required: false
+        default: "5"
+  schedule:
+    - cron: "17 3 * * 0"  # Sundays 03:17 UTC
+  pull_request:
+    paths:
+      - "src/keers/universe/**"
+      - ".github/workflows/universe.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: universe-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      OPENFIGI_API_KEY: ${{ secrets.OPENFIGI_API_KEY }}
+      KEERS_DB: data/universe.sqlite
+      PROBE: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          if [ -z "$OPENFIGI_API_KEY" ]; then
+            echo "::notice::No OPENFIGI_API_KEY: OpenFIGI allows 5 requests a minute without one, so a full build is slow"
+          fi
+      - run: pip install -e .
+      - name: Restore last week's universe
+        if: env.PROBE != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: data/universe.sqlite
+          key: universe-db-${{ github.run_id }}
+          restore-keys: universe-db-
+      - name: Build
+        env:
+          EXCHANGES: ${{ inputs.exchanges }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+        run: |
+          mkdir -p universe-out
+          args=()
+          if [ "$PROBE" = "true" ]; then args+=(--max-pages 1); fi
+          if [ -n "$EXCHANGES" ]; then args+=(--exchanges "$EXCHANGES"); fi
+          if [ -n "$MAX_PAGES" ]; then args+=(--max-pages "$MAX_PAGES"); fi
+          python -m keers.universe build "${args[@]}" > universe-out/build.json
+          python - <<'PY'
+          import json
+          r = json.load(open("universe-out/build.json"))
+          print(f"status: {r['status']}  capped: {r['capped']}  {r['stats']}")
+          for seg, s in r["segments"].items():
+              print(f"{seg:16} {s['status']:7} rows={s.get('rows', '-')!s:>6} total={s.get('total', '-')!s:>6} "
+                    f"{s.get('error', '')[:160]}")
+          PY
+      - name: Check a sample against Yahoo
+        if: always()
+        env:
+          SAMPLE: ${{ inputs.check_sample || '3' }}
+        run: python -m keers.universe check --sample "$SAMPLE" > universe-out/check.json; python -c "import json; r=json.load(open('universe-out/check.json')); print('ok', r['ok'], 'mismatch', len(r['mismatch']), 'not found', len(r['not-found']), 'errors', len(r['errors']))"
+      - name: Stats and export
+        if: always()
+        run: |
+          python -m keers.universe stats > universe-out/stats.json
+          python -m keers.universe export universe-out/universe.csv
+          head -c 3000 universe-out/stats.json
+      - name: Save the universe for next week
+        if: always() && env.PROBE != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/universe.sqlite
+          key: universe-db-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: universe
+          path: universe-out/

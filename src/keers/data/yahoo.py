@@ -41,9 +41,21 @@ TITLE_MAX = 300
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
+# Yahoo's exchange suffixes for the non-US markets in the global universe (keers.universe.exchanges).
+EXCHANGE_SUFFIXES = {".L", ".PA", ".AS", ".BR", ".LS", ".IR", ".MI", ".MC", ".SW", ".VI", ".ST", ".OL", ".CO",
+                     ".HE", ".WA", ".AT", ".IS", ".DE", ".TA", ".SR", ".JO", ".T", ".HK", ".SS", ".SZ", ".TW",
+                     ".KS", ".KQ", ".NS", ".SI", ".KL", ".BK", ".JK", ".PS", ".AX", ".NZ", ".TO", ".V", ".SA",
+                     ".MX", ".SN"}  # fmt: skip
+
+
 def symbol(ticker: str) -> str:
-    """Yahoo writes share classes with a dash: BRK.B -> BRK-B."""
-    return ticker.upper().replace(".", "-")
+    """Yahoo writes US share classes with a dash (BRK.B -> BRK-B). A symbol that already ends in a non-US
+    exchange suffix (VOD.L, 7203.T, BT-A.L) is a Yahoo symbol and is left as it is."""
+    t = ticker.upper()
+    dot = t.rfind(".")
+    if dot > 0 and t[dot:] in EXCHANGE_SUFFIXES:
+        return t
+    return t.replace(".", "-")
 
 
 def daily_url(ticker: str, start: date, end: date) -> str:
