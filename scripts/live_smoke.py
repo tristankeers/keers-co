@@ -18,10 +18,12 @@ from pathlib import Path
 from keers.data import snapshot
 from keers.data.http import Fetcher
 from keers.data.refresh import refresh, user_agent
+from keers.data.sec import FACTS_URL, concept_inventory
 from keers.data.store import Store
 
 AS_OF = date(2026, 10, 15)
 TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY"]
+DIAG_PATTERN = r"Debt|Borrowing|NotesPayable|Depreciation|Amortization|Lease|^Cash"
 CHECK = {"DBX": ("revenue", 2531.6, 0.005)}
 
 
@@ -29,7 +31,7 @@ def main() -> int:
     seed = json.loads(Path("legacy/kci/seed.json").read_text())["deals"]
     out_dir = Path("smoke-out")
     out_dir.mkdir(exist_ok=True)
-    store = Store(out_dir / "smoke.sqlite", keep_bodies=False)
+    store = Store(out_dir / "smoke.sqlite", keep_bodies=True)
     res = refresh(store, TICKERS, Fetcher(user_agent()), os.environ.get("TIINGO_TOKEN") or None)
     print("refresh:", json.dumps({"status": res["status"], "failed": res["failed"]}, indent=2))
     ok = not res["failed"]
@@ -38,6 +40,12 @@ def main() -> int:
         snap = snapshot.build(store, t, AS_OF)
         (out_dir / f"{t}.json").write_text(json.dumps(snap.as_dict(), indent=2, default=str))
         kci = seed.get(f"us-{t.lower()}", {})
+        lease = snap.values.get("operatingLeases")
+        nd = snap.values.get("netDebt")
+        if nd is not None and nd.known and lease is not None and lease.known:
+            rows.append((t, "nd+lease", (nd.value or 0) + (lease.value or 0), kci.get("netDebt"),
+                         ((nd.value or 0) + (lease.value or 0)) / kci["netDebt"] - 1 if kci.get("netDebt") else None,
+                         nd.period_end))  # fmt: skip
         for field in ("revenue", "ebitda", "netDebt", "ev"):
             live = snap.values.get(field)
             lv = live.value if live is not None else None
@@ -45,6 +53,19 @@ def main() -> int:
             diff = (lv / kv - 1) if lv is not None and kv else None
             rows.append((t, field, lv, kv, diff, live.period_end if live else None))
         print(f"{t}: blocked={snap.blocked} {snap.blocked_by}")
+        for k in ("ebit", "da", "cash", "shortTermInvestments", "debt", "operatingLeases", "shares"):
+            x = snap.values.get(k)
+            if x is not None:
+                print(f"    {k}: {x.value} | {x.method} | end {x.period_end} | {list(x.warnings)}")
+        if snap.cik:
+            body = store.latest_body(FACTS_URL.format(cik=snap.cik))
+            if body:
+                inv = concept_inventory(json.loads(body), DIAG_PATTERN, date(2025, 7, 1))
+                print(f"    concepts filed since 2025-07-01 matching {DIAG_PATTERN}:")
+                for r in inv:
+                    print(
+                        f"      {r['concept']} [{r['unit']}] {r['start'] or ''}..{r['end']} = {r['value']:,} ({r['form']})"
+                    )
         if t in CHECK:
             field, want, tol = CHECK[t]
             got = snap.values[field].value

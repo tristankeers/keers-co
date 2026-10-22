@@ -99,6 +99,8 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     sti = fu.balance(F.ST_INVESTMENTS, "short-term investments", at)
     debt = fu.total_debt(at)
     v["cash"], v["shortTermInvestments"], v["debt"] = cash, sti, debt
+    # Shown for comparison with data vendors that count leases as debt; not included in net debt.
+    v["operatingLeases"] = fu.balance(F.OPERATING_LEASES, "operating lease liabilities", at)
     if cash.known and debt.known:
         assert cash.value is not None and debt.value is not None  # noqa: S101
         use_sti = sti.known and sti.period_end == cash.period_end

@@ -51,14 +51,17 @@ DEBT_NONCURRENT = ("us-gaap:LongTermDebtNoncurrent",)
 DEBT_CURRENT = ("us-gaap:LongTermDebtCurrent",)
 ST_BORROWINGS = ("us-gaap:ShortTermBorrowings", "us-gaap:CommercialPaper")
 FINANCE_LEASES = ("us-gaap:FinanceLeaseLiability",)
+OPERATING_LEASES = ("us-gaap:OperatingLeaseLiability",)
 SHARES_COVER = ("dei:EntityCommonStockSharesOutstanding",)
 SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding",)
 SHARES_DILUTED = ("us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",)
 
 ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + NET_INCOME + CAPEX + INTEREST + SBC + CASH + ST_INVESTMENTS + DEBT_TOTAL
-    + DEBT_NONCURRENT + DEBT_CURRENT + ST_BORROWINGS + FINANCE_LEASES + SHARES_COVER + SHARES_BALANCE + SHARES_DILUTED
+    + DEBT_NONCURRENT + DEBT_CURRENT + ST_BORROWINGS + FINANCE_LEASES + OPERATING_LEASES + SHARES_COVER + SHARES_BALANCE + SHARES_DILUTED
 )  # fmt: skip
+
+DEBT_CONCEPTS = DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + ST_BORROWINGS + FINANCE_LEASES
 
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
@@ -221,32 +224,58 @@ class Fundamentals:
         )  # fmt: skip
 
     def balance(self, candidates: Sequence[str], label: str, at: date | None, unit: str = "USDm") -> Value:
-        hit = self._pick(candidates, instant=True)
-        if hit is None:
+        """Balance at ``at`` (within 3 days), first matching candidate in priority order.
+
+        An older balance is never used in place of the one at ``at``: the result is missing instead.
+        With ``at`` None, the latest balance of the newest candidate is used.
+        """
+        if at is None:
+            hit = self._pick(candidates, instant=True)
+            if hit is None:
+                return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
+            return self._value(instant_at(hit[1]), hit[0], unit, MILLION, f"{label}: no balance")
+        latest: tuple[date, str] | None = None
+        for c in candidates:
+            inst = [f for f in latest_known(self._facts(c)) if f.start is None]
+            hit_at = [f for f in inst if _close(f.end, at, 3)]
+            if hit_at:
+                f = hit_at[-1]
+                return self._value(
+                    Period(f.value, f.end, "as reported", Kind.REPORTED, (f,)), c, unit, MILLION, ""
+                )
+            if inst and (latest is None or inst[-1].end > latest[0]):
+                latest = (inst[-1].end, c)
+        if latest is None:
             return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
-        concept, facts = hit
-        return self._value(instant_at(facts, at), concept, unit, MILLION, f"{label}: no balance")
+        return missing(unit, f"{label}: no balance at {at} (latest is {latest[1]} at {latest[0]})")
+
+    def ever_filed(self, candidates: Sequence[str]) -> bool:
+        return any(self._facts(c) for c in candidates)
 
     def total_debt(self, at: date | None) -> Value:
-        """Borrowings: long-term debt (current + non-current) plus short-term borrowings and finance leases."""
+        """Borrowings at ``at``: long-term debt (current + non-current), short-term borrowings, finance leases.
+
+        Missing is never read as zero, except for a company that has never filed any debt concept at all.
+        """
         parts: list[Value] = []
         total = self.balance(DEBT_TOTAL, "long-term debt", at)
         if total.known:
             parts.append(total)
         else:
-            nc, cur = (
-                self.balance(DEBT_NONCURRENT, "long-term debt", at),
-                self.balance(DEBT_CURRENT, "current debt", at),
-            )
+            nc = self.balance(DEBT_NONCURRENT, "long-term debt", at)
+            cur = self.balance(DEBT_CURRENT, "current debt", at)
             parts += [v for v in (nc, cur) if v.known]
         for cands, lab in ((ST_BORROWINGS, "short-term borrowings"), (FINANCE_LEASES, "finance leases")):
             v = self.balance(cands, lab, at)
-            if v.known and (at is None or v.period_end is None or _close(v.period_end, at, 3)):
+            if v.known:
                 parts.append(v)
         if not parts:
-            # A company that files no debt concept at all is treated as having none, and says so.
-            return Value(0.0, Kind.DERIVED, "USDm", "no debt concepts filed; taken as zero", at,
-                         warnings=("no debt concepts filed; debt taken as zero",))  # fmt: skip
+            if not self.ever_filed(DEBT_CONCEPTS):
+                return Value(0.0, Kind.DERIVED, "USDm", "no debt concept ever filed; taken as zero", at,
+                             warnings=("no debt concept ever filed; debt taken as zero",))  # fmt: skip
+            return missing(
+                "USDm", f"debt: no debt balance at {at}, though debt concepts have been filed before"
+            )
         return Value(
             sum(v.value or 0 for v in parts), Kind.DERIVED, "USDm",
             " + ".join(v.method.split(":")[0] for v in parts) + " (operating leases excluded)",

@@ -256,3 +256,26 @@ def test_refresh_records_failures_and_keeps_good_companies() -> None:
     snap = snapshot.build(store, "EXW", date(2025, 11, 10))
     assert not snap.blocked, snap.blocked_by
     assert store.raw(snap.values["price"].sources[0]["raw_sha256"]) is not None  # raw bytes kept
+
+
+# balance dates (found in the first live run: an old total-debt figure was used in place of the current one) ----
+def test_old_balance_is_never_used_for_the_current_period() -> None:
+    old_total = ("us-gaap", "LongTermDebt", "USD", None, "2022-12-31", 9999 * fx.M,
+                 "0000000001-23-000001", "10-K", "2023-02-14")  # fmt: skip
+    snap = snapshot.build(with_market(load(fx.base_rows() + [old_total])), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value == pytest.approx(400)  # current components, not the 2022 total
+    assert snap.values["netDebt"].value == pytest.approx(200)
+
+
+def test_debt_missing_at_period_end_blocks_rather_than_reads_zero() -> None:
+    rows = [r for r in fx.base_rows() if not (r[1].startswith("LongTermDebt") and r[4] == "2025-09-30")]
+    snap = snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value is None
+    assert any("missing netDebt" in b for b in snap.blocked_by)
+
+
+def test_company_that_never_filed_debt_has_zero_debt_with_a_warning() -> None:
+    rows = [r for r in fx.base_rows() if not r[1].startswith("LongTermDebt")]
+    snap = snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+    assert snap.values["debt"].value == 0
+    assert snap.values["debt"].warnings
