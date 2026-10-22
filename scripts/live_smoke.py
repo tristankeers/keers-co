@@ -17,7 +17,7 @@ from pathlib import Path
 
 from keers.data import snapshot
 from keers.data.http import Fetcher
-from keers.data.refresh import refresh, user_agent
+from keers.data.refresh import price_report, refresh, user_agent
 from keers.data.sec import FACTS_URL, concept_inventory
 from keers.data.store import Store
 from keers.valuation import kci_v1_defaults as V1
@@ -53,6 +53,7 @@ def main() -> int:
         store, TICKERS, Fetcher(user_agent()), (os.environ.get("TIINGO_TOKEN") or "").strip() or None
     )
     print("refresh:", json.dumps({"status": res["status"], "failed": res["failed"]}, indent=2))
+    print("prices:", json.dumps(price_report(res), indent=2))
     ok = not res["failed"]
     rows = []
     for t in TICKERS:

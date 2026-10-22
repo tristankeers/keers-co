@@ -12,7 +12,7 @@ from typing import Any
 from . import snapshot
 from .http import Fetcher, FetchError
 from .market import Market, price_sources
-from .refresh import DEFAULT_DB, read_universe, refresh, user_agent
+from .refresh import DEFAULT_DB, price_report, read_universe, refresh, user_agent
 from .sec import ParseError
 from .store import Store
 from .yahoo import INTERVALS
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         res = refresh(store, tickers, Fetcher(user_agent()), (os.environ.get("TIINGO_TOKEN") or "").strip() or None,
                       rates=not a.no_rates)  # fmt: skip
         print(json.dumps({"status": res["status"], "ok": len(res["done"]), "failed": res["failed"],
-                          "priceFallbacks": res["priceFallbacks"]}, indent=2))  # fmt: skip
+                          "prices": price_report(res)}, indent=2))  # fmt: skip
         return 0 if res["status"] == "ok" else 1
     if a.cmd == "snapshot":
         snap = snapshot.build(store, a.ticker, a.as_of)
