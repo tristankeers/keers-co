@@ -17,6 +17,16 @@ from urllib.parse import urlparse
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 
+def _reason(e: urllib.error.HTTPError) -> str:
+    """A short excerpt of an error response body (e.g. an API's "invalid token" message). Headers are never shown."""
+    try:
+        body = e.read(300).decode("utf-8", "replace") if e.fp is not None else ""
+    except (OSError, ValueError):
+        return ""
+    text = " ".join(body.split())
+    return f": {text[:200]}" if text else ""
+
+
 class FetchError(RuntimeError):
     """A source could not be reached or refused the request. Never treated as an empty result."""
 
@@ -87,7 +97,7 @@ class Fetcher:
                     content_type=ctype,
                 )
             except urllib.error.HTTPError as e:
-                last_error = f"HTTP {e.code}"
+                last_error = f"HTTP {e.code}{_reason(e)}"
                 if e.code not in RETRY_STATUSES:
                     break
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:

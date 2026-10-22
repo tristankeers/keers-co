@@ -103,7 +103,8 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     v["liquidAssets"], v["debt"] = liquid, debt
     # Shown for comparison with data vendors that count leases as debt; not included in net debt.
     v["operatingLeases"] = fu.operating_leases(at)
-    problem = fu.debt_check(debt, at)
+    ys = fu.year_start(at)
+    problem = fu.debt_check(debt, at) or (fu.debt_rollforward(at, ys) if ys else None)
     if problem:
         v["netDebt"] = missing("USDm", f"net debt: {problem}")
     elif liquid.known and debt.known:

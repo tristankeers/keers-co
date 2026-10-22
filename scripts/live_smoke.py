@@ -46,7 +46,9 @@ def main() -> int:
     out_dir = Path("smoke-out")
     out_dir.mkdir(exist_ok=True)
     store = Store(out_dir / "smoke.sqlite", keep_bodies=True)
-    res = refresh(store, TICKERS, Fetcher(user_agent()), os.environ.get("TIINGO_TOKEN") or None)
+    res = refresh(
+        store, TICKERS, Fetcher(user_agent()), (os.environ.get("TIINGO_TOKEN") or "").strip() or None
+    )
     print("refresh:", json.dumps({"status": res["status"], "failed": res["failed"]}, indent=2))
     ok = not res["failed"]
     rows = []

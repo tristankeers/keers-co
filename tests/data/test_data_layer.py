@@ -357,3 +357,36 @@ def test_combined_cash_and_investments_line_and_split_leases() -> None:
     assert snap.values["liquidAssets"].value == pytest.approx(205)
     assert snap.values["netDebt"].value == pytest.approx(400 - 205)
     assert snap.values["operatingLeases"].value == pytest.approx(50)
+
+
+def test_debt_roll_forward_catches_a_borrowing_we_cannot_see() -> None:
+    # Dropbox drew 1.2bn on a credit line filed under its own tag; the cash-flow line still shows the draw.
+    repaid = [fx._dur("RepaymentsOfLongTermDebt", "2025-01-01", "2025-09-30", 20, fx.Q3_25)]
+    assert build(fx.base_rows() + repaid).values["netDebt"].known  # 420 - 20 = 400 found: reconciles
+    hidden = repaid + [fx._dur("ProceedsFromLinesOfCredit", "2025-01-01", "2025-09-30", 300, fx.Q3_25)]
+    snap = build(fx.base_rows() + hidden)
+    assert snap.values["netDebt"].value is None
+    assert any("700.0m expected, but only 400.0m found" in b for b in snap.blocked_by)
+
+
+def test_api_error_reason_is_shown() -> None:
+    import io
+
+    def opener(req: urllib.request.Request, timeout: float) -> bytes:
+        raise urllib.error.HTTPError(
+            "https://x", 403, "err", Message(), io.BytesIO(b'{"detail":"Invalid token."}')
+        )
+
+    with pytest.raises(FetchError, match="Invalid token"):
+        Fetcher("t", opener=opener, sleep=lambda s: None).get(
+            "https://x/y", headers={"Authorization": "Token s3cret"}
+        )
+
+
+def test_live_code_never_reads_kci_dataset() -> None:
+    # KCI's tools are reused; its dataset is only a test and comparison baseline, never an input to a valuation.
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[2] / "src"
+    offenders = [p for p in src.rglob("*.py") if "seed.json" in p.read_text() or "KCI_SEED" in p.read_text()]
+    assert offenders == []

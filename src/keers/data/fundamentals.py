@@ -68,6 +68,25 @@ SHARES_COVER = ("dei:EntityCommonStockSharesOutstanding",)
 SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding",)
 SHARES_DILUTED = ("us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",)
 
+# Cash-flow lines for the debt roll-forward check (borrowed, repaid, and net lines filed as one figure).
+BORROWED = tuple(f"us-gaap:{c}" for c in (
+    "ProceedsFromLinesOfCredit", "ProceedsFromLongTermLinesOfCredit", "ProceedsFromSecuredLinesOfCredit",
+    "ProceedsFromUnsecuredLinesOfCredit", "ProceedsFromIssuanceOfLongTermDebt", "ProceedsFromIssuanceOfDebt",
+    "ProceedsFromIssuanceOfSecuredDebt", "ProceedsFromIssuanceOfUnsecuredDebt", "ProceedsFromIssuanceOfSeniorLongTermDebt",
+    "ProceedsFromConvertibleDebt", "ProceedsFromBankDebt", "ProceedsFromShortTermDebt",
+))  # fmt: skip
+REPAID = tuple(f"us-gaap:{c}" for c in (
+    "RepaymentsOfLinesOfCredit", "RepaymentsOfLongTermLinesOfCredit", "RepaymentsOfSecuredDebt",
+    "RepaymentsOfUnsecuredDebt", "RepaymentsOfLongTermDebt", "RepaymentsOfDebt", "RepaymentsOfSeniorDebt",
+    "RepaymentsOfConvertibleDebt", "RepaymentsOfBankDebt", "RepaymentsOfShortTermDebt",
+))  # fmt: skip
+NET_BORROWED = tuple(f"us-gaap:{c}" for c in (
+    "ProceedsFromRepaymentsOfCommercialPaper", "ProceedsFromRepaymentsOfShortTermDebt", "ProceedsFromRepaymentsOfDebt",
+    "ProceedsFromRepaymentsOfLinesOfCredit",
+))  # fmt: skip
+ROLLFORWARD_TOLERANCE = 0.15  # of the larger of expected and found debt
+ROLLFORWARD_MIN_USDM = 50.0
+
 DEBT_CONCEPTS = (
     DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + DEBT_CURRENT_ALL + ST_BORROWINGS + CONVERTIBLE_NONCURRENT
     + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT
@@ -76,8 +95,9 @@ DEBT_CONCEPTS = (
 ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
-    + SHARES_BALANCE + SHARES_DILUTED
+    + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED
 )  # fmt: skip
+
 
 # An implied interest rate on the debt found above this means some debt is probably tagged in a way we do not
 # read (for example a company-specific tag), so net debt is not trusted.
@@ -308,7 +328,7 @@ class Fundamentals:
                 return vals[0] if len(vals) == 1 else _sum(vals, " + ".join(c.split(":")[1] for c in g))
         return missing("USDm", f"{label}: no balance at {at}")
 
-    def total_debt(self, at: date | None) -> Value:
+    def total_debt(self, at: date | None, include_leases: bool = True) -> Value:
         """Borrowings at ``at``, excluding operating leases. Never reads a missing balance as zero.
 
         Non-current and current debt come from the balance-sheet lines where filed, because companies use
@@ -360,7 +380,7 @@ class Fundamentals:
             else:
                 parts.append(v)
         lease = self._first((FINANCE_LEASES, FINANCE_LEASES_SPLIT), "finance leases", at)
-        if lease.known:
+        if lease.known and include_leases:
             parts.append(lease)
         if not parts:
             if not self.ever_filed(DEBT_CONCEPTS):
@@ -389,6 +409,52 @@ class Fundamentals:
             return (f"debt looks incomplete: interest expense {interest.value:,.1f}m is {rate:.0%} of the "
                     f"{debt.value:,.1f}m of debt found (limit {MAX_IMPLIED_RATE:.0%}); some debt is probably filed "
                     "under a tag we do not read")  # fmt: skip
+        return None
+
+    def _ytd_sum(self, concepts: Sequence[str], start: date, end: date) -> tuple[float, list[Fact]]:
+        total, used = 0.0, []
+        for c in concepts:
+            hit = [f for f in latest_known(self._facts(c))
+                   if f.start is not None and _close(f.start, start, 3) and _close(f.end, end, 3)]  # fmt: skip
+            if hit:
+                total += hit[-1].value
+                used.append(hit[-1])
+        return total / MILLION, used
+
+    def debt_rollforward(self, at: date, year_start: date) -> str | None:
+        """Debt at the last year end, plus borrowed less repaid since, should roughly equal debt now.
+
+        Much less debt than expected means a borrowing is filed under a tag we do not read. Finance leases are left
+        out on both sides because new leases are not cash borrowings.
+        """
+        before = self.total_debt(year_start - timedelta(days=1), include_leases=False)
+        now = self.total_debt(at, include_leases=False)
+        if not (before.known and now.known) or before.value is None or now.value is None:
+            return None
+        borrowed, b_used = self._ytd_sum(BORROWED, year_start, at)
+        repaid, r_used = self._ytd_sum(REPAID, year_start, at)
+        net, n_used = self._ytd_sum(NET_BORROWED, year_start, at)
+        if not (b_used or r_used or n_used):
+            return None
+        expected = before.value + borrowed - repaid + net
+        gap = expected - now.value
+        limit = max(ROLLFORWARD_TOLERANCE * max(expected, now.value), ROLLFORWARD_MIN_USDM)
+        if gap > limit:
+            return (f"debt looks incomplete: {before.value:,.1f}m at {year_start - timedelta(days=1)} + "
+                    f"{borrowed:,.1f}m borrowed − {repaid:,.1f}m repaid{f' + {net:,.1f}m net' if n_used else ''} "
+                    f"= {expected:,.1f}m expected, but only {now.value:,.1f}m found at {at}; some debt is probably "
+                    "filed under a tag we do not read")  # fmt: skip
+        return None
+
+    def year_start(self, at: date) -> date | None:
+        """First day of the fiscal year that contains ``at``, from the revenue periods filed."""
+        for c in REVENUE:
+            durations = [f for f in latest_known(self._facts(c)) if f.start is not None]
+            for f in durations:
+                if _close(f.end, at, 3) and f.days is not None and f.days <= YEAR[1] and f.start is not None:
+                    prior = [a for a in _annual(durations) if _close(a.end, f.start - timedelta(days=1), 3)]
+                    if prior or (f.days >= YEAR[0]):
+                        return f.start
         return None
 
     def liquid_assets(self, at: date) -> Value:
