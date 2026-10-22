@@ -38,6 +38,12 @@ class Exchange:
     class_dash: bool = (
         False  # Yahoo writes share classes with a dash where Bloomberg runs them on (VOLVB -> VOLV-B)
     )
+    # Listings OpenFIGI files under this code that trade on a second venue: (OpenFIGI's venue label, MIC,
+    # Yahoo suffix, venue name). OpenFIGI writes the exchange as "TT (Taipei Stock Exchange)".
+    venues: tuple[tuple[str, str, str, str], ...] = ()
+    drop_suffixes: tuple[
+        str, ...
+    ] = ()  # ticker endings that are not ordinary lines (Thai foreign board, NVDRs)
 
 
 # US listings come from SEC and Nasdaq Trader; OpenFIGI's US composite only adds FIGIs to them.
@@ -52,7 +58,7 @@ NON_US: tuple[Exchange, ...] = (
     Exchange("NA", "XAMS", "Euronext Amsterdam", "NL", "EUR", ".AS"),
     Exchange("BB", "XBRU", "Euronext Brussels", "BE", "EUR", ".BR"),
     Exchange("PL", "XLIS", "Euronext Lisbon", "PT", "EUR", ".LS"),
-    Exchange("ID", "XDUB", "Euronext Dublin", "IE", "EUR", ".IR"),
+    Exchange("ID", "XDUB", "Euronext Dublin", "IE", "EUR", ".IR", "low"),
     Exchange("IM", "XMIL", "Borsa Italiana", "IT", "EUR", ".MI", hub=True),
     Exchange("SM", "XMAD", "Bolsa de Madrid", "ES", "EUR", ".MC"),
     Exchange("SW", "XSWX", "SIX Swiss Exchange", "CH", "CHF", ".SW", hub=True),
@@ -67,22 +73,31 @@ NON_US: tuple[Exchange, ...] = (
     Exchange("GY", "XETR", "Xetra", "DE", "EUR", ".DE", hub=True),
     # Middle East and Africa
     Exchange("IT", "XTAE", "Tel Aviv Stock Exchange", "IL", "ILA", ".TA"),
-    Exchange("AB", "XSAU", "Saudi Exchange", "SA", "SAR", ".SR", "high"),
+    Exchange("AB", "XSAU", "Saudi Exchange", "SA", "SAR", ".SR", "low"),  # Yahoo uses numeric codes
     Exchange("SJ", "XJSE", "Johannesburg Stock Exchange", "ZA", "ZAC", ".JO"),
     # Asia-Pacific
     Exchange("JT", "XTKS", "Tokyo Stock Exchange", "JP", "JPY", ".T", "high"),
     Exchange("HK", "XHKG", "Hong Kong Exchanges", "HK", "HKD", ".HK", "high", pad=4),
     Exchange("CG", "XSHG", "Shanghai Stock Exchange", "CN", "CNY", ".SS", "high"),
     Exchange("CS", "XSHE", "Shenzhen Stock Exchange", "CN", "CNY", ".SZ", "high"),
-    Exchange("TT", "XTAI", "Taiwan Stock Exchange", "TW", "TWD", ".TW", "high"),
+    Exchange(
+        "TT",
+        "XTAI",
+        "Taiwan Stock Exchange",
+        "TW",
+        "TWD",
+        ".TW",
+        "high",
+        venues=(("Taipei Stock Exchange", "ROCO", ".TWO", "Taipei Exchange (TPEx)"),),
+    ),  # fmt: skip
     Exchange("KS", "XKRX", "Korea Exchange (KOSPI)", "KR", "KRW", ".KS", "high"),
     Exchange("KQ", "XKOS", "Korea Exchange (KOSDAQ)", "KR", "KRW", ".KQ", "high"),
     Exchange("IS", "XNSE", "National Stock Exchange of India", "IN", "INR", ".NS"),
-    Exchange("SP", "XSES", "Singapore Exchange", "SG", "SGD", ".SI"),
+    Exchange("SP", "XSES", "Singapore Exchange", "SG", "SGD", ".SI", "low"),  # Yahoo uses SGX codes (D05)
     Exchange("MK", "XKLS", "Bursa Malaysia", "MY", "MYR", ".KL", "low"),
-    Exchange("TB", "XBKK", "Stock Exchange of Thailand", "TH", "THB", ".BK"),
+    Exchange("TB", "XBKK", "Stock Exchange of Thailand", "TH", "THB", ".BK", drop_suffixes=(".F", ".R")),
     Exchange("IJ", "XIDX", "Indonesia Stock Exchange", "ID", "IDR", ".JK"),
-    Exchange("PM", "XPHS", "Philippine Stock Exchange", "PH", "PHP", ".PS"),
+    Exchange("PM", "XPHS", "Philippine Stock Exchange", "PH", "PHP", ".PS", "low"),
     Exchange("AU", "XASX", "ASX", "AU", "AUD", ".AX"),
     Exchange("NZ", "XNZE", "NZX", "NZ", "NZD", ".NZ"),
     # Americas

@@ -95,11 +95,9 @@ def parse_other_listed(text: str) -> list[UsVenue]:
     )
     out = []
     for r in rows:
-        mic = NASDAQ_TRADER_MIC.get(r["Exchange"].strip())
-        if mic is None:
-            raise ParseError(
-                f"otherlisted.txt: unknown exchange letter {r['Exchange']!r} for {r['ACT Symbol']}"
-            )
+        # A venue letter added after this code was written (e.g. "F") keeps the row: its ETF and test-issue
+        # flags still count, and the build falls back to SEC's exchange label for the venue.
+        mic = NASDAQ_TRADER_MIC.get(r["Exchange"].strip(), "")
         out.append(UsVenue(local_ticker(r["ACT Symbol"]), r["Security Name"].strip(), mic, r["ETF"] == "Y",
                            r["Test Issue"] == "Y"))  # fmt: skip
     return out

@@ -175,8 +175,9 @@ def test_sec_and_nasdaq_parsers_refuse_unexpected_documents() -> None:
         src.parse_sec_tickers_exchange({"data": []})
     with pytest.raises(ParseError, match="footer"):
         src.parse_nasdaq_listed(NASDAQ_LISTED.rsplit("File", 1)[0])  # cut short
-    with pytest.raises(ParseError, match="exchange letter"):
-        src.parse_other_listed(OTHER_LISTED.replace("|N|EXH.B|", "|Q|EXH.B|"))
+    # An exchange letter this code does not know keeps the row (flags still apply) with no venue.
+    odd = src.parse_other_listed(OTHER_LISTED.replace("|N|EXH.B|", "|F|EXH.B|"))
+    assert odd[0].ticker == "EXH.B" and odd[0].mic == "" and odd[1].etf
 
 
 def test_openfigi_error_is_raised_not_read_as_empty() -> None:
@@ -342,4 +343,48 @@ def test_yahoo_symbols_with_exchange_suffixes_are_left_alone() -> None:
         and yahoo.symbol("BT-A.L") == "BT-A.L"
         and yahoo.symbol("7203.T") == "7203.T"
     )
-    assert {e.yahoo_suffix for e in NON_US} <= yahoo.EXCHANGE_SUFFIXES
+    assert {e.yahoo_suffix for e in NON_US} | {
+        v[2] for e in NON_US for v in e.venues
+    } <= yahoo.EXCHANGE_SUFFIXES
+
+
+def test_openfigi_venue_labels_placeholders_and_odd_lines() -> None:
+    """OpenFIGI writes Taiwan's code as "TT (Taiwan Stock Exchange)" and mixes in TPEx listings (live probe)."""
+
+    def row(t: str, exch: str, name: str) -> dict[str, Any]:
+        return {**figi(t, "TT", name, f"BBGSC{t}"), "exchCode": exch}
+
+    pages = {
+        ("TT", "Common Stock", None): {"data": [row("2330", "TT (Taiwan Stock Exchange)", "HARBOUR SEMI"),
+                                                row("6488", "TT (Taipei Stock Exchange)", "ISLAND WAFER"),
+                                                row("1091Z", "TT (Taiwan Stock Exchange)", "OLD LINE")], "total": 3},
+        ("TB", "Common Stock", None): {"data": [figi("AFC", "TB", "SIAM FIBRE", "BBGSC0000AFC"),
+                                                figi("AFC-F", "TB", "SIAM FIBRE-FORGN", "BBGSC000AFCF")], "total": 2},
+    }  # fmt: skip
+    store, report = built(["TT", "TB"], Net(pages=pages))
+    uni = Universe(store)
+    tw = uni.get("XTAI:2330", TODAY)
+    two = uni.get("6488.TWO", TODAY)
+    assert tw is not None and tw.symbol == "2330.TW"
+    assert two is not None and two.key == "ROCO:6488" and two.exchange == "Taipei Exchange (TPEx)"
+    assert report["segments"]["openfigi:TT"]["excluded"] == {
+        "placeholder ticker (delisted or not yet traded)": 1
+    }
+    assert report["segments"]["openfigi:TB"]["excluded"] == {
+        "not an ordinary line (foreign board or NVDR)": 1
+    }
+
+
+def test_us_etfs_are_dropped_by_name_when_the_nasdaq_directory_is_down() -> None:
+    doc = {**SEC_DOC, "data": [*SEC_DOC["data"], [9999990, "Example Physical Gold ETF", "EXGLD", "CBOE"]]}
+    net = Net(fail={"nasdaq"})
+    orig = net.opener
+
+    def opener(req: urllib.request.Request, timeout: float) -> bytes:
+        return (
+            json.dumps(doc).encode() if req.full_url == src.SEC_TICKERS_EXCHANGE_URL else orig(req, timeout)
+        )
+
+    net.opener = opener  # type: ignore[method-assign]
+    _, report = built([], net)
+    assert report["segments"]["sec-us"]["excluded"]["etf (by name)"] == 1
