@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keers &amp; Co Workbench</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%2315181b'/%3E%3Cpath d='M4 3v10M4 8l6-5M6 7l5 6' stroke='%23d9a441' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/"><span class="mark">K&amp;C</span><span class="brand-name">Keers &amp; Co</span><span class="brand-sub">Research workbench</span></a>
+    <div class="search" role="search">
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search companies by name or ticker" aria-label="Search companies">
+      <kbd class="hint">/</kbd>
+      <ul id="results" class="results" role="listbox" hidden></ul>
+    </div>
+    <div id="sys" class="sys" aria-live="polite"></div>
+  </header>
+  <main id="view" tabindex="-1"></main>
+  <aside id="drawer" class="drawer" hidden aria-label="Where this figure came from">
+    <div class="drawer-head"><span class="eyebrow">Provenance</span><button id="drawer-close" class="icon-btn" aria-label="Close">×</button></div>
+    <div id="drawer-body"></div>
+  </aside>
+  <footer class="foot">
+    <span>Research only. Paper portfolios only. Nothing here is advice or a decision.</span>
+    <span id="notice"></span>
+    <span>Charts: <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noopener noreferrer">TradingView Lightweight Charts</a> (Apache 2.0) drawing Keers &amp; Co's own stored bars.</span>
+  </footer>
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/app.js" type="module"></script>
+</body>
+</html>
