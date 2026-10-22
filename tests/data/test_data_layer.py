@@ -279,3 +279,81 @@ def test_company_that_never_filed_debt_has_zero_debt_with_a_warning() -> None:
     snap = snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
     assert snap.values["debt"].value == 0
     assert snap.values["debt"].warnings
+
+
+# patterns seen in the first live run (rebuilt here on the fictional company) --------------------------------
+def without(rows: list[fx.Row], *concepts: str) -> list[fx.Row]:
+    return [r for r in rows if r[1] not in concepts]
+
+
+def flow_rows(concept: str, fy: float, ytd9_24: float, ytd9_25: float) -> list[fx.Row]:
+    return [
+        fx._dur(concept, "2024-01-01", "2024-12-31", fy, fx.K24),
+        fx._dur(concept, "2024-01-01", "2024-09-30", ytd9_24, fx.Q3_25),
+        fx._dur(concept, "2025-01-01", "2025-09-30", ytd9_25, fx.Q3_25),
+    ]
+
+
+def build(rows: list[fx.Row]) -> snapshot.Snapshot:
+    return snapshot.build(with_market(load(rows)), "EXW", date(2025, 11, 10))
+
+
+def test_figure_from_an_old_period_is_not_used() -> None:
+    # Workday's last DepreciationAndAmortization was for 2019; it must not be paired with 2025 operating income.
+    old = [fx._dur("DepreciationAndAmortization", "2018-11-01", "2019-10-31", 260, fx.K24)]
+    snap = build(without(fx.base_rows(), "DepreciationDepletionAndAmortization") + old)
+    assert snap.values["da"].value is None
+    assert any("missing ebitda" in b for b in snap.blocked_by)
+
+
+def test_da_from_separate_depreciation_and_amortisation_lines() -> None:
+    rows = without(fx.base_rows(), "DepreciationDepletionAndAmortization")
+    rows += flow_rows("Depreciation", 40, 30, 32) + flow_rows("AmortizationOfIntangibleAssets", 10, 7, 8)
+    snap = build(rows)
+    assert snap.values["da"].value == pytest.approx((40 + 32 - 30) + (10 + 8 - 7))
+    assert snap.values["ebitda"].value == pytest.approx(230 + 53)
+
+
+def test_long_term_debt_beside_debt_current_is_the_noncurrent_line() -> None:
+    # Adobe files LongTermDebt for the non-current line and DebtCurrent for the current one, with no
+    # LongTermDebtNoncurrent.
+    rows = without(fx.base_rows(), "LongTermDebtNoncurrent", "LongTermDebtCurrent")
+    rows += [
+        fx._inst("LongTermDebt", "2025-09-30", 380, fx.Q3_25),
+        fx._inst("DebtCurrent", "2025-09-30", 20, fx.Q3_25),
+    ]
+    snap = build(rows)
+    assert snap.values["debt"].value == pytest.approx(400)
+    assert any("non-current line" in w for w in snap.values["debt"].warnings)
+
+
+def test_interest_too_high_for_the_debt_found_blocks() -> None:
+    # Dropbox's term loan is filed under its own tag, so only part of its debt is visible in company facts.
+    rows = fx.base_rows() + flow_rows("InterestExpense", 90, 70, 80)  # TTM 100 on 400 of debt = 25%
+    snap = build(rows)
+    assert snap.values["netDebt"].value is None
+    assert any("debt looks incomplete" in b for b in snap.blocked_by)
+    ok = build(fx.base_rows() + flow_rows("InterestExpense", 20, 15, 16))  # 21 on 400 = 5%
+    assert ok.values["netDebt"].known
+
+
+def test_old_share_count_is_not_used() -> None:
+    # Workday's last non-dimensional cover-page count is from 2018 (it now has two share classes).
+    rows = without(fx.base_rows(), "EntityCommonStockSharesOutstanding")
+    rows += [("dei", "EntityCommonStockSharesOutstanding", "shares", None, "2018-11-30", 220 * fx.M, *fx.K24)]
+    rows += [("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2025-07-01", "2025-09-30",
+              52 * fx.M, *fx.Q3_25)]  # fmt: skip
+    v = build(rows).values["shares"]
+    assert v.value == pytest.approx(52) and v.warnings
+
+
+def test_combined_cash_and_investments_line_and_split_leases() -> None:
+    rows = fx.base_rows() + [
+        fx._inst("CashCashEquivalentsAndShortTermInvestments", "2025-09-30", 205, fx.Q3_25),
+        fx._inst("OperatingLeaseLiabilityCurrent", "2025-09-30", 5, fx.Q3_25),
+        fx._inst("OperatingLeaseLiabilityNoncurrent", "2025-09-30", 45, fx.Q3_25),
+    ]
+    snap = build(rows)
+    assert snap.values["liquidAssets"].value == pytest.approx(205)
+    assert snap.values["netDebt"].value == pytest.approx(400 - 205)
+    assert snap.values["operatingLeases"].value == pytest.approx(50)

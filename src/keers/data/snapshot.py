@@ -77,39 +77,42 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     fu = F.Fundamentals(store, co["cik"], as_of)
     v: dict[str, Value] = {}
     v["revenue"] = fu.flow(F.REVENUE, "revenue")
-    v["ebit"] = fu.flow(F.OPERATING_INCOME, "operating income")
-    v["da"] = fu.flow(F.DA, "depreciation and amortisation")
-    v["netIncome"] = fu.flow(F.NET_INCOME, "net income")
-    v["capex"] = fu.flow(F.CAPEX, "capital expenditure")
-    v["interestExpense"] = fu.flow(F.INTEREST, "interest expense")
-    v["sbc"] = fu.flow(F.SBC, "share-based compensation")
+    at = v["revenue"].period_end
+    if at is None:
+        snap = Snapshot(co["ticker"], co["cik"], co["name"], as_of, v)
+        check(snap)
+        return snap
+    # Every other figure must cover the same period as revenue (flows) or sit at its end (balances).
+    v["ebit"] = fu.flow(F.OPERATING_INCOME, "operating income", at)
+    v["da"] = fu.depreciation_amortisation(at)
+    v["netIncome"] = fu.flow(F.NET_INCOME, "net income", at)
+    v["capex"] = fu.flow(F.CAPEX, "capital expenditure", at)
+    v["interestExpense"] = fu.flow(F.INTEREST, "interest expense", at)
+    v["sbc"] = fu.flow(F.SBC, "share-based compensation", at)
     v["revenueGrowth"] = fu.flow_growth(F.REVENUE, "revenue")
 
     ebit, da = v["ebit"], v["da"]
-    if ebit.known and da.known and ebit.period_end == da.period_end:
+    if ebit.known and da.known:
         assert ebit.value is not None and da.value is not None  # noqa: S101
         v["ebitda"] = _derived(ebit.value + da.value, "USDm", "operating income + D&A (TTM)", [ebit, da])
     else:
-        v["ebitda"] = missing(
-            "USDm", "EBITDA: operating income and D&A are not both available for the same period"
-        )
+        v["ebitda"] = missing("USDm", f"EBITDA: {ebit.method if not ebit.known else da.method}")
 
-    at = v["revenue"].period_end
-    cash = fu.balance(F.CASH, "cash", at)
-    sti = fu.balance(F.ST_INVESTMENTS, "short-term investments", at)
+    liquid = fu.liquid_assets(at)
     debt = fu.total_debt(at)
-    v["cash"], v["shortTermInvestments"], v["debt"] = cash, sti, debt
+    v["liquidAssets"], v["debt"] = liquid, debt
     # Shown for comparison with data vendors that count leases as debt; not included in net debt.
-    v["operatingLeases"] = fu.balance(F.OPERATING_LEASES, "operating lease liabilities", at)
-    if cash.known and debt.known:
-        assert cash.value is not None and debt.value is not None  # noqa: S101
-        use_sti = sti.known and sti.period_end == cash.period_end
-        liquid = cash.value + ((sti.value or 0.0) if use_sti else 0.0)
-        parts = [debt, cash, sti] if use_sti else [debt, cash]
-        method = "debt − cash − short-term investments" if use_sti else "debt − cash"
-        v["netDebt"] = _derived(debt.value - liquid, "USDm", method, parts)
+    v["operatingLeases"] = fu.operating_leases(at)
+    problem = fu.debt_check(debt, at)
+    if problem:
+        v["netDebt"] = missing("USDm", f"net debt: {problem}")
+    elif liquid.known and debt.known:
+        assert liquid.value is not None and debt.value is not None  # noqa: S101
+        v["netDebt"] = _derived(
+            debt.value - liquid.value, "USDm", "debt − cash − short-term investments", [debt, liquid]
+        )
     else:
-        v["netDebt"] = missing("USDm", "net debt: cash or debt balance missing")
+        v["netDebt"] = missing("USDm", f"net debt: {debt.method if not debt.known else liquid.method}")
 
     v["shares"] = fu.shares(at)
     px = store.last_price(ticker, as_of)
@@ -212,7 +215,7 @@ def to_kci_deal(snap: Snapshot) -> dict[str, Any]:
             "priceDate": str(snap.values["price"].period_end) if val("price") is not None else None,
             "sharesM": val("shares"),
             "marketCap": val("marketCap"),
-            "cash": val("cash"),
+            "cash": val("liquidAssets"),
             "debt": val("debt"),
         },
         "provenance": {k: x.as_dict() for k, x in snap.values.items()},

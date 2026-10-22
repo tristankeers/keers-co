@@ -23,7 +23,7 @@ from keers.data.store import Store
 
 AS_OF = date(2026, 10, 15)
 TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY"]
-DIAG_PATTERN = r"Debt|Borrowing|NotesPayable|Depreciation|Amortization|Lease|^Cash"
+DIAG_PATTERN = r"^(LongTermDebt|DebtCurrent|ShortTermBorrowings|CommercialPaper|Convertible(Debt|Notes)|SecuredDebt|.*TermLoan|LineOfCredit$|InterestExpense|Depreciation|AmortizationOfIntangibleAssets|AdjustmentForAmortization|CashCashEquivalentsAndShortTermInvestments|EntityCommonStockSharesOutstanding|WeightedAverageNumberOfDilutedSharesOutstanding)"
 CHECK = {"DBX": ("revenue", 2531.6, 0.005)}
 
 
@@ -53,7 +53,7 @@ def main() -> int:
             diff = (lv / kv - 1) if lv is not None and kv else None
             rows.append((t, field, lv, kv, diff, live.period_end if live else None))
         print(f"{t}: blocked={snap.blocked} {snap.blocked_by}")
-        for k in ("ebit", "da", "cash", "shortTermInvestments", "debt", "operatingLeases", "shares"):
+        for k in ("ebit", "da", "interestExpense", "liquidAssets", "debt", "operatingLeases", "shares"):
             x = snap.values.get(k)
             if x is not None:
                 print(f"    {k}: {x.value} | {x.method} | end {x.period_end} | {list(x.warnings)}")
