@@ -1,0 +1,47 @@
+name: Workbench live check
+
+# Runs the research workbench against the live sources (SEC, Yahoo, FRED) and saves screenshots of each view.
+# Runs on pull requests that touch the workbench, and by hand. Needs SEC_USER_AGENT; TIINGO_TOKEN is optional.
+
+on:
+  pull_request:
+    paths: ["src/keers/web/**", "scripts/workbench_check.py", ".github/workflows/workbench-live.yml"]
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Symbols to check"
+        required: false
+        default: "DBX ADBE VOD.L"
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      SYMBOLS: ${{ inputs.symbols || 'DBX ADBE VOD.L' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret"
+            exit 1
+          fi
+      - run: pip install -e ".[dev]" playwright && python -m playwright install --with-deps chromium
+      - name: Live check with screenshots
+        # shellcheck disable=SC2086
+        run: python scripts/workbench_check.py $SYMBOLS --screens
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workbench-live
+          path: |
+            workbench-out/*.json
+            workbench-out/*.png

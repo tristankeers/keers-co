@@ -9,3 +9,5 @@ dist/
 .env
 data/*.sqlite
 smoke-out/
+data/*.json
+workbench-out/

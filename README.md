@@ -33,6 +33,23 @@ The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it)
 
 How figures are built: trailing twelve months = latest fiscal year + current year-to-date − prior year-to-date; EBITDA = operating income + D&A; net debt = borrowings (including finance leases, excluding operating leases) − cash − short-term investments; EV = price × shares + net debt. A price more than 3 business days old, or a latest period more than 135 days old, blocks the snapshot. Live figures are labelled `filed`, never `verified`, until a cross-check is built.
 
+## Research workbench
+
+A local web interface over everything above: company search (any listing; US SEC filers get the full view),
+a profile with every figure labelled reported, derived, market, assumption or estimate and traced to its filing
+or source, the kci-v2 DCF and buyout with editable inputs and a side-by-side kci-v1 comparison, the distress
+screen with its reasons, daily and intraday charts drawn from our own stored bars, and headlines.
+
+```bash
+pip install -e ".[web]"
+export SEC_USER_AGENT="Your Name you@example.com"
+python -m keers.web                  # http://127.0.0.1:8000 ; KEERS_OFFLINE=1 for the store only
+```
+
+It runs on your own machine only: Yahoo's data is for personal use, so do not put it on a public address. Why
+this stack: `docs/adr/0004-research-workbench-stack.md`. The `workbench-live.yml` workflow runs it against the
+live sources and saves screenshots.
+
 ## Running the checks
 
 Needs Python 3.11+ and Node.js 20+.
