@@ -17,6 +17,7 @@ Live fetching is optional (``Live``). With it off, every view is built from the 
 from __future__ import annotations
 
 import copy
+import logging
 import math
 import threading
 import time
@@ -54,11 +55,19 @@ from .directory import (
     YahooSearchDirectory,
 )
 
+log = logging.getLogger("keers.web")
+
+LIVE_TIMEOUT = 15  # seconds per network operation
+LIVE_RETRIES = 1
+LOCK_WAIT = 20  # seconds a page waits for its turn at the live sources before using stored data
+SEARCH_LOCK_WAIT = 2  # search is typed live, so it never queues behind a refresh
+
 LIVE_ERRORS = (FetchError, ParseError, KeyError, ValueError, OSError)
 NEWS_MAX_AGE = 600  # seconds between live headline fetches for one company
 QUOTE_MAX_AGE = 30
 BARS_MAX_AGE = 60
 REFRESH_MIN_GAP = 60
+REFRESH_LOCK_WAIT = 45
 CHART_DAYS = PRICE_HISTORY_DAYS
 
 YAHOO_NOTICE = (
@@ -104,16 +113,45 @@ class LiveConfig:
 
 @dataclass
 class Live:
-    """Live fetching, one request at a time (polite to every source, and SQLite has one writer)."""
+    """Live fetching, one request at a time (polite to every source, and SQLite has one writer).
+
+    A page must never hang on a slow source. Each request has a short timeout and one retry, and a request that
+    cannot get its turn within a few seconds gives up with a clear message, so the view falls back to stored data.
+    Every live call is logged with how long it took.
+    """
 
     config: LiveConfig
     fetcher: Fetcher | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
     _last: dict[tuple[str, ...], float] = field(default_factory=dict)
+    busy_with: str | None = None
 
     def __post_init__(self) -> None:
         if self.fetcher is None:
-            self.fetcher = Fetcher(self.config.sec_user_agent or "keers-research")
+            self.fetcher = Fetcher(
+                self.config.sec_user_agent or "keers-research", retries=LIVE_RETRIES, timeout=LIVE_TIMEOUT
+            )
+
+    @contextmanager
+    def slot(self, what: str, wait: float = LOCK_WAIT) -> Iterator[None]:
+        """Hold the live-source lock for one job, waiting at most ``wait`` seconds for it."""
+        if not self.lock.acquire(timeout=wait):
+            log.warning("live: %s skipped: still busy with %s after %.0fs", what, self.busy_with, wait)
+            raise FetchError(
+                f"live sources are busy ({self.busy_with or 'another request'}); showing stored data"
+            )
+        self.busy_with = what
+        t = time.monotonic()
+        try:
+            yield
+        except Exception as e:
+            log.warning("live: %s failed after %.1fs: %s", what, time.monotonic() - t, str(e)[:300])
+            raise
+        else:
+            log.info("live: %s done in %.1fs", what, time.monotonic() - t)
+        finally:
+            self.busy_with = None
+            self.lock.release()
 
     @property
     def sec_enabled(self) -> bool:
@@ -296,9 +334,13 @@ class Workbench:
         backings.append(StoreDirectory(self.open_store))
         backings.append(SecTickerDirectory(data_dir / "sec_company_tickers.json",
                                            self._fetch_sec_tickers if live and live.sec_enabled else None))  # fmt: skip
-        if live is not None:
-            backings.append(YahooSearchDirectory(self._yahoo_search))
-        self.directory = CompositeDirectory(backings)
+        # Local backings answer from this machine in milliseconds, so suggestions can appear as you type.
+        # Yahoo's search is live and slow; it is asked separately (search(remote=True)) and only adds what is missing.
+        self.local_directory = CompositeDirectory(backings)
+        self.remote_directory = YahooSearchDirectory(self._yahoo_search) if live is not None else None
+        self.directory = CompositeDirectory(
+            backings + ([self.remote_directory] if self.remote_directory else [])
+        )
 
     # plumbing ---------------------------------------------------------------------------------------------------
     def open_store(self) -> Store:
@@ -314,14 +356,16 @@ class Workbench:
 
     def _fetch_sec_tickers(self) -> tuple[bytes, str]:
         assert self.live is not None and self.live.fetcher is not None  # noqa: S101
-        with self.live.lock:
+        with self.live.slot("SEC ticker map"):
             r = self.live.fetcher.get(TICKERS_URL)
         return r.body, r.retrieved_at
 
     def _yahoo_search(self, query: str, count: int) -> list[dict[str, str]]:
         assert self.live is not None  # noqa: S101
         assert self.live.fetcher is not None  # noqa: S101
-        with self.live.lock:
+        if len(query.strip()) < 2:
+            return []
+        with self.live.slot(f"Yahoo search {query!r}", SEARCH_LOCK_WAIT):
             return sources.yahoo_search(self.live.fetcher, query, count)
 
     # status -----------------------------------------------------------------------------------------------------
@@ -350,13 +394,24 @@ class Workbench:
             "notice": YAHOO_NOTICE,
         }
 
-    def search(self, query: str, limit: int = 20) -> dict[str, Any]:
+    def search(self, query: str, limit: int = 20, remote: bool = False) -> dict[str, Any]:
+        """Local directories only (fast, for suggestions as you type), or with ``remote`` only Yahoo's extra hits."""
         q = query.strip()[:60]
-        hits = self.directory.search(q, limit) if q else []
-        return {"query": q, "results": [h.as_dict() for h in hits], "sources": self.directory.sources}
+        if not remote:
+            hits = self.local_directory.search(q, limit) if q else []
+            return {"query": q, "remote": False, "results": [h.as_dict() for h in hits],
+                    "sources": self.local_directory.sources}  # fmt: skip
+        if self.remote_directory is None or not q:
+            return {"query": q, "remote": True, "results": [], "sources": []}
+        known = {x.symbol for x in self.local_directory.search(q, limit)}
+        extra = [x for x in self.remote_directory.search(q, limit) if x.symbol not in known]
+        return {"query": q, "remote": True, "results": [x.as_dict() for x in extra],
+                "sources": [self.remote_directory.name]}  # fmt: skip
 
     def listing(self, symbol: str) -> Listing:
-        found = self.directory.get(symbol)
+        found = self.local_directory.get(symbol)
+        if found is None and self.remote_directory is not None:
+            found = self.remote_directory.get(symbol)
         if found is not None:
             return found
         sym = sources.symbol(symbol)
@@ -376,35 +431,43 @@ class Workbench:
         start = today - timedelta(days=PRICE_HISTORY_DAYS)
         done: dict[str, Any] = {}
         errors: dict[str, str] = {}
-        with self.live.lock, self.store() as st:
-            market = self.live.market(st)
-            if lst.cik is not None or (self.live.sec_enabled and not sources.is_foreign(sym)):
-                try:
-                    done["filings"] = self.live.sec(st).refresh_company(sym, ALL_CONCEPTS)
-                except KeyError:
-                    done["filings"] = {"note": f"{sym} is not in the SEC ticker map; prices only"}
-                except LIVE_ERRORS as e:
-                    errors["filings"] = str(e)
-            try:
-                done["prices"] = market.refresh_prices(sym, start)
-            except LIVE_ERRORS as e:
-                errors["prices"] = str(e)
-            bench = st.last_price(BENCHMARK)
-            if bench is None or S.business_days_between(bench.day, today) > 1:
-                try:
-                    done["benchmark"] = market.refresh_prices(BENCHMARK, start)
-                except LIVE_ERRORS as e:
-                    errors["benchmark"] = str(e)
-            rate = st.last_rate("DGS10")
-            if rate is None or S.business_days_between(rate.day, today) > 2:
-                try:
-                    done["rates"] = market.refresh_rates()
-                except LIVE_ERRORS as e:
-                    errors["rates"] = str(e)
-            run = st.start_run("workbench-refresh")
-            st.finish_run(run, "ok" if not errors else ("partial" if done else "failed"),
-                          {"symbol": sym, "ok": sorted(done), "failed": errors})  # fmt: skip
+        try:
+            with self.live.slot(f"refresh {sym}", REFRESH_LOCK_WAIT), self.store() as st:
+                self._refresh_locked(st, lst, sym, today, start, done, errors)
+        except FetchError as e:  # could not get a turn at the live sources
+            errors["live"] = str(e)
         return {"ok": not errors, "symbol": sym, "done": done, "errors": errors}
+
+    def _refresh_locked(self, st: Store, lst: Listing, sym: str, today: date, start: date,
+                        done: dict[str, Any], errors: dict[str, str]) -> None:  # fmt: skip
+        assert self.live is not None  # noqa: S101
+        market = self.live.market(st)
+        if lst.cik is not None or (self.live.sec_enabled and not sources.is_foreign(sym)):
+            try:
+                done["filings"] = self.live.sec(st).refresh_company(sym, ALL_CONCEPTS)
+            except KeyError:
+                done["filings"] = {"note": f"{sym} is not in the SEC ticker map; prices only"}
+            except LIVE_ERRORS as e:
+                errors["filings"] = str(e)
+        try:
+            done["prices"] = market.refresh_prices(sym, start)
+        except LIVE_ERRORS as e:
+            errors["prices"] = str(e)
+        bench = st.last_price(BENCHMARK)
+        if bench is None or S.business_days_between(bench.day, today) > 1:
+            try:
+                done["benchmark"] = market.refresh_prices(BENCHMARK, start)
+            except LIVE_ERRORS as e:
+                errors["benchmark"] = str(e)
+        rate = st.last_rate("DGS10")
+        if rate is None or S.business_days_between(rate.day, today) > 2:
+            try:
+                done["rates"] = market.refresh_rates()
+            except LIVE_ERRORS as e:
+                errors["rates"] = str(e)
+        run = st.start_run("workbench-refresh")
+        st.finish_run(run, "ok" if not errors else ("partial" if done else "failed"),
+                      {"symbol": sym, "ok": sorted(done), "failed": errors})  # fmt: skip
 
     # company profile --------------------------------------------------------------------------------------------
     def company(self, symbol: str) -> dict[str, Any]:
@@ -483,7 +546,7 @@ class Workbench:
         error = None
         if self.live is not None and self.live.due(("quote", sym), QUOTE_MAX_AGE):
             try:
-                with self.live.lock, self.store() as st:
+                with self.live.slot(f"Yahoo quote {sym}"), self.store() as st:
                     self.live.market(st).quote(sym)
             except LIVE_ERRORS as e:
                 error = str(e)
@@ -504,7 +567,7 @@ class Workbench:
             if self.live is not None and (last is None or S.business_days_between(last.day, today) > 1) \
                     and self.live.due(("daily", sym), BARS_MAX_AGE):  # fmt: skip
                 try:
-                    with self.live.lock, self.store() as st:
+                    with self.live.slot(f"daily prices {sym}"), self.store() as st:
                         res = self.live.market(st).refresh_prices(sym, today - timedelta(days=CHART_DAYS))
                     notes += res.get("notes", [])
                     if res.get("fallbackFrom"):
@@ -536,7 +599,7 @@ class Workbench:
             raise InputError(f"interval must be 1d or one of {', '.join(yahoo.INTERVALS)}")
         if self.live is not None and self.live.due(("bars", sym, interval), BARS_MAX_AGE):
             try:
-                with self.live.lock, self.store() as st:
+                with self.live.slot(f"{interval} bars {sym}"), self.store() as st:
                     res = self.live.market(st).refresh_bars(sym, interval)
                 notes += res.get("notes", [])
             except LIVE_ERRORS as e:
@@ -560,7 +623,7 @@ class Workbench:
         error = None
         if self.live is not None and self.live.due(("news", sym), NEWS_MAX_AGE):
             try:
-                with self.live.lock, self.store() as st:
+                with self.live.slot(f"Yahoo headlines {sym}"), self.store() as st:
                     self.live.market(st).refresh_news(sym, count)
             except LIVE_ERRORS as e:
                 error = str(e)

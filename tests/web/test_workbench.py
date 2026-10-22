@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import urllib.request
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -9,13 +11,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from keers.data.http import Fetcher
+from keers.data.http import Fetcher, FetchError
 from keers.data.models import PricePoint
 from keers.data.store import Store
 from keers.web import service as SV
 from keers.web import sources
 from keers.web.app import create_app
-from keers.web.directory import CompositeDirectory, Listing, rank
+from keers.web.directory import CompositeDirectory, Listing, SecTickerDirectory, YahooSearchDirectory, rank
 from keers.web.service import Live, LiveConfig, Workbench
 from tests.data import fixtures as fx
 from tests.web import demo
@@ -249,3 +251,76 @@ def test_refresh_loads_filings_prices_and_rates(tmp_path: Path) -> None:
         "value"
     ] == pytest.approx(1100)
     assert wb.search("exam")["results"][0]["symbol"] == "EXW"
+
+
+# suggestions as you type, and pages that never hang ------------------------------------------------------------
+def test_multi_word_queries_match_word_starts() -> None:
+    xs = [Listing("OPEN", "OPEN", "Opendoor Technologies Inc."), Listing("OTEX", "OTEX", "Open Text Corp")]
+    assert [x.symbol for x in rank("open tech", xs, 5)] == ["OPEN"]
+    assert [x.symbol for x in rank("open", xs, 5)] == ["OPEN", "OTEX"]
+
+
+def test_search_is_local_and_yahoo_only_adds_missing_listings(db: Path) -> None:
+    calls: list[str] = []
+
+    def yahoo(q: str, n: int) -> list[dict[str, str]]:
+        calls.append(q)
+        return [
+            {"symbol": "EXW", "name": "Example Widgets"},
+            {"symbol": "EXW.L", "name": "Example Widgets plc"},
+        ]
+
+    wb = Workbench(str(db), today=lambda: demo.AS_OF)
+    wb.remote_directory = YahooSearchDirectory(yahoo)
+    client = TestClient(create_app(wb))
+    local = client.get("/api/search", params={"q": "exa"}).json()
+    assert [x["symbol"] for x in local["results"]] == ["EXW"] and calls == [] and local["remote"] is False
+    remote = client.get("/api/search", params={"q": "exa", "remote": 1}).json()
+    assert [x["symbol"] for x in remote["results"]] == ["EXW.L"] and remote["sources"] == ["yahoo"]
+    assert wb.listing("EXW").source.startswith("store") and calls == ["exa"]  # found locally: Yahoo not asked
+
+
+def test_busy_live_sources_give_up_quickly_with_a_message() -> None:
+    live = Live(LiveConfig(), Fetcher("t", opener=lambda r, t: b"", sleep=lambda s: None))
+    with live.slot("refresh EXW"):
+        t = time.monotonic()
+        with pytest.raises(FetchError, match=r"busy \(refresh EXW\)"), live.slot("quote", wait=0.05):
+            pass
+        assert time.monotonic() - t < 1
+    with live.slot("quote", wait=0.05):  # released afterwards
+        assert live.busy_with == "quote"
+    assert live.busy_with is None
+
+
+def test_refresh_reports_busy_sources_instead_of_hanging(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(SV, "REFRESH_LOCK_WAIT", 0.05)
+    live = Live(LiveConfig(), Fetcher("t", opener=lambda r, t: b"", sleep=lambda s: None))
+    wb = Workbench(str(db), live, today=lambda: demo.AS_OF)
+    wb.remote_directory = None
+    with live.slot("another refresh"):
+        r = wb.refresh("EXW")
+    assert r["ok"] is False and "busy" in r["errors"]["live"]
+
+
+def test_sec_ticker_map_downloads_in_the_background_and_retries(tmp_path: Path) -> None:
+    gate = threading.Event()
+    attempts: list[int] = []
+
+    def fetch() -> tuple[bytes, str]:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise FetchError("SEC down")
+        gate.wait(5)
+        return fx.as_bytes(fx.tickers()), "2025-11-10T00:00:00Z"
+
+    d = SecTickerDirectory(tmp_path / "t.json", fetch)
+    assert d.search("exw") == []  # first download fails in the background; search does not wait
+    d._done.wait(5)
+    assert d.search("exw") == [] and len(attempts) == 1  # not retried straight away
+    d._failed_at -= d.RETRY_AFTER
+    t = time.monotonic()
+    assert d.search("exw") == [] and time.monotonic() - t < 1  # second download running, search still instant
+    gate.set()
+    assert d.get("EXW") is not None  # an exact lookup waits for the download
+    assert (tmp_path / "t.json").exists()
+    assert SecTickerDirectory(tmp_path / "t.json").search("exw")[0].symbol == "EXW"  # cache used next time
