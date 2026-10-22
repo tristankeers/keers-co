@@ -10,7 +10,7 @@ A research platform for three investment strategies: distressed and special situ
 
 - `src/keers/valuation/kci_v2_defaults.py`: calculation version `kci-v2`. Same engine formulas, three default assumptions fixed: buyouts pay a 30% takeover premium on market equity and exit at the market multiple; the DCF uses each company's own beta (measured weekly against SPY over two years, Blume-adjusted) and the live 10-year Treasury yield, with the size premium only for smaller companies; capex fades from today's ratio to the D&A ratio by the final year. With no beta the DCF is not run. What changed on KCI's 100-company baseline is in `docs/calc/kci-v2-changes.md`. Live snapshots use `kci-v2` by default (`--calc-version kci-v1` for the old one).
 - `src/keers/strategies/distress.py`: Strategy A's first step, a distress screen on live data. Five checks per company (interest cover, net debt / EBITDA, debt due within a year against cash, Altman Z, fall from the 52-week high), each with its thresholds and a sentence saying why, plus the Baa credit spread as market backdrop. A check with missing data is `unknown` and never counts as clear. Run `python scripts/distress_screen.py [TICKER ...]` (or the screen step in `live-smoke.yml`); the default test list is `config/universe/distress-test.txt`.
-- `src/keers/data/`: the live data layer. It pulls SEC filings (XBRL company facts), daily share prices (Stooq, or Tiingo with a token) and Treasury and credit rates (FRED). Every number is stored with the filing, date and response hash it came from, and is read as of a date, so a back-dated run sees only what had been filed by then. Snapshots with missing or stale figures are blocked and never reach the valuation engine.
+- `src/keers/data/`: the live data layer. It pulls SEC filings (XBRL company facts), daily share prices (Yahoo Finance first, Tiingo as fallback), intraday bars, quotes and headlines (Yahoo), and Treasury and credit rates (FRED). SEC EDGAR stays the source of truth for financial statements. **Yahoo Finance is unofficial and for personal use only; it must be replaced by a licensed feed before any commercial or regulated use.** See `docs/data-sources.md`. Every number is stored with the filing, date and response hash it came from, and is read as of a date, so a back-dated run sees only what had been filed by then. Snapshots with missing or stale figures are blocked and never reach the valuation engine.
 
 KCI itself is a separate project and is never modified from here.
 
@@ -24,9 +24,12 @@ python -m keers.data refresh DBX ADBE            # or: --universe config/univers
 python -m keers.data snapshot DBX --analyse      # snapshot as of today, then kci-v2 if not blocked
 python -m keers.data snapshot DBX --as-of 2026-10-15
 python -m keers.data status
+python -m keers.data quote DBX ADBE              # latest price with freshness warnings (Yahoo)
+python -m keers.data bars DBX --interval 5m      # completed intraday bars for charts (Yahoo)
+python -m keers.data news DBX                    # headlines: untrusted third-party text (Yahoo)
 ```
 
-The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it). In GitHub Actions, set `SEC_USER_AGENT` as a repository secret (masked in the public logs; a variable also works) to turn on the weekday refresh (`refresh.yml`), and run `live-smoke.yml` by hand to check the live build against Dropbox's figures from filings. `TIINGO_TOKEN` is needed for prices in practice (Stooq now blocks scripted downloads) and for betas, which use its adjusted closes.
+The database defaults to `data/keers.sqlite` (`KEERS_DB` or `--db` to change it). In GitHub Actions, set `SEC_USER_AGENT` as a repository secret (masked in the public logs; a variable also works) to turn on the weekday refresh (`refresh.yml`), and run `live-smoke.yml` by hand to check the live build against Dropbox's figures from filings. Prices come from Yahoo first; `TIINGO_TOKEN` turns on Tiingo as the fallback, and every fallback is reported in the run record. `KEERS_PRICE_SOURCES` changes the order (see `docs/data-sources.md`).
 
 How figures are built: trailing twelve months = latest fiscal year + current year-to-date − prior year-to-date; EBITDA = operating income + D&A; net debt = borrowings (including finance leases, excluding operating leases) − cash − short-term investments; EV = price × shares + net debt. A price more than 3 business days old, or a latest period more than 135 days old, blocks the snapshot. Live figures are labelled `filed`, never `verified`, until a cross-check is built.
 

@@ -103,4 +103,4 @@ def test_schema_1_store_is_migrated_in_place(tmp_path: object) -> None:
     store.put_prices([PricePoint("EXW", AS_OF, 40.0, "tiingo", raw_sha256="s", adj_close=39.5)])
     assert store.adjusted_closes("EXW", AS_OF, AS_OF) == [(AS_OF, 39.5)]
     version = store.db.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
-    assert int(version) == SCHEMA_VERSION == 2
+    assert int(version) == SCHEMA_VERSION == 3

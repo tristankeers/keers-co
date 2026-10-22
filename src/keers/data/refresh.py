@@ -14,7 +14,7 @@ from typing import Any
 from .beta import BENCHMARK
 from .fundamentals import ALL_CONCEPTS
 from .http import Fetcher, FetchError
-from .market import Market
+from .market import Market, price_sources
 from .sec import SEC, ParseError
 from .store import Store
 
@@ -48,10 +48,14 @@ def refresh(
     tiingo_token: str | None = None,
     today: date | None = None,
     rates: bool = True,
+    sources: Sequence[str] | None = None,
 ) -> dict[str, Any]:
+    """``sources`` is the price-source order; by default ``KEERS_PRICE_SOURCES`` or yahoo then tiingo."""
     today = today or date.today()
+    if sources is None:
+        sources = price_sources(os.environ.get("KEERS_PRICE_SOURCES"))
     run = store.start_run("refresh")
-    sec, market = SEC(fetcher, store), Market(fetcher, store, tiingo_token)
+    sec, market = SEC(fetcher, store), Market(fetcher, store, tiingo_token, sources)
     done: dict[str, Any] = {}
     failed: dict[str, str] = {}
     if rates:
@@ -72,6 +76,14 @@ def refresh(
         except (FetchError, ParseError, KeyError) as e:
             failed[t] = str(e)
     status = "ok" if not failed else ("partial" if done else "failed")
+    # A price that came from a fallback source is reported, never passed silently.
+    fallbacks = {}
+    for k, v in done.items():
+        px = v if k == "_benchmark" else v.get("prices", {}) if isinstance(v, dict) else {}
+        if isinstance(px, dict) and px.get("fallbackFrom"):
+            fallbacks[k] = {"used": px["source"], "failed": px["fallbackFrom"]}
     detail = {"ok": sorted(k for k in done if not k.startswith("_")), "failed": failed, "count": len(tickers)}
+    if fallbacks:
+        detail["priceFallbacks"] = fallbacks
     store.finish_run(run, status, detail)
-    return {"status": status, "done": done, "failed": failed}
+    return {"status": status, "done": done, "failed": failed, "priceFallbacks": fallbacks}

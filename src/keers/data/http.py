@@ -55,7 +55,11 @@ class Fetcher:
         if not user_agent.strip():
             raise ValueError("A User-Agent is required")
         self.user_agent = user_agent
-        self.min_interval = min_interval or {"www.sec.gov": 0.125, "data.sec.gov": 0.125}
+        self.min_interval = min_interval or {
+            "www.sec.gov": 0.125,
+            "data.sec.gov": 0.125,
+            "query1.finance.yahoo.com": 0.5,  # unofficial endpoint: stay well clear of its throttling
+        }
         self.retries = retries
         self.timeout = timeout
         self._sleep = sleep

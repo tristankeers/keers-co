@@ -2,7 +2,7 @@ name: Live data smoke test
 
 # Fetches real SEC filings, prices and rates, and checks the live TTM build against a figure KCI recorded.
 # Run by hand from the Actions tab. Needs SEC_USER_AGENT (your name and contact email, which SEC requires),
-# preferably as a repository secret so it is masked in the public logs; a repository variable also works. TIINGO_TOKEN is an optional secret; without it prices come from Stooq.
+# preferably as a repository secret so it is masked in the public logs; a repository variable also works. Prices come from Yahoo Finance (unofficial, personal use only) with TIINGO_TOKEN as the fallback.
 
 on:
   workflow_dispatch:
@@ -41,6 +41,12 @@ jobs:
         run: python scripts/concept_diag.py $DIAGNOSE
       - name: Smoke test
         run: python scripts/live_smoke.py
+      - name: Yahoo quotes, bars and headlines
+        if: always()
+        run: |
+          python -m keers.data --db /tmp/yahoo-check.sqlite quote DBX ADBE SPY
+          python -m keers.data --db /tmp/yahoo-check.sqlite bars DBX --interval 5m --range 1d
+          python -m keers.data --db /tmp/yahoo-check.sqlite news DBX --count 3
       - name: Distress screen on the test list
         if: always()
         run: python scripts/distress_screen.py
