@@ -497,3 +497,12 @@ def test_cadence_of_sec_filers_comes_from_their_forms() -> None:
                     Filing(320193, "b2", "10-Q", date(2026, 8, 1), date(2026, 6, 28))])  # fmt: skip
     assert Fundamentals(st, 1306965, AS_OF).cadence() == "annual"
     assert Fundamentals(st, 320193, AS_OF).cadence() == "quarterly"
+
+
+def test_bonds_issued_are_read_only_when_no_borrowings_line_is_filed() -> None:
+    st = _load_renamed({"NoncurrentPortionOfNoncurrentBorrowings": "NoncurrentPortionOfNoncurrentBondsIssued",
+                        "CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings":
+                            "CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued"})  # fmt: skip
+    debt = snapshot.build(st, ff.SYMBOL, AS_OF).values["debt"]
+    assert debt.value == pytest.approx(280 + 60 + 90)
+    assert any("bonds issued only" in w for w in debt.warnings)

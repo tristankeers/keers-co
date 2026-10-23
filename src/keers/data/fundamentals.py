@@ -147,11 +147,16 @@ IFRS_BORROWINGS_TOTAL = ("ifrs-full:Borrowings",)
 IFRS_BORROWINGS_LONGTERM = (
     "ifrs-full:LongtermBorrowings",
 )  # long-term borrowings including the current portion
+# Bonds issued, used only when no borrowings line is filed (bank loans may then be missing; flagged when used).
+IFRS_BONDS = (
+    "ifrs-full:NoncurrentPortionOfNoncurrentBondsIssued",
+    "ifrs-full:CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued",
+)
 IFRS_LEASES = ("ifrs-full:LeaseLiabilities",)
 IFRS_LEASES_SPLIT = ("ifrs-full:NoncurrentLeaseLiabilities", "ifrs-full:CurrentLeaseLiabilities")
 IFRS_DEBT_CONCEPTS = (
     IFRS_BORROWINGS_NONCURRENT + IFRS_BORROWINGS_CURRENT + IFRS_BORROWINGS_CURRENT_PARTS + IFRS_BORROWINGS_TOTAL
-    + IFRS_BORROWINGS_LONGTERM + IFRS_LEASES + IFRS_LEASES_SPLIT
+    + IFRS_BORROWINGS_LONGTERM + IFRS_LEASES + IFRS_LEASES_SPLIT + IFRS_BONDS
 )  # fmt: skip
 
 # Cash-flow lines for the debt roll-forward check (borrowed, repaid, and net lines filed as one figure).
@@ -626,6 +631,11 @@ class Fundamentals:
             elif cur.known:
                 borrowings = cur
                 notes.append("only current borrowings filed")
+            else:
+                bonds = [v for v in (self.balance((c,), "bonds issued", at) for c in IFRS_BONDS) if v.known]
+                if bonds:
+                    borrowings = _sum(bonds, " + ".join(_name(v) for v in bonds))
+                    notes.append("no borrowings line filed; bonds issued only, so any bank loans are missing")
         leases: Value | None = None
         if include_leases:
             lease = self._first((IFRS_LEASES, IFRS_LEASES_SPLIT), "lease liabilities", at)

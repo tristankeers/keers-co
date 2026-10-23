@@ -66,9 +66,10 @@ def concept_diag(store: Store, cik: int) -> dict[str, Any]:
     Only names and how often each appears are listed; no figures are read from them.
     """
     ent = store.entity(cik)
-    like = f"%/{ent['identifier']}/%.json" if ent else f"%CIK{cik:010d}.json"
+    like = f"%/{ent['identifier']}/%.json" if ent else f"%/companyfacts/CIK{cik:010d}.json"
     row = store.db.execute(
-        "SELECT url, body FROM raw_documents WHERE url LIKE ? AND body IS NOT NULL ORDER BY url DESC LIMIT 1",
+        "SELECT url, body FROM raw_documents WHERE url LIKE ? AND body IS NOT NULL ORDER BY url DESC, size DESC "
+        "LIMIT 1",
         (like,),
     ).fetchone()
     if row is None:
@@ -146,20 +147,20 @@ def main() -> int:
             "values": {k: brief(v.get(k)) for k in ("revenue", "ebitda", "netIncome", "capex", "debt", "netDebt",
                                                     "shares", "price", "marketCap", "ev", "fx_USD", "beta")},
         }  # fmt: skip
-        co = store.company(sym)
-        if co is not None and (not ana["ran"] or snap.blocked_by):
-            row["conceptDiag"] = concept_diag(store, int(co["cik"]))
-            print("   concepts:", json.dumps(row["conceptDiag"], default=str)[:3000])
         report["companies"][sym] = row
         print(
             f"\n== {sym} {snap.name!r} {snap.currency} {snap.cadence} ran={ana['ran']} screen={scr['status']}"
         )
         for b in snap.blocked_by:
             print("   blocked:", b[:220])
-        for k in ("revenue", "ebitda", "netDebt", "marketCap", "ev", "fx_USD"):
+        for k in ("revenue", "ebitda", "netDebt", "price", "shares", "marketCap", "ev", "fx_USD"):
             x = v.get(k)
             if x is not None:
                 print(f"   {k:10} {x.value!s:>16} {x.unit:8} {x.method[:110]}")
+        co = store.company(sym)
+        if co is not None and (not ana["ran"] or snap.blocked_by):
+            row["conceptDiag"] = concept_diag(store, int(co["cik"]))
+            print("   concepts:", json.dumps(row["conceptDiag"], default=str)[:3000])
     Path("probe-out/foreign.json").write_text(json.dumps(report, indent=2, default=str))
     ok = sum(1 for r in report["companies"].values() if r["valuationRan"])
     print(f"\nvaluation ran for {ok} of {len(items)}; screen statuses:",
