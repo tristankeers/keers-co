@@ -65,7 +65,7 @@ written by others, and the agents work only from the fact sheet.
 
 ## Not done yet
 
-- Strategy C needs a systematic signal engine before it can propose trades.
+- Strategy C trades come from its systematic signals (docs/quant-signals.md), never from the agents.
 - Non-US listings have no filed figures yet, so their memos say the data is blocked.
 - The agents do not read filings text, transcripts or news.
 - Each run is one company; there is no screen-then-research batch yet.
