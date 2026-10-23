@@ -412,3 +412,97 @@ def test_refresh_a_home_listing_end_to_end() -> None:
     snap = snapshot.build(st, ff.SYMBOL, AS_OF)
     assert snap.values["marketCap"].value == pytest.approx(4.50 * 1.30 / 1.10 * 200)
     assert any("name-match" in w for w in snap.warnings)
+
+
+# follow-up to the first live check ---------------------------------------------------------------------------------
+def test_names_with_split_legal_forms_and_leading_ab() -> None:
+    assert normalise("NOVO NORDISK A/S-B") == normalise("Novo Nordisk A/S") == "NOVO NORDISK"
+    assert normalise("VOLVO AB-B") == normalise("AB Volvo") == normalise("Aktiebolaget Volvo") == "VOLVO"
+
+
+def test_find_links_through_the_filings_xbrl_org_filer_list_first() -> None:
+    entities = {"data": [{"type": "entity", "id": "1", "attributes": {"identifier": ff.LEI, "name": ff.LEGAL_NAME}},
+                         {"type": "entity", "id": "2", "attributes": {"identifier": "KEERSTEST0SUBSIDIA01",
+                                                                      "name": "Exemplar Industrial Services Ltd"}}],
+                "links": {"next": None}}  # fmt: skip
+    fetcher, seen = network({"/api/entities?page": entities})
+    st = Store(":memory:")
+    out = Filers(fetcher, st).find(ff.SYMBOL, "EXEMPLAR INDUSTRIAL PLC (FICTIONAL)")
+    assert out["linked"] and out["lei"] == ff.LEI and out["via"] == "filings.xbrl.org filer list"
+    assert not any("gleif" in u for u in seen)  # no GLEIF search needed
+    link = st.link(ff.SYMBOL)
+    assert link is not None and link["basis"] == "name-match"
+    # The list is cached: a second find does not fetch it again.
+    n = len(seen)
+    Filers(fetcher, st).find("EXM2.L", "Exemplar Industrial plc (fictional)")
+    assert len(seen) == n
+
+
+def _load_renamed(renames: dict[str, str | None]) -> Store:
+    """``load()`` with some concepts renamed (or dropped, with None) in every report."""
+    st = Store(":memory:")
+    cik = st.entity_id("lei", ff.LEI, ff.LEGAL_NAME, "GB", "test")
+    st.put_company(cik, ff.LEI, ff.LEGAL_NAME, None, None)
+    st.put_link(ff.SYMBOL, cik, "manual", f"LEI {ff.LEI}")
+    for y in (2024, 2025):
+        doc = ff.report(y)
+        for k, fact in list(doc["facts"].items()):
+            name = fact["dimensions"]["concept"].split(":", 1)[1]
+            if name in renames:
+                if renames[name] is None:
+                    del doc["facts"][k]
+                else:
+                    fact["dimensions"]["concept"] = f"ifrs-full:{renames[name]}"
+        f = esef_filing(y, f"{y + 1}-03-20")
+        st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, f, f"sha-{y}")[0])
+    return st
+
+
+def test_da_from_parts_then_from_the_line_with_impairment() -> None:
+    at = date(2025, 12, 31)
+    st = _load_renamed({"DepreciationAndAmortisationExpense": "DepreciationPropertyPlantAndEquipment"})
+    cik = st.company(ff.SYMBOL)["cik"]  # type: ignore[index]
+    da = Fundamentals(st, cik, AS_OF).depreciation_amortisation(at)
+    assert da.value == pytest.approx(50) and "DepreciationRightofuseAssets" in da.warnings[-1]
+    st = _load_renamed({"DepreciationAndAmortisationExpense":
+                        "DepreciationAmortisationAndImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss"})  # fmt: skip
+    da = Fundamentals(st, st.company(ff.SYMBOL)["cik"], AS_OF).depreciation_amortisation(at)  # type: ignore[index]
+    assert da.value == pytest.approx(50) and "includes impairment" in da.warnings[-1]
+    st = _load_renamed({"DepreciationAndAmortisationExpense": None})
+    assert not Fundamentals(st, st.company(ff.SYMBOL)["cik"], AS_OF).depreciation_amortisation(at).known  # type: ignore[index]
+
+
+def test_finance_costs_get_a_wider_implied_rate_limit() -> None:
+    from keers.data.models import Kind, Value
+
+    st = load()
+    fu = Fundamentals(st, st.company(ff.SYMBOL)["cik"], AS_OF)  # type: ignore[index]
+    at = date(2025, 12, 31)
+
+    def debt(m: float) -> Value:
+        return Value(m, Kind.REPORTED, "EURm", "test", at, (), ())
+
+    assert fu.debt_check(debt(120), at) is None  # 24 / 120 = 20%: fine for finance costs
+    msg = fu.debt_check(debt(80), at)  # 30%
+    assert msg is not None and "limit 25%" in msg
+
+
+def test_cadence_of_sec_filers_comes_from_their_forms() -> None:
+    from keers.data.models import Filing
+
+    st = Store(":memory:")
+    st.put_filings([Filing(1306965, "a1", "20-F", date(2026, 3, 12), date(2025, 12, 31)),
+                    Filing(1306965, "a2", "6-K", date(2026, 7, 30), date(2026, 6, 30)),
+                    Filing(320193, "b1", "10-K", date(2025, 11, 1), date(2025, 9, 27)),
+                    Filing(320193, "b2", "10-Q", date(2026, 8, 1), date(2026, 6, 28))])  # fmt: skip
+    assert Fundamentals(st, 1306965, AS_OF).cadence() == "annual"
+    assert Fundamentals(st, 320193, AS_OF).cadence() == "quarterly"
+
+
+def test_bonds_issued_are_read_only_when_no_borrowings_line_is_filed() -> None:
+    st = _load_renamed({"NoncurrentPortionOfNoncurrentBorrowings": "NoncurrentPortionOfNoncurrentBondsIssued",
+                        "CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings":
+                            "CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued"})  # fmt: skip
+    debt = snapshot.build(st, ff.SYMBOL, AS_OF).values["debt"]
+    assert debt.value == pytest.approx(280 + 60 + 90)
+    assert any("bonds issued only" in w for w in debt.warnings)

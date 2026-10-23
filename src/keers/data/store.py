@@ -17,7 +17,7 @@ from typing import Any
 
 from .models import Fact, Filing, IntradayBar, NewsItem, PricePoint, Quote, RatePoint, RunRecord
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # Filers that are not SEC registrants (for example ESEF filers found by LEI) get an id from the ``entities`` table,
 # starting here. SEC CIKs have at most 10 digits and stay below it, so the ``facts.cik`` column holds both.
@@ -201,6 +201,15 @@ CREATE TABLE IF NOT EXISTS price_currency (
     raw_sha256 TEXT NOT NULL,
     PRIMARY KEY (ticker, source)
 );
+-- The list of filers on filings.xbrl.org (LEI and name as that site gives them), used to link listings by name.
+-- ``norm`` is the name after keers.data.filers.normalise. Replaced whole on each refresh.
+CREATE TABLE IF NOT EXISTS esef_entities (
+    lei TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    norm TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS esef_entities_norm ON esef_entities (norm);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL,
@@ -254,6 +263,9 @@ class Store:
             if version == 4:
                 # v4 -> v5: non-SEC filers, listing links and price currencies. Tables created by SCHEMA above.
                 version = 5
+            if version == 5:
+                # v5 -> v6: the filings.xbrl.org filer list. Table created by SCHEMA above.
+                version = 6
             if version != SCHEMA_VERSION:
                 raise RuntimeError(f"Store schema {row[0]} does not match code schema {SCHEMA_VERSION}")
             if version != int(row[0]):
@@ -458,6 +470,25 @@ class Store:
             Filing(r[0], r[1], r[2], date.fromisoformat(r[3]), _d(r[4]), r[5])
             for r in self.db.execute(q, (cik, *forms))
         ]
+
+    # filings.xbrl.org filer list -------------------------------------------------------------------------------
+    def put_esef_entities(self, rows: Iterable[tuple[str, str, str]]) -> int:
+        """Replace the filer list with ``(lei, name, normalised name)`` rows."""
+        at = now_utc()
+        data = [(lei.upper(), name, norm, at) for lei, name, norm in rows]
+        with self.db as db:
+            db.execute("DELETE FROM esef_entities")
+            db.executemany("INSERT OR REPLACE INTO esef_entities VALUES (?,?,?,?)", data)
+        return len(data)
+
+    def esef_entities(self, norm: str) -> list[tuple[str, str]]:
+        """``(lei, name)`` of filers whose normalised name is ``norm``."""
+        q = "SELECT lei, name FROM esef_entities WHERE norm=? ORDER BY lei"
+        return [(r[0], r[1]) for r in self.db.execute(q, (norm,))]
+
+    def esef_entities_fetched(self) -> str | None:
+        row = self.db.execute("SELECT MIN(fetched_at), COUNT(*) FROM esef_entities").fetchone()
+        return row[0] if row and row[1] else None
 
     # prices ----------------------------------------------------------------------------------------------------
     def put_prices(self, points: Iterable[PricePoint]) -> int:

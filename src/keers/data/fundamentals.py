@@ -25,7 +25,7 @@ from datetime import date, timedelta
 
 from . import lines as L
 from .models import Fact, Kind, Value, missing
-from .store import Store
+from .store import Store, is_sec_cik
 
 MILLION = 1_000_000.0
 
@@ -91,6 +91,18 @@ DEPRECIATION = (
     "ifrs-full:DepreciationExpense",
     "ifrs-full:AdjustmentsForDepreciationExpense",
 )
+# IFRS parts, summed when no total is filed: property, plant and equipment, right-of-use assets (IFRS 16) and
+# intangibles. A part not filed is left out with a warning, never estimated.
+DA_PARTS = (
+    ("ifrs-full:DepreciationPropertyPlantAndEquipment",),
+    ("ifrs-full:DepreciationRightofuseAssets",),
+    ("ifrs-full:AmortisationIntangibleAssetsOtherThanGoodwill",),
+)
+# Last resort: a line that also includes impairment, so EBITDA may be overstated (flagged when used).
+DA_WITH_IMPAIRMENT = (
+    "ifrs-full:DepreciationAmortisationAndImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss",
+    "ifrs-full:AdjustmentsForDepreciationAndAmortisationExpenseAndImpairmentLossReversalOfImpairmentLossRecognisedInProfitOrLoss",
+)
 AMORTIZATION = ("us-gaap:AdjustmentForAmortization", "us-gaap:AmortizationOfIntangibleAssets",
                 "ifrs-full:AmortisationExpense", "ifrs-full:AdjustmentsForAmortisationExpense")  # fmt: skip
 DEBT_TOTAL = ("us-gaap:LongTermDebt",)
@@ -128,6 +140,7 @@ SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding", "ifrs-full:NumberOfSha
 SHARES_DILUTED = (
     "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
     "ifrs-full:AdjustedWeightedAverageShares",
+    "ifrs-full:WeightedAverageShares",
 )
 
 # IFRS borrowings and lease liabilities (IFRS 16: every lease, including what US GAAP calls operating leases).
@@ -141,11 +154,16 @@ IFRS_BORROWINGS_TOTAL = ("ifrs-full:Borrowings",)
 IFRS_BORROWINGS_LONGTERM = (
     "ifrs-full:LongtermBorrowings",
 )  # long-term borrowings including the current portion
+# Bonds issued, used only when no borrowings line is filed (bank loans may then be missing; flagged when used).
+IFRS_BONDS = (
+    "ifrs-full:NoncurrentPortionOfNoncurrentBondsIssued",
+    "ifrs-full:CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued",
+)
 IFRS_LEASES = ("ifrs-full:LeaseLiabilities",)
 IFRS_LEASES_SPLIT = ("ifrs-full:NoncurrentLeaseLiabilities", "ifrs-full:CurrentLeaseLiabilities")
 IFRS_DEBT_CONCEPTS = (
     IFRS_BORROWINGS_NONCURRENT + IFRS_BORROWINGS_CURRENT + IFRS_BORROWINGS_CURRENT_PARTS + IFRS_BORROWINGS_TOTAL
-    + IFRS_BORROWINGS_LONGTERM + IFRS_LEASES + IFRS_LEASES_SPLIT
+    + IFRS_BORROWINGS_LONGTERM + IFRS_LEASES + IFRS_LEASES_SPLIT + IFRS_BONDS
 )  # fmt: skip
 
 # Cash-flow lines for the debt roll-forward check (borrowed, repaid, and net lines filed as one figure).
@@ -196,7 +214,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + REVOLVER_AVAILABLE
+    + PRETAX_INCOME + REVOLVER_AVAILABLE + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -204,6 +222,8 @@ IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 # An implied interest rate on the debt found above this means some debt is probably tagged in a way we do not
 # read (for example a company-specific tag), so net debt is not trusted.
 MAX_IMPLIED_RATE = 0.15
+# IFRS finance costs also hold lease interest, unwinding of provisions and pension interest, so a higher limit.
+MAX_IMPLIED_RATE_FINANCE_COSTS = 0.25
 # Gross interest implying less than this on the debt found is probably a side line (Norwegian Cruise files a small
 # InterestExpenseNonoperating beside its real, net interest), so it is not used.
 MIN_IMPLIED_RATE = 0.01
@@ -354,8 +374,19 @@ class Fundamentals:
         return tax
 
     def cadence(self) -> str:
-        """How often this company's figures arrive: quarterly, half-yearly or annual, from the revenue periods filed
-        in the two years before the as-of date."""
+        """How often this company's figures arrive: quarterly, half-yearly or annual.
+
+        For an SEC filer this comes from its forms: a 10-Q in the last 400 days means quarterly, and a filer of
+        20-F or 40-F only is annual (a 20-F holds quarterly comparatives, which would otherwise look quarterly).
+        Otherwise it comes from the revenue periods filed in the two years before the as-of date.
+        """
+        if is_sec_cik(self.cik):
+            forms = {f.form for f in self.store.filings(self.cik, forms=())
+                     if f.filing_date <= self.as_of and f.filing_date >= self.as_of - timedelta(days=400)}  # fmt: skip
+            if any(f.startswith("10-Q") for f in forms):
+                return "quarterly"
+            if forms and forms <= {"20-F", "20-F/A", "40-F", "40-F/A", "6-K", "6-K/A"}:
+                return "annual"
         lo = self.as_of - timedelta(days=730)
         lengths = {
             f.days for c in REVENUE for f in self._facts(c) if f.start is not None and f.end >= lo and f.days
@@ -425,6 +456,16 @@ class Fundamentals:
             return total
         dep = self.flow(DEPRECIATION, "depreciation", at)
         if not dep.known:
+            parts = [self.flow(c, "D&A part", at) for c in DA_PARTS]
+            found = [v for v in parts if v.known]
+            if found and found[0] is parts[0]:
+                gaps = [c[0].split(":")[1] for c, v in zip(DA_PARTS, parts, strict=True) if not v.known]
+                warn = (f"D&A summed from parts; not filed: {', '.join(gaps)}",) if gaps else ()
+                return _sum(found, " + ".join(_name(v) for v in found), warn)
+            both = self.flow(DA_WITH_IMPAIRMENT, "D&A with impairment", at)
+            if both.known:
+                return Value(both.value, both.kind, both.unit, both.method, both.period_end, both.sources,
+                             both.warnings + ("D&A line includes impairment, so EBITDA may be overstated",))  # fmt: skip
             return missing(self.money, f"D&A: {total.method}; {dep.method}")
         amo = self.flow(AMORTIZATION, "amortisation", at)
         parts = [dep, amo] if amo.known else [dep]
@@ -668,6 +709,11 @@ class Fundamentals:
             elif cur.known:
                 borrowings = cur
                 notes.append("only current borrowings filed")
+            else:
+                bonds = [v for v in (self.balance((c,), "bonds issued", at) for c in IFRS_BONDS) if v.known]
+                if bonds:
+                    borrowings = _sum(bonds, " + ".join(_name(v) for v in bonds))
+                    notes.append("no borrowings line filed; bonds issued only, so any bank loans are missing")
         leases: Value | None = None
         if include_leases:
             lease = self._first((IFRS_LEASES, IFRS_LEASES_SPLIT), "lease liabilities", at)
@@ -756,9 +802,10 @@ class Fundamentals:
                 else None
             )
         rate = interest.value / debt.value
-        if rate > MAX_IMPLIED_RATE:
+        limit = MAX_IMPLIED_RATE_FINANCE_COSTS if "FinanceCosts" in interest.method else MAX_IMPLIED_RATE
+        if rate > limit:
             return (f"debt looks incomplete: interest expense {interest.value:,.1f}m is {rate:.0%} of the "
-                    f"{debt.value:,.1f}m of debt found (limit {MAX_IMPLIED_RATE:.0%}); some debt is probably filed "
+                    f"{debt.value:,.1f}m of debt found (limit {limit:.0%}); some debt is probably filed "
                     "under a tag we do not read")  # fmt: skip
         return None
 
