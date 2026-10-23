@@ -55,9 +55,24 @@ NET_INCOME = (
 )
 # Basic earnings per share and its numerator (IAS 33 / ASC 260), used together to derive a share count when none is
 # filed: shares = profit attributable to the parent's shareholders / basic EPS, for the same period.
-EPS_BASIC = ("us-gaap:EarningsPerShareBasic", "ifrs-full:BasicEarningsLossPerShare")
-EPS_NUMERATOR = {"us-gaap:EarningsPerShareBasic": "us-gaap:NetIncomeLoss",
-                 "ifrs-full:BasicEarningsLossPerShare": "ifrs-full:ProfitLossAttributableToOwnersOfParent"}  # fmt: skip
+EPS_BASIC = (
+    "us-gaap:EarningsPerShareBasic",
+    "ifrs-full:BasicEarningsLossPerShare",
+    "ifrs-full:BasicEarningsLossPerShareFromContinuingOperations",
+)
+# Numerators in order. ProfitLoss is the last resort: IFRS requires the split by owners on the face of the income
+# statement when there are minority interests, so a report that tags only ProfitLoss has none to split.
+EPS_NUMERATOR = {
+    "us-gaap:EarningsPerShareBasic": ("us-gaap:NetIncomeLoss",),
+    "ifrs-full:BasicEarningsLossPerShare": (
+        "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+        "ifrs-full:ProfitLoss",
+    ),
+    "ifrs-full:BasicEarningsLossPerShareFromContinuingOperations": (
+        "ifrs-full:ProfitLossFromContinuingOperationsAttributableToOwnersOfParent",
+        "ifrs-full:ProfitLossFromContinuingOperations",
+    ),
+}
 # The derived count is used only when EPS is precise enough: half a unit of its last reported decimal place may be
 # at most this share of EPS.
 MAX_EPS_ROUNDING = 0.01
@@ -222,7 +237,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -925,11 +940,12 @@ class Fundamentals:
         or after ``lo`` that has both. Used only when EPS is precise enough (``MAX_EPS_ROUNDING``)."""
         best: tuple[date, Fact, Fact] | None = None
         for c in EPS_BASIC:
-            num: dict[tuple[date | None, date], Fact] = {
-                (f.start, f.end): f
-                for f in latest_known(self._facts(EPS_NUMERATOR[c]))
-                if f.start is not None
-            }
+            # The first numerator filed for a period wins (attributable to owners before total profit).
+            num: dict[tuple[date | None, date], Fact] = {}
+            for nc in EPS_NUMERATOR[c]:
+                for f in latest_known(self._facts(nc)):
+                    if f.start is not None:
+                        num.setdefault((f.start, f.end), f)
             for e in latest_known(self._facts(c)):
                 n = num.get((e.start, e.end))
                 if e.start is None or n is None or e.end < lo or e.value == 0:
@@ -950,9 +966,9 @@ class Fundamentals:
             shares / MILLION, Kind.DERIVED, "m shares",
             f"{n.taxonomy}:{n.concept} / {e.taxonomy}:{e.concept} ({e.start} to {e.end})", e.end,
             (n.cite(), e.cite()),
-            ("no share count filed; weighted-average basic shares derived as profit attributable to owners / basic "
-             f"EPS (EPS rounding up to {rounding:.2%}; items deducted only in the EPS numerator, such as hybrid "
-             "bond coupons, make this slightly high)",),
+            ("no share count filed; weighted-average basic shares derived as profit / basic EPS for the same period "
+             f"(EPS rounding up to {rounding:.2%}; items deducted only in the EPS numerator, such as hybrid bond "
+             "coupons, make this slightly high)",),
         )  # fmt: skip
 
 

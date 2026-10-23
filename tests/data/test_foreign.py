@@ -533,3 +533,18 @@ def test_shares_derived_from_basic_eps_when_no_count_is_filed() -> None:
     fu2 = Fundamentals(st2, cik, AS_OF)
     fu2.shares_max_age = 800
     assert not fu2.shares(None).known
+
+
+def test_shares_from_eps_use_total_profit_when_no_owners_split_is_filed() -> None:
+    st = _load_renamed(
+        {"NumberOfSharesOutstanding": None, "ProfitLossAttributableToOwnersOfParent": "ProfitLoss"}
+    )
+    cik = st.company(ff.SYMBOL)["cik"]  # type: ignore[index]
+    doc = {"documentInfo": ff.report(2025)["documentInfo"],
+           "facts": {"eps": ff._fact("BasicEarningsLossPerShare", ff.duration(2025), 0.385,
+                                     "iso4217:EUR/xbrli:shares", 3)}}  # fmt: skip
+    st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, esef_filing(2025, "2026-03-20"), "sha-eps")[0])
+    fu = Fundamentals(st, cik, AS_OF)
+    fu.shares_max_age = 500
+    v = fu.shares(None)
+    assert v.value == pytest.approx(80 / 0.385) and "ifrs-full:ProfitLoss /" in v.method
