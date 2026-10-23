@@ -1,0 +1,49 @@
+name: Non-US financials probe
+
+# Live check of the non-US accounts route: GLEIF links, ESEF reports from filings.xbrl.org, SEC 20-F/40-F filers,
+# and FRED/ECB exchange rates, on the companies in config/universe/foreign-test.txt. Prints every link it makes and
+# each company's snapshot, valuation and distress status, and uploads the JSON. See docs/foreign-financials.md.
+# Needs SEC_USER_AGENT (a repository secret). Runs by hand, and on pull requests that touch this route.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/keers/data/esef.py"
+      - "src/keers/data/filers.py"
+      - "src/keers/data/fx.py"
+      - "src/keers/data/fundamentals.py"
+      - "src/keers/data/snapshot.py"
+      - "scripts/foreign_probe.py"
+      - "config/universe/foreign-test.txt"
+      - ".github/workflows/foreign-filings.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+      - run: pip install -e .
+      - name: Probe
+        run: python scripts/foreign_probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foreign-probe
+          path: probe-out/foreign.json

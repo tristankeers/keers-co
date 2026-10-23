@@ -1,4 +1,4 @@
-"""Command line: ``python -m keers.data refresh|snapshot|status|quote|bars|news``."""
+"""Command line: ``python -m keers.data refresh|snapshot|status|quote|bars|news|link|find-filer``."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from datetime import date
 from typing import Any
 
 from . import snapshot
+from .filers import Filers
 from .http import Fetcher, FetchError
 from .market import Market, price_sources
 from .refresh import DEFAULT_DB, price_report, read_universe, refresh, user_agent
@@ -47,6 +48,17 @@ def main(argv: list[str] | None = None) -> int:
     n = sub.add_parser("news", help="recent headlines (Yahoo). Untrusted third-party text")
     n.add_argument("ticker")
     n.add_argument("--count", type=int, default=10)
+    lk = sub.add_parser("link", help="use a filer's accounts for a listing (ESEF by LEI, or an SEC CIK)")
+    lk.add_argument("symbol")
+    who = lk.add_mutually_exclusive_group(required=True)
+    who.add_argument("--lei", help="Legal Entity Identifier of an ESEF filer (see search.gleif.org)")
+    who.add_argument("--cik", type=int, help="SEC CIK of a 20-F or 40-F filer")
+    who.add_argument("--remove", action="store_true", help="remove the listing's link")
+    ff = sub.add_parser(
+        "find-filer", help="look a listing up in GLEIF by name and link it if exactly one matches"
+    )
+    ff.add_argument("symbol")
+    ff.add_argument("--name", help="company name (default: the name in the universe table)")
     a = ap.parse_args(argv)
 
     store = Store(a.db, keep_bodies=a.keep_raw)
@@ -89,6 +101,25 @@ def main(argv: list[str] | None = None) -> int:
             errors[a.cmd] = str(e)
         print(json.dumps({"result": result, "errors": errors}, indent=2, default=str))
         return 1 if errors else 0
+    if a.cmd in ("link", "find-filer"):
+        fetcher = Fetcher(os.environ.get("SEC_USER_AGENT", "").strip() or "keers-research")
+        filers = Filers(fetcher, store)
+        try:
+            if a.cmd == "link" and a.remove:
+                store.drop_link(a.symbol)
+                linked: dict[str, Any] = {"symbol": a.symbol.upper(), "removed": True}
+            elif a.cmd == "link":
+                linked = filers.link_lei(a.symbol, a.lei) if a.lei else filers.link_cik(a.symbol, a.cik)
+            else:
+                name = a.name or store.listing_name(a.symbol)
+                if not name:
+                    ap.error(f"{a.symbol} is not in the universe table; give --name")
+                linked = filers.find(a.symbol, name)
+        except (FetchError, ParseError, ValueError) as e:
+            print(json.dumps({"error": str(e)}, indent=2))
+            return 1
+        print(json.dumps(linked, indent=2, default=str))
+        return 0
     for run in store.runs():
         print(json.dumps(run.__dict__, default=str))
     return 0

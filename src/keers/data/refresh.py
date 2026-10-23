@@ -11,12 +11,15 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from . import fx, yahoo
 from .beta import BENCHMARK
-from .fundamentals import ALL_CONCEPTS
+from .filers import Filers
+from .fundamentals import ALL_CONCEPTS, IFRS_CONCEPTS, Fundamentals
 from .http import Fetcher, FetchError
 from .market import Market, price_sources
 from .sec import SEC, ParseError
-from .store import Store
+from .snapshot import price_currency
+from .store import Store, is_sec_cik
 
 DEFAULT_DB = "data/keers.sqlite"
 PRICE_HISTORY_DAYS = 800
@@ -68,12 +71,16 @@ def refresh(
         done["_benchmark"] = market.refresh_prices(BENCHMARK, today - timedelta(days=PRICE_HISTORY_DAYS))
     except (FetchError, ParseError) as e:
         failed["_benchmark"] = str(e)
+    filers = Filers(fetcher, store, sec)
     for t in tickers:
         try:
-            info = sec.refresh_company(t, ALL_CONCEPTS)
+            info = refresh_accounts(store, sec, filers, t)
             info["prices"] = market.refresh_prices(t, today - timedelta(days=PRICE_HISTORY_DAYS))
+            fxr = refresh_fx(fetcher, store, t, today)
+            if fxr:
+                info["fx"] = fxr
             done[t] = info
-        except (FetchError, ParseError, KeyError) as e:
+        except (FetchError, ParseError, KeyError, ValueError) as e:
             failed[t] = str(e)
     status = "ok" if not failed else ("partial" if done else "failed")
     # Which source priced each ticker, and any fallback: reported on every run, never passed silently.
@@ -99,6 +106,47 @@ def refresh(
         "priceSources": priced,
         "priceFallbacks": fallbacks,
     }
+
+
+def refresh_accounts(
+    store: Store, sec: SEC, filers: Filers, ticker: str, name: str | None = None
+) -> dict[str, Any]:
+    """Filings for one listing: by its SEC ticker, else through its link to a filer (linking by ``name`` if given).
+
+    Raises KeyError when the listing is neither an SEC ticker nor linked; the caller reports that, never a zero.
+    """
+    if store.link(ticker) is None and not yahoo.is_foreign(ticker):
+        return sec.refresh_company(ticker, ALL_CONCEPTS)
+    name = name or store.listing_name(ticker)
+    if store.link(ticker) is None and name is None:
+        raise KeyError(
+            f"{ticker}: no filer linked; run: python -m keers.data link {ticker} --lei <LEI> (or --cik)"
+        )
+    return filers.refresh(ticker, name, ALL_CONCEPTS if _linked_to_sec(store, ticker) else IFRS_CONCEPTS)
+
+
+def _linked_to_sec(store: Store, ticker: str) -> bool:
+    link = store.link(ticker)
+    return link is not None and is_sec_cik(int(link["cik"]))
+
+
+def refresh_fx(fetcher: Fetcher, store: Store, ticker: str, today: date) -> dict[str, Any] | None:
+    """Exchange rates a listing needs: its price currency and its accounts' currency, to and from US dollars."""
+    co = store.company(ticker)
+    px = store.last_price(ticker)
+    need = set()
+    if co is not None:
+        need.add(Fundamentals(store, co["cik"], today).currency)
+    if px is not None:
+        need.add(price_currency(store, ticker, px.source) or "")
+    need = {c for c in need if c and fx.major(c)[0] != "USD"}
+    if not need:
+        return None
+    unsupported = sorted(c for c in need if not fx.supported(c))
+    out = fx.refresh(fetcher, store, need, today - timedelta(days=PRICE_HISTORY_DAYS))
+    if unsupported:
+        out["unsupported"] = unsupported
+    return out
 
 
 def price_report(res: dict[str, Any]) -> dict[str, Any]:

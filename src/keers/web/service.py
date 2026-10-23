@@ -33,13 +33,14 @@ from urllib.parse import quote as urlquote
 from keers.data import snapshot as S
 from keers.data import yahoo
 from keers.data.beta import BENCHMARK
+from keers.data.filers import Filers
 from keers.data.fundamentals import ALL_CONCEPTS
 from keers.data.http import Fetcher, FetchError
 from keers.data.market import Market
 from keers.data.models import Value
-from keers.data.refresh import PRICE_HISTORY_DAYS
+from keers.data.refresh import PRICE_HISTORY_DAYS, refresh_accounts, refresh_fx
 from keers.data.sec import SEC, TICKERS_URL, ParseError
-from keers.data.store import Store
+from keers.data.store import Store, is_sec_cik
 from keers.portfolio import market as PM
 from keers.portfolio.desk import Desk, TradeError, TradeRequest
 from keers.portfolio.ledger import Ledger
@@ -95,12 +96,14 @@ FIGURES: tuple[tuple[str, str, str], ...] = (
     ("sbc", "Share-based compensation (TTM)", "Income statement"),
     ("capex", "Capital expenditure (TTM)", "Cash flow"),
     ("interestExpense", "Interest expense (TTM)", "Cash flow"),
-    ("debt", "Total borrowings (incl. finance leases)", "Balance sheet"),
+    ("debt", "Total borrowings (incl. finance leases; under IFRS, all leases)", "Balance sheet"),
     ("liquidAssets", "Cash and short-term investments", "Balance sheet"),
     ("operatingLeases", "Operating lease liabilities (not in net debt)", "Balance sheet"),
     ("beta", f"Beta (weekly vs {BENCHMARK}, Blume-adjusted)", "Risk and rates"),
     ("rate_DGS10", "10-year Treasury yield", "Risk and rates"),
     ("rate_BAA10Y", "Baa corporate spread over Treasuries", "Risk and rates"),
+    ("fx_USD", "US dollars per unit of the reporting currency (translation rate)", "Risk and rates"),
+    ("fx_price_USD", "US dollars per unit of the price currency", "Risk and rates"),
 )
 FUNDAMENTAL_KEYS = {k for k, _, g in FIGURES if g in ("Income statement", "Cash flow", "Balance sheet")}
 
@@ -191,8 +194,14 @@ def sec_filing_url(cik: int, accn: str) -> str:
 
 
 def source_link(cite: Mapping[str, Any], cik: int | None, ticker: str) -> str | None:
-    if "accn" in cite and cik:
+    if cite.get("url"):  # a filing outside SEC EDGAR carries its own address (filings.xbrl.org)
+        return str(cite["url"])
+    if "accn" in cite and is_sec_cik(cik):
+        assert cik is not None  # noqa: S101
         return sec_filing_url(cik, str(cite["accn"]))
+    if cite.get("source") == "ecb" and cite.get("series"):
+        cur = str(cite["series"]).split(":", 1)[-1]
+        return f"https://data.ecb.europa.eu/data/datasets/EXR/EXR.D.{urlquote(cur)}.EUR.SP00.A"
     src = cite.get("source")
     if src == "fred" and cite.get("series"):
         return f"https://fred.stlouisfed.org/series/{urlquote(str(cite['series']))}"
@@ -209,6 +218,8 @@ def describe_source(cite: Mapping[str, Any]) -> str:
         return f"{cite.get('form', '')} filed {cite.get('filed', '')}: {cite.get('concept', '')}, {period}"
     if cite.get("source") == "fred":
         return f"FRED {cite.get('series')} on {cite.get('day')}"
+    if cite.get("source") == "ecb":
+        return f"ECB reference rate {cite.get('series')} on {cite.get('day')}"
     if cite.get("source") == "prices":
         return (f"{cite.get('weeks')} weekly returns of {cite.get('ticker')} against {cite.get('benchmark')} "
                 f"(raw beta {fmt(cite.get('raw'))}, R² {fmt(cite.get('r2'))})")  # fmt: skip
@@ -458,10 +469,29 @@ class Workbench:
                 done["filings"] = {"note": f"{sym} is not in the SEC ticker map; prices only"}
             except LIVE_ERRORS as e:
                 errors["filings"] = str(e)
+        elif sources.is_foreign(sym):
+            # Home-market listing: accounts through its link to an ESEF filer (LEI) or an SEC foreign filer.
+            assert self.live.fetcher is not None  # noqa: S101
+            try:
+                sec = SEC(self.live.fetcher, st)
+                done["filings"] = refresh_accounts(
+                    st, sec, Filers(self.live.fetcher, st, sec), sym, lst.name or None
+                )
+            except KeyError as e:
+                done["filings"] = {"note": f"{str(e).strip(chr(39))}; prices only"}
+            except LIVE_ERRORS as e:
+                errors["filings"] = str(e)
         try:
             done["prices"] = market.refresh_prices(sym, start)
         except LIVE_ERRORS as e:
             errors["prices"] = str(e)
+        if "prices" in done or "filings" in done:
+            try:
+                rates = refresh_fx(self.live.fetcher, st, sym, today)  # type: ignore[arg-type]
+                if rates:
+                    done["fx"] = rates
+            except LIVE_ERRORS as e:
+                errors["fx"] = str(e)
         bench = st.last_price(BENCHMARK)
         if bench is None or S.business_days_between(bench.day, today) > 1:
             try:
@@ -487,24 +517,32 @@ class Workbench:
             co = st.company(sym)
             snap = S.build(st, sym, as_of) if co else None
             filings = (
-                st.filings(co["cik"], ("10-K", "10-Q", "10-K/A", "10-Q/A", "20-F", "40-F")) if co else []
+                st.filings(co["cik"], ("10-K", "10-Q", "10-K/A", "10-Q/A", "20-F", "40-F", "ESEF"))
+                if co
+                else []
             )
+            entity = st.entity(co["cik"]) if co and not is_sec_cik(co["cik"]) else None
             q = st.last_quote(sym)
             px = st.last_price(sym)
         listing = lst.as_dict()
-        if co and listing.get("cik") is None:
+        if co and listing.get("cik") is None and is_sec_cik(co["cik"]):
             listing["cik"] = co["cik"]
         out: dict[str, Any] = {
             "symbol": sym,
             "listing": listing,
             "loaded": co is not None or px is not None,
             "sec": None,
+            "filer": None,
+            "link": co.get("link") if co else None,
             "filings": [
                 {
                     "form": f.form,
                     "filed": f.filing_date.isoformat(),
                     "period": f.report_date.isoformat() if f.report_date else None,
-                    "link": sec_filing_url(f.cik, f.accn),
+                    "link": f.primary_document
+                    if (f.primary_document or "").startswith("https://")
+                    else sec_filing_url(f.cik, f.accn),
+                    "source": "SEC EDGAR" if is_sec_cik(f.cik) else "filings.xbrl.org",
                     "accn": f.accn,
                 }
                 for f in reversed(filings[-10:])
@@ -523,13 +561,20 @@ class Workbench:
                                       sources=[{"source": px.source, "day": px.day.isoformat(),
                                                 "link": source_link({"source": px.source}, None, sym),
                                                 "text": f"{px.source} close on {px.day}"}])  # fmt: skip
+        if co and entity is not None:
+            out["filer"] = {"scheme": entity["scheme"], "identifier": entity["identifier"], "name": entity["name"],
+                            "country": entity["country"], "source": "ESEF annual reports (filings.xbrl.org)",
+                            "link": f"https://search.gleif.org/#/record/{urlquote(entity['identifier'])}"}  # fmt: skip
         if co and snap is not None:
-            out["sec"] = {"cik": co["cik"], "name": co["name"], "sic": co["sic"], "fiscalYearEnd": co["fiscalYearEnd"],
-                          "link": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={co['cik']}"}  # fmt: skip
+            if is_sec_cik(co["cik"]):
+                out["sec"] = {"cik": co["cik"], "name": co["name"], "sic": co["sic"], "fiscalYearEnd": co["fiscalYearEnd"],
+                              "link": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={co['cik']}"}  # fmt: skip
             price_stale, fund_stale = stale_flags(snap)
             v = snap.values
             out["snapshot"] = {"asOf": snap.as_of.isoformat(), "blocked": snap.blocked, "blockedBy": snap.blocked_by,
-                               "warnings": snap.warnings}  # fmt: skip
+                               "warnings": snap.warnings, "currency": snap.currency,
+                               "priceCurrency": snap.price_currency, "cadence": snap.cadence,
+                               "accountsSource": snap.source}  # fmt: skip
             for key, title, group in FIGURES:
                 if key not in v:
                     continue
@@ -656,7 +701,8 @@ class Workbench:
             co = st.company(sym)
             if co is None:
                 return {"symbol": sym, "status": "not available", "checks": [], "screenVersion": distress.SCREEN_VERSION,
-                        "blockedBy": ["no SEC filings in the store for this listing; the screen reads filed accounts"],
+                        "blockedBy": ["no filed accounts in the store for this listing (SEC or ESEF); the screen reads "
+                                      "filed accounts"],
                         "credit": distress.credit_backdrop(st, as_of)}  # fmt: skip
             res = distress.screen(st, sym, as_of)
             res["credit"] = distress.credit_backdrop(st, as_of)
@@ -677,7 +723,8 @@ class Workbench:
             co = st.company(sym)
             if co is None:
                 return {"symbol": sym, "ran": False, "calcVersion": V2.CALC_VERSION,
-                        "blockedBy": ["no SEC filings in the store for this listing; the engine needs filed accounts"]}  # fmt: skip
+                        "blockedBy": ["no filed accounts in the store for this listing (SEC or ESEF); the engine "
+                                      "needs filed accounts"]}  # fmt: skip
             snap = S.build(st, sym, self.today())
         if snap.blocked:
             return {"symbol": sym, "ran": False, "calcVersion": V2.CALC_VERSION, "blockedBy": snap.blocked_by,
@@ -696,7 +743,7 @@ class Workbench:
         v2 = V2.analyse(v2_deal)
         v1 = V1.analyse(deal)
         shares = _known(snap.values.get("shares"))
-        price = _known(snap.values.get("price"))
+        price = deal["market"]["price"]  # in US dollars, like the engine's outputs
         return {
             "symbol": sym,
             "ran": True,
@@ -712,12 +759,14 @@ class Workbench:
             "perShare": per_share(v2, shares, price),
             "comparison": compare(v1, v2),
             "dataStatus": deal["dataStatus"],
+            "reportingCurrency": snap.currency,
+            "translation": deal.get("translation"),
             "warnings": snap.warnings,
         }
 
     def _deal_inputs(self, snap: S.Snapshot) -> list[dict[str, Any]]:
         keys = ("revenue", "ebitda", "ebit", "netIncome", "capex", "netDebt", "ev", "marketCap", "revenueGrowth",
-                "beta", "rate_DGS10", "price", "shares")  # fmt: skip
+                "beta", "rate_DGS10", "price", "shares", "fx_USD", "fx_price_USD")  # fmt: skip
         titles = dict((k, t) for k, t, _ in FIGURES)
         price_stale, fund_stale = stale_flags(snap)
         return [{"key": k, "title": titles.get(k, k),

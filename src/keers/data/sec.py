@@ -158,8 +158,15 @@ class SEC:
         return hit[0]
 
     def refresh_company(self, ticker: str, concepts: Iterable[str] | None = None) -> dict[str, Any]:
-        cik = self.cik(ticker)
+        return self.refresh_cik(self.cik(ticker), concepts, ticker)
+
+    def refresh_cik(
+        self, cik: int, concepts: Iterable[str] | None = None, ticker: str | None = None
+    ) -> dict[str, Any]:
+        """Filings and facts for one CIK. Without ``ticker``, the company is stored under its first SEC ticker
+        (or ``CIK<number>``), so a linked home-market listing never takes over the SEC filer's own row."""
         info, filings = parse_submissions(_json(self._get(SUBMISSIONS_URL.format(cik=cik))))
+        ticker = ticker or (info["tickers"][0] if info["tickers"] else f"CIK{cik}")
         self.store.put_company(cik, ticker, info["name"], info["sic"], info["fiscalYearEnd"])
         self.store.put_filings(filings)
         resp = self._get(FACTS_URL.format(cik=cik))
@@ -168,6 +175,7 @@ class SEC:
         return {
             "ticker": ticker.upper(),
             "cik": cik,
+            "forms": sorted({f.form for f in filings}),
             "filings": len(filings),
             "facts": len(facts),
             "newFacts": added,
