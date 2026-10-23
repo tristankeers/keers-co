@@ -139,6 +139,12 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     def trade(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
         return wb.paper_trade(pid, body, execute=True)
 
+    # research agents: a proposed trade still goes through the paper desk and keers.risk ----------------------
+    @app.post("/api/companies/{symbol}/research")
+    def research(symbol: str, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.research(sym(symbol), str(body.get("strategy") or ""), body.get("portfolio"),
+                           bool(body.get("execute")))  # fmt: skip
+
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/", include_in_schema=False)

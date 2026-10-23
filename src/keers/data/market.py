@@ -134,12 +134,20 @@ class Market:
     def _daily(self, source: str, ticker: str, start: date) -> tuple[Response, list[PricePoint], list[str]]:
         if source == "yahoo":
             resp = self.fetcher.get(yahoo.daily_url(ticker, start, date.today()), headers=yahoo.HEADERS)
-            points, notes = yahoo.parse_daily(json.loads(resp.body), ticker, resp.sha256)
+            doc = json.loads(resp.body)
+            points, notes = yahoo.parse_daily(doc, ticker, resp.sha256)
+            cur = yahoo.chart_currency(doc)
+            if cur and points:
+                self.store.put_price_currency(ticker, "yahoo", cur, resp.sha256)
             return resp, [p for p in points if p.day >= start], notes
         if source == "tiingo":
             url = TIINGO_URL.format(ticker=ticker.lower(), start=start.isoformat())
             resp = self.fetcher.get(url, headers={"Authorization": f"Token {self.tiingo_token}"})
-            return resp, parse_tiingo_json(json.loads(resp.body), ticker, resp.sha256), []
+            points = parse_tiingo_json(json.loads(resp.body), ticker, resp.sha256)
+            if points and not yahoo.is_foreign(ticker):
+                # Tiingo's daily feed quotes US listings in dollars; a non-US symbol is never assumed to be.
+                self.store.put_price_currency(ticker, "tiingo", "USD", resp.sha256)
+            return resp, points, []
         resp = self.fetcher.get(STOOQ_URL.format(symbol=stooq_symbol(ticker)))
         points = [p for p in parse_stooq_csv(resp.body.decode(), ticker, resp.sha256) if p.day >= start]
         return resp, points, []

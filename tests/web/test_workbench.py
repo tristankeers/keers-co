@@ -330,3 +330,31 @@ def test_sec_ticker_map_downloads_in_the_background_and_retries(tmp_path: Path) 
     assert d.get("EXW") is not None  # an exact lookup waits for the download
     assert (tmp_path / "t.json").exists()
     assert SecTickerDirectory(tmp_path / "t.json").search("exw")[0].symbol == "EXW"  # cache used next time
+
+
+# a non-US company: ESEF accounts in euros, priced in pence ---------------------------------------------------------
+def test_esef_company_profile_valuation_and_screen(tmp_path: Path) -> None:
+    from tests.data import foreign_fixtures as ff
+    from tests.data.test_foreign import AS_OF, load
+
+    path = tmp_path / "k.sqlite"
+    load(Store(str(path))).close()
+    c = TestClient(create_app(Workbench(str(path), today=lambda: AS_OF)))
+    p = c.get(f"/api/companies/{ff.SYMBOL}").json()
+    assert p["sec"] is None and p["filer"]["identifier"] == ff.LEI and p["link"]["basis"] == "manual"
+    assert p["snapshot"]["currency"] == "EUR" and not p["snapshot"]["blocked"]
+    figs = {f["key"]: f for f in p["figures"]}
+    assert figs["revenue"]["unit"] == "EURm" and figs["revenue"]["sources"][0]["link"].startswith(
+        "https://filings"
+    )
+    assert figs["fx_USD"]["sources"][0]["link"] == "https://fred.stlouisfed.org/series/DEXUSEU"
+    assert p["filings"][0]["source"] == "filings.xbrl.org" and p["filings"][0]["form"] == "ESEF"
+    v = c.get(f"/api/companies/{ff.SYMBOL}/valuation").json()
+    assert (
+        v["ran"] and v["reportingCurrency"] == "EUR" and v["translation"]["usdPerUnit"] == pytest.approx(1.10)
+    )
+    if v["perShare"]["value"] is not None and "vsPrice" in v["perShare"]:
+        # Compared with the price in dollars (450p × 1.30), not in pence.
+        assert v["perShare"]["vsPrice"]["value"] == pytest.approx(v["perShare"]["value"] / (4.5 * 1.30) - 1)
+    d = c.get(f"/api/companies/{ff.SYMBOL}/distress").json()
+    assert d["currency"] == "EUR" and len(d["checks"]) == 5

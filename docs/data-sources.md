@@ -3,6 +3,9 @@
 | Data | Source | Status |
 |---|---|---|
 | Financial statements (XBRL facts, filings) | SEC EDGAR | **Source of truth.** Official, free, public. |
+| Financial statements, EU and UK listed companies | ESEF annual reports via filings.xbrl.org (XBRL International) | Official filings, free, no key. Annual only. See [foreign-financials.md](foreign-financials.md). |
+| Legal Entity Identifiers (linking listings to filers) | GLEIF API | Official LEI register, free, no key. |
+| Exchange rates | FRED (H.10), ECB reference rates | Official, free. |
 | Treasury and credit rates | FRED | Official, free for research. |
 | Daily share prices | Yahoo Finance, then Tiingo as fallback | Yahoo is unofficial (see below). Tiingo is a licensed API on its free personal plan. |
 | Intraday bars, latest quotes, headlines | Yahoo Finance | Unofficial, personal use only. |

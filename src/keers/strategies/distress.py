@@ -10,7 +10,11 @@ Checks:
 2. Net leverage: net debt / EBITDA.
 3. Debt due within a year against cash and short-term investments.
 4. Altman Z-score. Manufacturers (SIC 2000-3999) use the original 1968 model with market equity; everyone
-   else uses Altman's 1995 Z'' model for non-manufacturers, which leaves out sales / assets.
+   else uses Altman's 1995 Z'' model for non-manufacturers, which leaves out sales / assets. Filers outside SEC
+   (ESEF) have no SIC code and also get Z''.
+
+Amounts are in the company's reporting currency (``fu.money``, e.g. EURm); every check is a ratio, so no
+conversion is needed. The Baa spread below is a US market measure.
 5. Share price against its 52-week high (adjusted closes).
 
 The Baa corporate bond spread over Treasuries (FRED BAA10Y) is reported as market backdrop. It is the same for
@@ -153,6 +157,10 @@ def altman_z(
     manu = is_manufacturer(sic)
     lo, hi = Z_ORIGINAL if manu else Z_DOUBLE_PRIME
     model = "original Z (1968, manufacturers)" if manu else "Z'' (1995, non-manufacturers)"
+    if sic is None:
+        # Filers outside SEC have no SIC code. Z'' leaves out sales / assets and market equity, so it also suits
+        # companies outside the US and is the safer choice when the industry is not known.
+        model = "Z'' (1995, non-manufacturers; industry not known)"
     t = f"{model}: severe below {lo}, watch below {hi}"
     need = {"total assets": assets, "current assets": current_assets, "current liabilities": current_liabilities,
             "retained earnings": retained, "operating income": ebit, "total liabilities": liabilities}  # fmt: skip
@@ -264,7 +272,7 @@ def _debt_due(fu: F.Fundamentals, at: date) -> Value:
         return F._sum(own, " + ".join(F._name(p) for p in own))
     if not fu.ever_filed(F.DEBT_CONCEPTS):
         return Value(
-            0.0, sched.kind, "USDm", "no debt ever filed", at, (), ("no debt ever filed; taken as zero",)
+            0.0, sched.kind, fu.money, "no debt ever filed", at, (), ("no debt ever filed; taken as zero",)
         )
     return sched
 
@@ -279,6 +287,8 @@ def screen(store: Store, ticker: str, as_of: date) -> dict[str, Any]:
         "name": snap.name,
         "asOf": as_of.isoformat(),
         "screenVersion": SCREEN_VERSION,
+        "currency": snap.currency,
+        "accounts": {"source": snap.source, "cadence": snap.cadence},
     }
     if stale or "revenue" not in v or not v["revenue"].known:
         return base | {"status": "blocked", "blockedBy": stale or snap.blocked_by, "checks": []}

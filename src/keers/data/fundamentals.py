@@ -10,6 +10,11 @@ Rules (all deterministic, no estimates):
   and flagged; nothing is extrapolated.
 * Several concept names can carry the same line item (companies move between them). The candidate with the most
   recent period wins, ties going to the first in the list.
+* US GAAP (``us-gaap``) and IFRS (``ifrs-full``) concepts sit in the same candidate lists; a company files under one
+  taxonomy at a time, so the other's candidates simply find nothing. Debt is the exception: IFRS has its own rule
+  (``Fundamentals.total_debt``), because IFRS 16 puts every lease on the balance sheet.
+* Figures stay in the company's reporting currency (the unit of its latest revenue or total-assets fact, e.g.
+  ``EURm``). Nothing is converted here; ``keers.data.fx`` does that where a price meets the accounts.
 """
 
 from __future__ import annotations
@@ -30,41 +35,73 @@ REVENUE = (
     "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
     "us-gaap:RevenueFromContractWithCustomerIncludingAssessedTax",
     "us-gaap:SalesRevenueNet",
+    "ifrs-full:Revenue",
+    "ifrs-full:RevenueFromContractsWithCustomers",
 )
-OPERATING_INCOME = ("us-gaap:OperatingIncomeLoss",)
+OPERATING_INCOME = ("us-gaap:OperatingIncomeLoss", "ifrs-full:ProfitLossFromOperatingActivities")
 DA = (
     "us-gaap:DepreciationDepletionAndAmortization",
     "us-gaap:DepreciationAmortizationAndAccretionNet",
     "us-gaap:DepreciationAndAmortization",
+    # IFRS: the income-statement line, else the cash-flow add-back. Lines that include impairment are not used.
+    "ifrs-full:DepreciationAndAmortisationExpense",
+    "ifrs-full:AdjustmentsForDepreciationAndAmortisationExpense",
 )
-NET_INCOME = ("us-gaap:NetIncomeLoss",)
-CAPEX = ("us-gaap:PaymentsToAcquirePropertyPlantAndEquipment", "us-gaap:PaymentsToAcquireProductiveAssets")
-INTEREST = ("us-gaap:InterestExpense", "us-gaap:InterestExpenseNonoperating", "us-gaap:InterestExpenseDebt")
+# Net income attributable to the parent's shareholders (IFRS ProfitLoss, which includes minorities, comes last).
+NET_INCOME = (
+    "us-gaap:NetIncomeLoss",
+    "ifrs-full:ProfitLossAttributableToOwnersOfParent",
+    "ifrs-full:ProfitLoss",
+)
+CAPEX = (
+    "us-gaap:PaymentsToAcquirePropertyPlantAndEquipment",
+    "us-gaap:PaymentsToAcquireProductiveAssets",
+    "ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+    # A combined line (property, plant and equipment with intangibles) that many IFRS filers use; flagged when used.
+    "ifrs-full:PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
+)
+CAPEX_COMBINED = CAPEX[-1]
+# IFRS finance costs (the income-statement line) include interest on leases, which IFRS 16 puts in debt.
+INTEREST = ("us-gaap:InterestExpense", "us-gaap:InterestExpenseNonoperating", "us-gaap:InterestExpenseDebt",
+            "ifrs-full:FinanceCosts", "ifrs-full:InterestExpense")  # fmt: skip
 # Net interest (income less expense, so negative when a net cost). Used only when gross interest is not usable.
-NET_INTEREST = ("us-gaap:InterestIncomeExpenseNonoperatingNet", "us-gaap:InterestIncomeExpenseNet")
+NET_INTEREST = ("us-gaap:InterestIncomeExpenseNonoperatingNet", "us-gaap:InterestIncomeExpenseNet",
+                "ifrs-full:FinanceIncomeCost")  # fmt: skip
 PRETAX_INCOME = (
     "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
     # Standard label "Income (Loss), Including Portion Attributable to Noncontrolling Interest, before Tax";
     # Xerox files its pre-tax result here (H1 2026: -42m pre-tax, 50m tax, -92m net).
     "us-gaap:IncomeLossIncludingPortionAttributableToNoncontrollingInterest",
+    "ifrs-full:ProfitLossBeforeTax",
 )
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
-SBC = ("us-gaap:ShareBasedCompensation",)
-CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash")
+SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
+       "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
+CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash", "ifrs-full:CashAndCashEquivalents")
 ST_INVESTMENTS = (
     "us-gaap:ShortTermInvestments",
     "us-gaap:MarketableSecuritiesCurrent",
     "us-gaap:AvailableForSaleSecuritiesDebtSecuritiesCurrent",
     "us-gaap:DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+    "ifrs-full:ShorttermDepositsNotClassifiedAsCashEquivalents",
 )
-DEPRECIATION = ("us-gaap:Depreciation",)
-AMORTIZATION = ("us-gaap:AdjustmentForAmortization", "us-gaap:AmortizationOfIntangibleAssets")
+DEPRECIATION = (
+    "us-gaap:Depreciation",
+    "ifrs-full:DepreciationExpense",
+    "ifrs-full:AdjustmentsForDepreciationExpense",
+)
+AMORTIZATION = ("us-gaap:AdjustmentForAmortization", "us-gaap:AmortizationOfIntangibleAssets",
+                "ifrs-full:AmortisationExpense", "ifrs-full:AdjustmentsForAmortisationExpense")  # fmt: skip
 DEBT_TOTAL = ("us-gaap:LongTermDebt",)
 DEBT_NONCURRENT = ("us-gaap:LongTermDebtNoncurrent",)
-DEBT_CURRENT = ("us-gaap:LongTermDebtCurrent",)
-DEBT_CURRENT_ALL = ("us-gaap:DebtCurrent",)  # current maturities plus short-term borrowings
-ST_BORROWINGS = ("us-gaap:ShortTermBorrowings", "us-gaap:CommercialPaper")
+DEBT_CURRENT = ("us-gaap:LongTermDebtCurrent", "ifrs-full:CurrentPortionOfLongtermBorrowings")
+# Current maturities plus short-term borrowings.
+DEBT_CURRENT_ALL = (
+    "us-gaap:DebtCurrent",
+    "ifrs-full:CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings",
+)
+ST_BORROWINGS = ("us-gaap:ShortTermBorrowings", "us-gaap:CommercialPaper", "ifrs-full:ShorttermBorrowings")
 CONVERTIBLE_NONCURRENT = (
     "us-gaap:ConvertibleDebtNoncurrent",
     "us-gaap:ConvertibleNotesPayable",
@@ -87,8 +124,29 @@ OPERATING_LEASES_SPLIT = (
 )
 CASH_AND_STI = ("us-gaap:CashCashEquivalentsAndShortTermInvestments",)
 SHARES_COVER = ("dei:EntityCommonStockSharesOutstanding",)
-SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding",)
-SHARES_DILUTED = ("us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",)
+SHARES_BALANCE = ("us-gaap:CommonStockSharesOutstanding", "ifrs-full:NumberOfSharesOutstanding")
+SHARES_DILUTED = (
+    "us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding",
+    "ifrs-full:AdjustedWeightedAverageShares",
+)
+
+# IFRS borrowings and lease liabilities (IFRS 16: every lease, including what US GAAP calls operating leases).
+IFRS_BORROWINGS_NONCURRENT = ("ifrs-full:NoncurrentPortionOfNoncurrentBorrowings",)
+IFRS_BORROWINGS_CURRENT = ("ifrs-full:CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings",)
+IFRS_BORROWINGS_CURRENT_PARTS = (
+    "ifrs-full:ShorttermBorrowings",
+    "ifrs-full:CurrentPortionOfLongtermBorrowings",
+)
+IFRS_BORROWINGS_TOTAL = ("ifrs-full:Borrowings",)
+IFRS_BORROWINGS_LONGTERM = (
+    "ifrs-full:LongtermBorrowings",
+)  # long-term borrowings including the current portion
+IFRS_LEASES = ("ifrs-full:LeaseLiabilities",)
+IFRS_LEASES_SPLIT = ("ifrs-full:NoncurrentLeaseLiabilities", "ifrs-full:CurrentLeaseLiabilities")
+IFRS_DEBT_CONCEPTS = (
+    IFRS_BORROWINGS_NONCURRENT + IFRS_BORROWINGS_CURRENT + IFRS_BORROWINGS_CURRENT_PARTS + IFRS_BORROWINGS_TOTAL
+    + IFRS_BORROWINGS_LONGTERM + IFRS_LEASES + IFRS_LEASES_SPLIT
+)  # fmt: skip
 
 # Cash-flow lines for the debt roll-forward check (borrowed, repaid, and net lines filed as one figure).
 BORROWED = tuple(f"us-gaap:{c}" for c in (
@@ -96,25 +154,28 @@ BORROWED = tuple(f"us-gaap:{c}" for c in (
     "ProceedsFromUnsecuredLinesOfCredit", "ProceedsFromIssuanceOfLongTermDebt", "ProceedsFromIssuanceOfDebt",
     "ProceedsFromIssuanceOfSecuredDebt", "ProceedsFromIssuanceOfUnsecuredDebt", "ProceedsFromIssuanceOfSeniorLongTermDebt",
     "ProceedsFromConvertibleDebt", "ProceedsFromBankDebt", "ProceedsFromShortTermDebt",
-))  # fmt: skip
+)) + ("ifrs-full:ProceedsFromBorrowingsClassifiedAsFinancingActivities",)  # fmt: skip
 REPAID = tuple(f"us-gaap:{c}" for c in (
     "RepaymentsOfLinesOfCredit", "RepaymentsOfLongTermLinesOfCredit", "RepaymentsOfSecuredDebt",
     "RepaymentsOfUnsecuredDebt", "RepaymentsOfLongTermDebt", "RepaymentsOfDebt", "RepaymentsOfSeniorDebt",
     "RepaymentsOfConvertibleDebt", "RepaymentsOfBankDebt", "RepaymentsOfShortTermDebt",
-))  # fmt: skip
+)) + ("ifrs-full:RepaymentsOfBorrowingsClassifiedAsFinancingActivities",)  # fmt: skip
 NET_BORROWED = tuple(f"us-gaap:{c}" for c in (
     "ProceedsFromRepaymentsOfCommercialPaper", "ProceedsFromRepaymentsOfShortTermDebt", "ProceedsFromRepaymentsOfDebt",
     "ProceedsFromRepaymentsOfLinesOfCredit",
 ))  # fmt: skip
 # Balance-sheet lines for the distress screen (Altman Z and near-term maturities).
-ASSETS = ("us-gaap:Assets",)
-ASSETS_CURRENT = ("us-gaap:AssetsCurrent",)
-LIABILITIES = ("us-gaap:Liabilities",)
-LIABILITIES_CURRENT = ("us-gaap:LiabilitiesCurrent",)
-LIABILITIES_AND_EQUITY = ("us-gaap:LiabilitiesAndStockholdersEquity",)
-RETAINED_EARNINGS = ("us-gaap:RetainedEarningsAccumulatedDeficit",)
-EQUITY = ("us-gaap:StockholdersEquity",)
-EQUITY_INCL_NCI = ("us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",)
+ASSETS = ("us-gaap:Assets", "ifrs-full:Assets")
+ASSETS_CURRENT = ("us-gaap:AssetsCurrent", "ifrs-full:CurrentAssets")
+LIABILITIES = ("us-gaap:Liabilities", "ifrs-full:Liabilities")
+LIABILITIES_CURRENT = ("us-gaap:LiabilitiesCurrent", "ifrs-full:CurrentLiabilities")
+LIABILITIES_AND_EQUITY = ("us-gaap:LiabilitiesAndStockholdersEquity", "ifrs-full:EquityAndLiabilities")
+RETAINED_EARNINGS = ("us-gaap:RetainedEarningsAccumulatedDeficit", "ifrs-full:RetainedEarnings")
+EQUITY = ("us-gaap:StockholdersEquity", "ifrs-full:EquityAttributableToOwnersOfParent")
+EQUITY_INCL_NCI = (
+    "us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    "ifrs-full:Equity",
+)
 DEBT_DUE_12M = ("us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths",)
 BALANCE_SHEET = (
     ASSETS + ASSETS_CURRENT + LIABILITIES + LIABILITIES_CURRENT + LIABILITIES_AND_EQUITY + RETAINED_EARNINGS
@@ -122,12 +183,13 @@ BALANCE_SHEET = (
 )  # fmt: skip
 
 ROLLFORWARD_TOLERANCE = 0.15  # of the larger of expected and found debt
-ROLLFORWARD_MIN_USDM = 50.0
+ROLLFORWARD_MIN_USDM = 50.0  # converted to the reporting currency when an exchange rate is given
 
 DEBT_CONCEPTS = (
     DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + DEBT_CURRENT_ALL + ST_BORROWINGS + CONVERTIBLE_NONCURRENT
     + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT + DEBT_AND_LEASES_NONCURRENT
     + DEBT_AND_LEASES_CURRENT + DEBT_AND_LEASES_TOTAL + LINES_OF_CREDIT_NONCURRENT + LINES_OF_CREDIT_CURRENT
+    + IFRS_DEBT_CONCEPTS
 )  # fmt: skip
 
 ALL_CONCEPTS: tuple[str, ...] = (
@@ -136,6 +198,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
     + PRETAX_INCOME + REVOLVER_AVAILABLE
 )  # fmt: skip
+IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
 
 # An implied interest rate on the debt found above this means some debt is probably tagged in a way we do not
@@ -145,6 +208,13 @@ MAX_IMPLIED_RATE = 0.15
 # InterestExpenseNonoperating beside its real, net interest), so it is not used.
 MIN_IMPLIED_RATE = 0.01
 SHARES_MAX_AGE_DAYS = 200
+
+# How often a company's filed figures arrive, from the periods it files, and how old its latest figures may be
+# before a snapshot is stale: the period, plus the filing deadline, plus slack.
+# - quarterly (10-Q filers): a quarter plus the 10-Q deadline plus a full quarter
+# - half-yearly: six months plus the four months EU and UK rules allow for the annual report, plus two weeks
+# - annual (ESEF reports, 20-F and 40-F filers): a year plus four months, plus two weeks
+CADENCE_MAX_DAYS = {"quarterly": 135, "half-yearly": 320, "annual": 500}
 
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
@@ -246,14 +316,59 @@ def instant_at(facts: Sequence[Fact], end: date | None = None) -> Period | None:
 
 
 class Fundamentals:
-    """Reads facts from the store for one company as of a date."""
+    """Reads facts from the store for one company as of a date, in the company's reporting currency.
 
-    def __init__(self, store: Store, cik: int, as_of: date) -> None:
+    ``usd_per_unit`` (US dollars per unit of the reporting currency) only scales the fixed floor of the debt
+    roll-forward check; no figure is converted.
+    """
+
+    def __init__(self, store: Store, cik: int, as_of: date, usd_per_unit: float | None = None) -> None:
         self.store, self.cik, self.as_of = store, cik, as_of
+        self.usd_per_unit = usd_per_unit
+        self.shares_max_age = SHARES_MAX_AGE_DAYS
+        self._currency: str | None = None
+
+    @property
+    def currency(self) -> str:
+        """The reporting currency: the unit of the latest revenue or total-assets fact (USD if none is filed)."""
+        if self._currency is None:
+            units = [u for u in self.store.fact_units(self.cik, REVENUE + ASSETS, self.as_of)
+                     if len(u[0]) == 3 and u[0].isalpha() and u[0].isupper()]  # fmt: skip
+            self._currency = max(units, key=lambda u: (u[1], u[2]))[0] if units else "USD"
+        return self._currency
+
+    @property
+    def money(self) -> str:
+        """The unit of money figures, e.g. ``USDm`` or ``EURm``."""
+        return f"{self.currency}m"
+
+    @property
+    def taxonomy(self) -> str:
+        """``ifrs-full`` when the latest revenue or total assets is filed under IFRS, else ``us-gaap``."""
+        best: tuple[str, str] | None = None
+        tax = "us-gaap"
+        for c in REVENUE + ASSETS:
+            for u, end, filed in self.store.fact_units(self.cik, (c,), self.as_of):
+                if u == self.currency and (best is None or (end, filed) > best):
+                    best, tax = (end, filed), c.split(":", 1)[0]
+        return tax
+
+    def cadence(self) -> str:
+        """How often this company's figures arrive: quarterly, half-yearly or annual, from the revenue periods filed
+        in the two years before the as-of date."""
+        lo = self.as_of - timedelta(days=730)
+        lengths = {
+            f.days for c in REVENUE for f in self._facts(c) if f.start is not None and f.end >= lo and f.days
+        }
+        if any(80 <= d <= 100 or 260 <= d <= 285 for d in lengths):
+            return "quarterly"
+        if any(170 <= d <= 195 for d in lengths):
+            return "half-yearly"
+        return "annual"
 
     def _facts(self, concept: str) -> list[Fact]:
         tax, name = concept.split(":", 1)
-        unit = "shares" if "Shares" in name else "USD"
+        unit = "shares" if "Shares" in name else self.currency
         return self.store.facts(self.cik, name, unit=unit, known_by=self.as_of, taxonomy=tax)
 
     def _pick(self, candidates: Sequence[str], instant: bool) -> tuple[str, list[Fact]] | None:
@@ -283,16 +398,16 @@ class Fundamentals:
                 facts = self._facts(c)
                 p = ttm_at(facts, at)
                 if p is not None:
-                    return self._value(p, c, "USDm", MILLION, "")
+                    return self._value(p, c, self.money, MILLION, "")
                 ends = [f.end for f in facts if f.start is not None]
                 if ends and (latest is None or max(ends) > latest[0]):
                     latest = (max(ends), c)
             if latest is None:
-                return missing("USDm", f"{label}: not filed under {', '.join(candidates)}")
-            return missing("USDm", f"{label}: no TTM to {at} (latest is {latest[1]} to {latest[0]})")
+                return missing(self.money, f"{label}: not filed under {', '.join(candidates)}")
+            return missing(self.money, f"{label}: no TTM to {at} (latest is {latest[1]} to {latest[0]})")
         hit = self._pick(candidates, instant=False)
         if hit is None:
-            return missing("USDm", f"{label}: not filed under {', '.join(candidates)}")
+            return missing(self.money, f"{label}: not filed under {', '.join(candidates)}")
         concept, facts = hit
         p = ttm_latest(facts)
         if p is None:
@@ -301,7 +416,7 @@ class Fundamentals:
                 f = annual[-1]
                 p = Period(f.value, f.end, "latest fiscal year (TTM could not be built)", Kind.REPORTED, (f,),
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
-        return self._value(p, concept, "USDm", MILLION, f"{label}: no usable period")
+        return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
 
     def depreciation_amortisation(self, at: date) -> Value:
         """Total D&A if filed; otherwise depreciation plus amortisation filed as separate lines."""
@@ -310,7 +425,7 @@ class Fundamentals:
             return total
         dep = self.flow(DEPRECIATION, "depreciation", at)
         if not dep.known:
-            return missing("USDm", f"D&A: {total.method}; {dep.method}")
+            return missing(self.money, f"D&A: {total.method}; {dep.method}")
         amo = self.flow(AMORTIZATION, "amortisation", at)
         parts = [dep, amo] if amo.known else [dep]
         warn = () if amo.known else ("no amortisation line filed; D&A is depreciation only",)
@@ -333,12 +448,15 @@ class Fundamentals:
             now.end, tuple(f.cite() for f in now.used + before.used), now.warnings + before.warnings,
         )  # fmt: skip
 
-    def balance(self, candidates: Sequence[str], label: str, at: date | None, unit: str = "USDm") -> Value:
+    def balance(
+        self, candidates: Sequence[str], label: str, at: date | None, unit: str | None = None
+    ) -> Value:
         """Balance at ``at`` (within 3 days), first matching candidate in priority order.
 
         An older balance is never used in place of the one at ``at``: the result is missing instead.
         With ``at`` None, the latest balance of the newest candidate is used.
         """
+        unit = unit or self.money
         if at is None:
             hit = self._pick(candidates, instant=True)
             if hit is None:
@@ -415,7 +533,7 @@ class Fundamentals:
             vals = [self.balance((c,), label, at) for c in g]
             if all(v.known for v in vals):
                 return vals[0] if len(vals) == 1 else _sum(vals, " + ".join(c.split(":")[1] for c in g))
-        return missing("USDm", f"{label}: no balance at {at}")
+        return missing(self.money, f"{label}: no balance at {at}")
 
     def total_debt(self, at: date | None, include_leases: bool = True) -> Value:
         """Borrowings at ``at``, excluding operating leases. Never reads a missing balance as zero.
@@ -424,9 +542,13 @@ class Fundamentals:
         ``LongTermDebt`` both for total debt and for the non-current line only. Convertible notes and finance
         leases are added when filed as separate lines. Zero is used only for a company that has never filed a debt
         concept at all.
+
+        IFRS filers: see ``_ifrs_debt``.
         """
         if at is None:
-            return missing("USDm", "debt: no period to read the balance at")
+            return missing(self.money, "debt: no period to read the balance at")
+        if self.taxonomy == "ifrs-full":
+            return self._ifrs_debt(at, include_leases)
         notes: list[str] = []
         parts: list[Value] = []
         leases_inside = False
@@ -503,18 +625,77 @@ class Fundamentals:
         )
         own, problem = self.company_lines(at, roles)
         if problem:
-            return missing("USDm", f"debt: {problem}")
+            return missing(self.money, f"debt: {problem}")
         parts += own
         if not parts:
             if not self.ever_filed(DEBT_CONCEPTS):
-                return Value(0.0, Kind.DERIVED, "USDm", "no debt concept ever filed; taken as zero", at,
+                return Value(0.0, Kind.DERIVED, self.money, "no debt concept ever filed; taken as zero", at,
                              warnings=("no debt concept ever filed; debt taken as zero",))  # fmt: skip
             return missing(
-                "USDm", f"debt: no debt balance at {at}, though debt concepts have been filed before"
+                self.money, f"debt: no debt balance at {at}, though debt concepts have been filed before"
             )
         v = _sum(parts, " + ".join(_name(p_) for p_ in parts) + " (operating leases excluded)",
                  tuple(notes))  # fmt: skip
         return v
+
+    def _ifrs_debt(self, at: date, include_leases: bool) -> Value:
+        """IFRS borrowings at ``at``, plus lease liabilities when ``include_leases``.
+
+        Borrowings: non-current plus current lines where filed, else the total ``Borrowings`` line, else long-term
+        plus short-term borrowings. Lease liabilities are included because IFRS 16 moves every lease cost below
+        EBITDA (into depreciation and interest), so net debt must carry the leases to match EBITDA.
+        """
+        notes: list[str] = []
+        nc = self.balance(IFRS_BORROWINGS_NONCURRENT, "non-current borrowings", at)
+        cur = self.balance(IFRS_BORROWINGS_CURRENT, "current borrowings", at)
+        if not cur.known:
+            parts = [v for v in (self.balance((c,), "current borrowings", at) for c in IFRS_BORROWINGS_CURRENT_PARTS)
+                     if v.known]  # fmt: skip
+            cur = _sum(parts, " + ".join(_name(v) for v in parts)) if parts else cur
+        borrowings: Value | None = None
+        if nc.known:
+            borrowings = _sum([nc, cur], f"{_name(nc)} + {_name(cur)}") if cur.known else nc
+            if not cur.known:
+                notes.append("no current borrowings line filed; taken as none")
+        else:
+            total = self.balance(IFRS_BORROWINGS_TOTAL, "borrowings", at)
+            lt = self.balance(IFRS_BORROWINGS_LONGTERM, "long-term borrowings", at)
+            stb = self.balance(IFRS_BORROWINGS_CURRENT_PARTS[:1], "short-term borrowings", at)
+            if total.known:
+                borrowings = total
+            elif lt.known:
+                borrowings = _sum([lt, stb], f"{_name(lt)} + {_name(stb)}") if stb.known else lt
+            elif cur.known:
+                borrowings = cur
+                notes.append("only current borrowings filed")
+        leases: Value | None = None
+        if include_leases:
+            lease = self._first((IFRS_LEASES, IFRS_LEASES_SPLIT), "lease liabilities", at)
+            if lease.known:
+                leases = lease
+            else:
+                part = [
+                    v
+                    for v in (self.balance((c,), "lease liabilities", at) for c in IFRS_LEASES_SPLIT)
+                    if v.known
+                ]
+                if part:
+                    leases = _sum(part, _name(part[0]))
+                    notes.append(f"only {_name(part[0])} filed among lease liabilities")
+        parts = [v for v in (borrowings, leases) if v is not None]
+        if not parts:
+            if not self.ever_filed(IFRS_DEBT_CONCEPTS):
+                return Value(0.0, Kind.DERIVED, self.money, "no borrowings or lease liabilities ever filed; taken as zero",
+                             at, warnings=("no debt concept ever filed; debt taken as zero",))  # fmt: skip
+            return missing(
+                self.money,
+                f"debt: no borrowings or lease balance at {at}, though they have been filed before",
+            )
+        method = " + ".join(("borrowings (" + _name(borrowings) + ")") if v is borrowings else
+                            ("IFRS 16 lease liabilities (" + _name(v) + ")") for v in parts)  # fmt: skip
+        if borrowings is None:
+            notes.append("no borrowings line filed at this date; debt is lease liabilities only")
+        return _sum(parts, method, tuple(notes))
 
     def operating_income(self, at: date) -> Value:
         """Operating income (TTM). Without it, pre-tax income plus interest expense, with a warning."""
@@ -533,7 +714,10 @@ class Fundamentals:
         """Interest expense (TTM): gross where it is plausible for the debt found, else net interest cost."""
         gross = self.flow(INTEREST, "interest expense", at)
         d = debt.value if debt.known else None
-        plausible = gross.known and (d is None or d <= 0 or (gross.value or 0) / d >= MIN_IMPLIED_RATE)
+        # The floor catches a stray US GAAP side line. IFRS finance costs are the income-statement line itself, and
+        # yen, franc or euro borrowers can pay less than 1%, so the floor is not applied to them.
+        floor = MIN_IMPLIED_RATE if not gross.method.startswith("ifrs-full:") else 0.0
+        plausible = gross.known and (d is None or d <= 0 or (gross.value or 0) / d >= floor)
         if plausible:
             return gross
         net = self.flow(NET_INTEREST, "net interest", at)
@@ -543,7 +727,7 @@ class Fundamentals:
                                          "slightly",))  # fmt: skip
         if gross.known:
             assert gross.value is not None and d is not None  # noqa: S101
-            return missing("USDm", f"interest expense: {_name(gross)} of {gross.value:,.1f}m is only "
+            return missing(self.money, f"interest expense: {_name(gross)} of {gross.value:,.1f}m is only "
                                    f"{gross.value / d:.2%} of the {d:,.1f}m of debt found, and no net interest is filed")  # fmt: skip
         return gross
 
@@ -552,12 +736,12 @@ class Fundamentals:
         facts = [f for c in REVOLVER_AVAILABLE for f in latest_known(self._facts(c)) if f.start is None]
         facts = [f for f in facts if f.end <= at and (at - f.end).days <= max_age_days]
         if not facts:
-            return missing("USDm", "undrawn credit lines: none filed in the last 200 days")
+            return missing(self.money, "undrawn credit lines: none filed in the last 200 days")
         last = max(f.end for f in facts)
         same = [f for f in facts if f.end == last]
         f = same[-1]
         warn = (f"undrawn credit lines as at {f.end}, not {at}",) if f.end != at else ()
-        return Value(f.value / MILLION, Kind.REPORTED, "USDm", f"{REVOLVER_AVAILABLE[0]}: as reported", f.end,
+        return Value(f.value / MILLION, Kind.REPORTED, self.money, f"{REVOLVER_AVAILABLE[0]}: as reported", f.end,
                      (f.cite(),), warn)  # fmt: skip
 
     def debt_check(self, debt: Value, at: date) -> str | None:
@@ -605,7 +789,11 @@ class Fundamentals:
             return None
         expected = before.value + borrowed - repaid + net
         gap = expected - now.value
-        limit = max(ROLLFORWARD_TOLERANCE * max(expected, now.value), ROLLFORWARD_MIN_USDM)
+        floor = ROLLFORWARD_MIN_USDM if self.currency == "USD" else (
+            ROLLFORWARD_MIN_USDM / self.usd_per_unit if self.usd_per_unit else None)  # fmt: skip
+        if floor is None:
+            return None  # no exchange rate to set the fixed floor in this currency: no finding either way
+        limit = max(ROLLFORWARD_TOLERANCE * max(expected, now.value), floor)
         if gap > limit:
             return (f"debt looks incomplete: {before.value:,.1f}m at {year_start - timedelta(days=1)} + "
                     f"{borrowed:,.1f}m borrowed − {repaid:,.1f}m repaid{f' + {net:,.1f}m net' if n_used else ''} "
@@ -647,8 +835,8 @@ class Fundamentals:
 
         A count older than ``SHARES_MAX_AGE_DAYS`` before the as-of date, or from before the period, is not used.
         """
-        lo = (at - timedelta(days=10)) if at else self.as_of - timedelta(days=SHARES_MAX_AGE_DAYS)
-        lo = max(lo, self.as_of - timedelta(days=SHARES_MAX_AGE_DAYS))
+        lo = (at - timedelta(days=10)) if at else self.as_of - timedelta(days=self.shares_max_age)
+        lo = max(lo, self.as_of - timedelta(days=self.shares_max_age))
         for cands, instant, note in (
             (SHARES_COVER, True, None),
             (SHARES_BALANCE, True, None),

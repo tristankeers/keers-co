@@ -53,6 +53,12 @@ Yahoo price with a slippage and commission margin, P&L, exposures and drawdown. 
 deterministic risk limits in `src/keers/risk/` first and fills only if every check passes; blocked attempts are
 recorded too. See `docs/paper-portfolio.md`.
 
+The Research memo tab (or `python -m keers.agents run DBX --strategy B --portfolio 1`) runs three agents: a
+research analyst, a bear reviewer and an IC memo writer. They write words only: every figure comes from the
+engines as a fact key that code fills in and numbers to its source. Code decides whether to propose a trade and
+its size, and the trade goes through the paper desk and the risk limits like any other. Without
+`ANTHROPIC_API_KEY` the agents follow stated rules instead of a model. See `docs/agents.md`.
+
 It runs on your own machine only: Yahoo's data is for personal use, so do not put it on a public address. Why
 this stack: `docs/adr/0004-research-workbench-stack.md`. The `workbench-live.yml` workflow runs it against the
 live sources and saves screenshots.

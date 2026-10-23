@@ -60,6 +60,7 @@ function signed(s, v) { return isNum(v) && v > 0 ? `+${s}` : s; }
 // Units used by the data layer: USDm, USD, ratio, %, x, "m shares".
 function fval(v, unit) {
   if (!isNum(v)) return "—";
+  if (/^[A-Z]{3}m$/.test(unit || "")) return fnum(v, Math.abs(v) >= 100 ? 0 : 1);  // millions of a currency
   switch (unit) {
     case "USDm": return fnum(v, Math.abs(v) >= 100 ? 0 : 1);
     case "USD": return fnum(v, 2);
@@ -72,6 +73,8 @@ function fval(v, unit) {
   }
 }
 function unitText(unit, currency) {
+  const m = /^([A-Z]{3})m$/.exec(unit || "");
+  if (m) return `${m[1]} m`;
   return { USDm: "USD m", USD: currency || "USD", ratio: "", "%": "", x: "", "m shares": "m shares", pct: "" }[unit] ?? (unit || "");
 }
 function fdate(iso) { return iso ? String(iso).slice(0, 10) : "—"; }
@@ -259,7 +262,7 @@ function go(symbol) {
 }
 
 // --- router --------------------------------------------------------------------------------------------------
-const TABS = [["overview", "Overview"], ["valuation", "Valuation"], ["distress", "Distress screen"], ["chart", "Chart"], ["news", "News"]];
+const TABS = [["overview", "Overview"], ["valuation", "Valuation"], ["distress", "Distress screen"], ["chart", "Chart"], ["news", "News"], ["research", "Research memo"]];
 let current = { symbol: null, company: null };
 let chartHandle = null;
 
@@ -366,7 +369,7 @@ async function companyView(symbol, tab) {
   fill(view, companyHeader(c), bar, body);
   if (!STATUS) await loadStatus();
   if (current.company === c && needsAutoLoad(c)) autoLoad(c, tab, $("#refresh-btn", bar));
-  const render = { overview: overviewTab, valuation: valuationTab, distress: distressTab, chart: chartTab, news: newsTab }[tab];
+  const render = { overview: overviewTab, valuation: valuationTab, distress: distressTab, chart: chartTab, news: newsTab, research: researchTab }[tab];
   try { await render(c, body); } catch (e) { fill(body, h("p", { class: "err" }, e.message)); }
   if (tab === "overview" || tab === "chart") refreshQuote(c);
 }
@@ -384,6 +387,9 @@ function companyHeader(c) {
         c.sec ? h("span", {}, "CIK ", extLink(c.sec.link, String(c.sec.cik))) : null,
         c.sec?.sic ? h("span", {}, `SIC ${c.sec.sic}`) : null,
         c.sec?.fiscalYearEnd ? h("span", {}, `FY ends ${c.sec.fiscalYearEnd.slice(0, 2)}/${c.sec.fiscalYearEnd.slice(2)}`) : null,
+        c.filer ? h("span", {}, "LEI ", extLink(c.filer.link, c.filer.identifier)) : null,
+        c.link ? h("span", { class: "chip", title: c.link.detail }, `accounts linked: ${c.link.basis}`) : null,
+        c.snapshot && c.snapshot.currency && c.snapshot.currency !== "USD" ? h("span", {}, `accounts in ${c.snapshot.currency}`) : null,
         h("span", { class: "chip cov", title: l.coverageText || "" }, l.coverage || "unknown coverage"),
         h("span", { class: "faint" }, `directory: ${l.source || "—"}`),
       ),
@@ -442,7 +448,7 @@ function currentTab() {
 const autoLoaded = new Set();
 function needsAutoLoad(c) {
   if (!STATUS?.live || autoLoaded.has(c.symbol)) return false;
-  const noFilings = STATUS.secEnabled && c.listing?.cik != null && !c.sec;
+  const noFilings = (STATUS.secEnabled && c.listing?.cik != null && !c.sec) || (c.listing?.coverage === "prices-only" && !c.sec && !c.filer);
   const noRates = !STATUS.rates?.DGS10 || !STATUS.rates?.BAA10Y;
   return noFilings || noRates || !c.loaded;
 }
@@ -477,7 +483,7 @@ async function overviewTab(c, body) {
     left.append(h("div", { class: "callout warn" }, h("strong", {}, "Nothing stored for this listing yet. "),
       STATUS?.live ? "Loading it from the sources now." : "Live sources are off, so there is nothing to load (KEERS_OFFLINE)."));
   }
-  if (c.listing?.coverage === "prices-only" && !c.sec) {
+  if (c.listing?.coverage === "prices-only" && !c.sec && !c.filer) {
     left.append(h("div", { class: "callout" }, c.listing.coverageText));
   }
   if (c.snapshot) {
@@ -521,7 +527,7 @@ async function overviewTab(c, body) {
     h("div", { class: "pb" }, chartBox, h("div", { class: "faint", id: "mini-meta", style: "margin-top:6px" }))));
   if (c.filings.length) {
     right.append(h("section", { class: "panel" },
-      h("div", { class: "ph" }, h("h2", {}, "Recent periodic filings"), h("span", { class: "faint" }, "SEC EDGAR")),
+      h("div", { class: "ph" }, h("h2", {}, "Recent periodic filings"), h("span", { class: "faint" }, c.filer ? "ESEF, via filings.xbrl.org" : "SEC EDGAR")),
       h("div", { class: "pb flush" }, h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Form"), h("th", {}, "Period"), h("th", { class: "n" }, "Filed"), h("th", {}, ""))),
         h("tbody", {}, c.filings.map((f) => h("tr", {}, h("td", { class: "mono" }, f.form), h("td", { class: "mono" }, fdate(f.period)),
@@ -610,6 +616,78 @@ async function newsTab(c, body) {
     h("div", { class: "ph" }, h("h2", {}, "Headlines"), h("span", { class: "faint" }, "Yahoo Finance · untrusted third-party text")),
     h("div", { class: "pb" }, h("div", { class: "callout" }, n.note), n.error ? h("p", { class: "err", style: "margin-top:8px" }, `Live fetch failed, showing stored headlines: ${n.error}`) : null),
     h("div", { class: "pb flush" }, newsList(n.items, n))));
+}
+
+// --- research memo (keers.agents) ----------------------------------------------------------------------------
+// The memo is shown as text (never as HTML), so nothing a model writes can run in the page.
+function memoInline(text) {
+  // [label](https://...) becomes a link; **, * and ` marks are dropped. Everything else stays plain text.
+  const out = [];
+  let last = 0;
+  const plain = (t) => t.replace(/\*\*|`/g, "").replace(/(^|\s)\*(\S[^*]*)\*/g, "$1$2");
+  for (const m of text.matchAll(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g)) {
+    out.push(plain(text.slice(last, m.index)), extLink(m[2], plain(m[1])));
+    last = m.index + m[0].length;
+  }
+  out.push(plain(text.slice(last)));
+  return out;
+}
+function memoBlock(md) {
+  const out = [];
+  let list = null, table = null;
+  for (const line of String(md).split("\n")) {
+    if (!line.startsWith("|")) table = null;
+    const m = line.match(/^(#{1,3}) (.*)$/);
+    if (m) { list = null; out.push(h(m[1].length === 1 ? "h2" : "h3", { style: "margin:14px 0 6px" }, memoInline(m[2]))); continue; }
+    if (line.startsWith("|")) {
+      if (/^\|[-| ]+\|$/.test(line)) continue;
+      const cells = line.slice(1, -1).split("|").map((x) => x.trim());
+      if (!table) { table = h("table", { style: "margin:6px 0" }); out.push(table); table.append(h("tr", {}, cells.map((x) => h("th", {}, x)))); }
+      else table.append(h("tr", {}, cells.map((x) => h("td", {}, memoInline(x)))));
+      continue;
+    }
+    if (/^(- |\d+\. )/.test(line)) {
+      if (!list) { list = h(/^\d/.test(line) ? "ol" : "ul", { style: "margin:4px 0;padding-left:20px" }); out.push(list); }
+      list.append(h("li", {}, memoInline(line.replace(/^(- |\d+\. )/, ""))));
+      continue;
+    }
+    list = null;
+    if (line.trim()) out.push(h("p", { style: "margin:6px 0" }, memoInline(line.replace(/^> /, ""))));
+  }
+  return out;
+}
+async function researchTab(c, body) {
+  const list = await api("/api/portfolios").catch(() => ({ portfolios: [] }));
+  const strat = h("select", { "aria-label": "Strategy" },
+    [["B", "B · Durable-moat compounders"], ["A", "A · Distressed and special situations"], ["C", "C · Systematic quant"]].map(([v, t]) => h("option", { value: v }, t)));
+  const port = h("select", { "aria-label": "Paper portfolio" }, h("option", { value: "" }, "No portfolio (memo only)"),
+    list.portfolios.map((p) => h("option", { value: p.id }, p.name)));
+  const out = h("div", {});
+  const go = async (execute) => {
+    if (execute && !port.value) { fill(out, h("p", { class: "err" }, "Choose a paper portfolio to place the trade in.")); return; }
+    fill(out, h("div", { class: "loading" }, "The analyst, bear reviewer and memo writer are working… (up to a few minutes with a model)"));
+    try {
+      const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/research`, { method: "POST", timeout: 600000,
+        body: JSON.stringify({ strategy: strat.value, portfolio: port.value || null, execute }) });
+      const t = r.trade;
+      fill(out,
+        h("div", { class: `callout ${r.decision.propose ? "" : "warn"}`, style: "margin-bottom:10px" },
+          h("strong", {}, r.decision.propose ? "Trade proposed. " : "No trade. "),
+          t ? (t.error ? `Paper desk: ${t.error}` : t.executed ? (t.filled ? "Placed and filled on paper." : "Placed, but the risk limits rejected it.") : (t.risk?.approved ? "Preview: it would pass the risk limits." : "Preview: the risk limits would block it.")) : "",
+          h("div", { class: "faint", style: "margin-top:4px" }, `Written by: ${r.llm} · saved as agent-runs/${r.id}.md`)),
+        h("section", { class: "panel" }, h("div", { class: "pb" }, memoBlock(r.memo))));
+    } catch (e) { fill(out, h("p", { class: "err" }, e.message)); }
+  };
+  fill(body,
+    h("section", { class: "panel", style: "margin-bottom:12px" },
+      h("div", { class: "ph" }, h("h2", {}, "Research memo"), h("span", { class: "faint" }, "analyst · bear reviewer · IC memo writer")),
+      h("div", { class: "pb" },
+        h("div", { class: "callout", style: "margin-bottom:10px" }, "The agents write words; every figure comes from the engines and is numbered to its source. ",
+          "Without ANTHROPIC_API_KEY they follow stated rules (rules-v1). A proposed trade is sized by code and must pass the risk limits; paper only."),
+        h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, strat, port,
+          h("button", { class: "btn primary", onclick: () => go(false) }, "Write memo"),
+          h("button", { class: "btn", onclick: () => go(true), title: "Writes the memo and places the proposed trade on paper, if the risk limits allow it" }, "Write memo and place paper trade")))),
+    out);
 }
 
 // --- distress ------------------------------------------------------------------------------------------------
