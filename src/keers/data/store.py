@@ -17,7 +17,16 @@ from typing import Any
 
 from .models import Fact, Filing, IntradayBar, NewsItem, PricePoint, Quote, RatePoint, RunRecord
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+# Filers that are not SEC registrants (for example ESEF filers found by LEI) get an id from the ``entities`` table,
+# starting here. SEC CIKs have at most 10 digits and stay below it, so the ``facts.cik`` column holds both.
+ENTITY_ID_BASE = 10_000_000_000
+
+
+def is_sec_cik(cik: int | None) -> bool:
+    return cik is not None and 0 < cik < ENTITY_ID_BASE
+
 
 # When two sources have a close for the same day, the snapshot uses the first of these. The source is always
 # cited with the price, so the choice is visible.
@@ -162,6 +171,36 @@ CREATE TABLE IF NOT EXISTS listing_checks (
     raw_sha256 TEXT NOT NULL,
     detail TEXT NOT NULL
 );
+-- Filers that are not SEC registrants, by an official identifier (scheme "lei" for ESEF filers). ``id`` is the
+-- number used in the ``cik`` column of ``companies``, ``facts`` and ``filings``; it starts at ENTITY_ID_BASE.
+CREATE TABLE IF NOT EXISTS entities (
+    id INTEGER PRIMARY KEY,
+    scheme TEXT NOT NULL,
+    identifier TEXT NOT NULL,
+    name TEXT NOT NULL,
+    country TEXT,
+    source TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (scheme, identifier)
+);
+-- Which filer's accounts a listing uses, and why: "manual" (set by a person) or "name-match" (automatic, by an
+-- exact match of normalised names). A listing whose own ticker is in ``companies`` needs no link.
+CREATE TABLE IF NOT EXISTS entity_links (
+    symbol TEXT PRIMARY KEY,
+    cik INTEGER NOT NULL,
+    basis TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    linked_at TEXT NOT NULL
+);
+-- The currency a source quoted a ticker's daily prices in, as that source said in its response.
+CREATE TABLE IF NOT EXISTS price_currency (
+    ticker TEXT NOT NULL,
+    source TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    seen_at TEXT NOT NULL,
+    raw_sha256 TEXT NOT NULL,
+    PRIMARY KEY (ticker, source)
+);
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL,
@@ -212,6 +251,9 @@ class Store:
             if version == 3:
                 # v3 -> v4: the global company universe. The tables are created by SCHEMA above.
                 version = 4
+            if version == 4:
+                # v4 -> v5: non-SEC filers, listing links and price currencies. Tables created by SCHEMA above.
+                version = 5
             if version != SCHEMA_VERSION:
                 raise RuntimeError(f"Store schema {row[0]} does not match code schema {SCHEMA_VERSION}")
             if version != int(row[0]):
@@ -258,12 +300,83 @@ class Store:
             )
 
     def company(self, ticker: str) -> dict[str, Any] | None:
+        """The filer behind a ticker: by its own row in ``companies``, else through ``entity_links``.
+
+        A linked listing is returned under its own ticker, with ``link`` saying how it was linked.
+        """
+        keys = ("cik", "ticker", "name", "sic", "fiscalYearEnd")
         r = self.db.execute(
             "SELECT cik,ticker,name,sic,fiscal_year_end FROM companies WHERE ticker=?", (ticker.upper(),)
         ).fetchone()
+        if r is not None:
+            return dict(zip(keys, r, strict=True)) | {"link": None}
+        link = self.link(ticker)
+        if link is None:
+            return None
+        r = self.db.execute(
+            "SELECT cik,ticker,name,sic,fiscal_year_end FROM companies WHERE cik=?", (link["cik"],)
+        ).fetchone()
         if r is None:
             return None
-        return dict(zip(("cik", "ticker", "name", "sic", "fiscalYearEnd"), r, strict=True))
+        return dict(zip(keys, r, strict=True)) | {"ticker": ticker.upper(), "link": link}
+
+    def company_by_cik(self, cik: int) -> dict[str, Any] | None:
+        r = self.db.execute(
+            "SELECT cik,ticker,name,sic,fiscal_year_end FROM companies WHERE cik=?", (cik,)
+        ).fetchone()
+        return (
+            None
+            if r is None
+            else dict(zip(("cik", "ticker", "name", "sic", "fiscalYearEnd"), r, strict=True))
+        )
+
+    # non-SEC filers and listing links -------------------------------------------------------------------------
+    def entity_id(self, scheme: str, identifier: str, name: str, country: str | None, source: str) -> int:
+        """The id of a non-SEC filer, registering it on first sight. Names and countries are updated in place."""
+        ident = identifier.strip().upper()
+        with self.tx() as db:
+            r = db.execute(
+                "SELECT id FROM entities WHERE scheme=? AND identifier=?", (scheme, ident)
+            ).fetchone()
+            if r is not None:
+                db.execute("UPDATE entities SET name=?, country=?, source=?, updated_at=? WHERE id=?",
+                           (name, country, source, now_utc(), r[0]))  # fmt: skip
+                return int(r[0])
+            top = db.execute("SELECT MAX(id) FROM entities").fetchone()[0]
+            new = max(int(top or 0) + 1, ENTITY_ID_BASE)
+            db.execute("INSERT INTO entities VALUES (?,?,?,?,?,?,?)",
+                       (new, scheme, ident, name, country, source, now_utc()))  # fmt: skip
+            return new
+
+    def entity(self, entity_id: int) -> dict[str, Any] | None:
+        r = self.db.execute(
+            "SELECT id,scheme,identifier,name,country,source FROM entities WHERE id=?", (entity_id,)
+        ).fetchone()
+        return None if r is None else dict(zip(("id", "scheme", "identifier", "name", "country", "source"), r,
+                                                strict=True))  # fmt: skip
+
+    def put_link(self, symbol: str, cik: int, basis: str, detail: str) -> None:
+        with self.tx() as db:
+            db.execute("INSERT OR REPLACE INTO entity_links VALUES (?,?,?,?,?)",
+                       (symbol.upper(), cik, basis, detail, now_utc()))  # fmt: skip
+
+    def link(self, symbol: str) -> dict[str, Any] | None:
+        r = self.db.execute(
+            "SELECT symbol,cik,basis,detail,linked_at FROM entity_links WHERE symbol=?", (symbol.upper(),)
+        ).fetchone()
+        return (
+            None if r is None else dict(zip(("symbol", "cik", "basis", "detail", "linkedAt"), r, strict=True))
+        )
+
+    def listing_name(self, symbol: str) -> str | None:
+        """The company name of a listing in the global universe table, if it has been built."""
+        r = self.db.execute("SELECT name FROM listings WHERE symbol=? ORDER BY is_primary DESC LIMIT 1",
+                            (symbol.upper(),)).fetchone()  # fmt: skip
+        return str(r[0]) if r and r[0] else None
+
+    def drop_link(self, symbol: str) -> None:
+        with self.tx() as db:
+            db.execute("DELETE FROM entity_links WHERE symbol=?", (symbol.upper(),))
 
     # facts -----------------------------------------------------------------------------------------------------
     def put_facts(self, facts: Iterable[Fact]) -> int:
@@ -288,23 +401,41 @@ class Store:
         taxonomy: str = "us-gaap",
     ) -> list[Fact]:
         """All filed values of a concept, oldest period first. ``known_by`` keeps only facts filed on or before it."""
-        q = "SELECT * FROM facts WHERE cik=? AND taxonomy=? AND concept=?"
+        # A non-SEC filing's web address is kept in ``filings.primary_document``; it is cited with each fact.
+        q = ("SELECT f.*, CASE WHEN g.primary_document LIKE 'https://%' THEN g.primary_document ELSE '' END "
+             "FROM facts f LEFT JOIN filings g ON g.cik=f.cik AND g.accn=f.accn "
+             "WHERE f.cik=? AND f.taxonomy=? AND f.concept=?")  # fmt: skip
         args: list[Any] = [cik, taxonomy, concept]
         if unit is not None:
-            q += " AND unit=?"
+            q += " AND f.unit=?"
             args.append(unit)
         if known_by is not None:
-            q += " AND filed<=?"
+            q += " AND f.filed<=?"
             args.append(known_by.isoformat())
-        q += " ORDER BY end, start, filed"
+        q += " ORDER BY f.end, f.start, f.filed"
         return [
             Fact(
                 cik=r[0], taxonomy=r[1], concept=r[2], unit=r[3], start=_d(r[4]), end=date.fromisoformat(r[5]),
                 value=r[6], accn=r[7], form=r[8], filed=date.fromisoformat(r[9]), fy=r[10], fp=r[11],
-                frame=r[12], raw_sha256=r[13],
+                frame=r[12], raw_sha256=r[13], url=r[14] or "",
             )
             for r in self.db.execute(q, args)
         ]  # fmt: skip
+
+    def fact_units(
+        self, cik: int, concepts: Iterable[str], known_by: date | None = None
+    ) -> list[tuple[str, str, str]]:
+        """(unit, latest period end, latest filing date) for each unit the given ``taxonomy:Concept`` names use."""
+        out: list[tuple[str, str, str]] = []
+        for c in concepts:
+            tax, name = c.split(":", 1)
+            q = "SELECT unit, MAX(end), MAX(filed) FROM facts WHERE cik=? AND taxonomy=? AND concept=?"
+            args: list[Any] = [cik, tax, name]
+            if known_by is not None:
+                q += " AND filed<=?"
+                args.append(known_by.isoformat())
+            out += [(r[0], r[1], r[2]) for r in self.db.execute(q + " GROUP BY unit", args)]
+        return out
 
     # filings ---------------------------------------------------------------------------------------------------
     def put_filings(self, filings: Iterable[Filing]) -> None:
@@ -316,6 +447,11 @@ class Store:
             db.executemany("INSERT OR REPLACE INTO filings VALUES (?,?,?,?,?,?)", rows)
 
     def filings(self, cik: int, forms: tuple[str, ...] = ("10-K", "10-Q")) -> list[Filing]:
+        """Filings of the given forms, oldest first. ``forms=()`` returns every form."""
+        if not forms:
+            q = "SELECT * FROM filings WHERE cik=? ORDER BY filing_date"
+            return [Filing(r[0], r[1], r[2], date.fromisoformat(r[3]), _d(r[4]), r[5])
+                    for r in self.db.execute(q, (cik,))]  # fmt: skip
         marks = ",".join("?" * len(forms))
         q = f"SELECT * FROM filings WHERE cik=? AND form IN ({marks}) ORDER BY filing_date"  # noqa: S608
         return [
@@ -361,6 +497,17 @@ class Store:
         same_day = [x for x in rows if x[1] == rows[0][1]]
         r = min(same_day, key=lambda x: (SOURCE_RANK.get(x[2], 99), x[2]))
         return PricePoint(r[0], date.fromisoformat(r[1]), r[3], r[2], r[4], r[5], r[6], r[7], r[8])
+
+    def put_price_currency(self, ticker: str, source: str, currency: str, raw_sha256: str) -> None:
+        with self.tx() as db:
+            db.execute("INSERT OR REPLACE INTO price_currency VALUES (?,?,?,?,?)",
+                       (ticker.upper(), source, currency, now_utc(), raw_sha256))  # fmt: skip
+
+    def price_currency(self, ticker: str, source: str) -> str | None:
+        r = self.db.execute(
+            "SELECT currency FROM price_currency WHERE ticker=? AND source=?", (ticker.upper(), source)
+        ).fetchone()
+        return None if r is None else str(r[0])
 
     def adjusted_closes(self, ticker: str, start: date, end: date) -> list[tuple[date, float | None]]:
         """Daily (day, adjusted close) from ONE source; None on days that source has no adjusted close.
@@ -466,6 +613,11 @@ class Store:
         if r is None:
             return None
         return RatePoint(r[0], date.fromisoformat(r[1]), r[3], r[2], r[4])
+
+    def rates(self, series: str, start: date, end: date) -> list[RatePoint]:
+        q = "SELECT series,day,source,value,raw_sha256 FROM rates WHERE series=? AND day>=? AND day<=? ORDER BY day"
+        return [RatePoint(r[0], date.fromisoformat(r[1]), r[3], r[2], r[4])
+                for r in self.db.execute(q, (series, start.isoformat(), end.isoformat()))]  # fmt: skip
 
     # runs ------------------------------------------------------------------------------------------------------
     def start_run(self, kind: str) -> int:

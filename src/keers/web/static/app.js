@@ -60,6 +60,7 @@ function signed(s, v) { return isNum(v) && v > 0 ? `+${s}` : s; }
 // Units used by the data layer: USDm, USD, ratio, %, x, "m shares".
 function fval(v, unit) {
   if (!isNum(v)) return "—";
+  if (/^[A-Z]{3}m$/.test(unit || "")) return fnum(v, Math.abs(v) >= 100 ? 0 : 1);  // millions of a currency
   switch (unit) {
     case "USDm": return fnum(v, Math.abs(v) >= 100 ? 0 : 1);
     case "USD": return fnum(v, 2);
@@ -72,6 +73,8 @@ function fval(v, unit) {
   }
 }
 function unitText(unit, currency) {
+  const m = /^([A-Z]{3})m$/.exec(unit || "");
+  if (m) return `${m[1]} m`;
   return { USDm: "USD m", USD: currency || "USD", ratio: "", "%": "", x: "", "m shares": "m shares", pct: "" }[unit] ?? (unit || "");
 }
 function fdate(iso) { return iso ? String(iso).slice(0, 10) : "—"; }
@@ -384,6 +387,9 @@ function companyHeader(c) {
         c.sec ? h("span", {}, "CIK ", extLink(c.sec.link, String(c.sec.cik))) : null,
         c.sec?.sic ? h("span", {}, `SIC ${c.sec.sic}`) : null,
         c.sec?.fiscalYearEnd ? h("span", {}, `FY ends ${c.sec.fiscalYearEnd.slice(0, 2)}/${c.sec.fiscalYearEnd.slice(2)}`) : null,
+        c.filer ? h("span", {}, "LEI ", extLink(c.filer.link, c.filer.identifier)) : null,
+        c.link ? h("span", { class: "chip", title: c.link.detail }, `accounts linked: ${c.link.basis}`) : null,
+        c.snapshot && c.snapshot.currency && c.snapshot.currency !== "USD" ? h("span", {}, `accounts in ${c.snapshot.currency}`) : null,
         h("span", { class: "chip cov", title: l.coverageText || "" }, l.coverage || "unknown coverage"),
         h("span", { class: "faint" }, `directory: ${l.source || "—"}`),
       ),
@@ -442,7 +448,7 @@ function currentTab() {
 const autoLoaded = new Set();
 function needsAutoLoad(c) {
   if (!STATUS?.live || autoLoaded.has(c.symbol)) return false;
-  const noFilings = STATUS.secEnabled && c.listing?.cik != null && !c.sec;
+  const noFilings = (STATUS.secEnabled && c.listing?.cik != null && !c.sec) || (c.listing?.coverage === "prices-only" && !c.sec && !c.filer);
   const noRates = !STATUS.rates?.DGS10 || !STATUS.rates?.BAA10Y;
   return noFilings || noRates || !c.loaded;
 }
@@ -477,7 +483,7 @@ async function overviewTab(c, body) {
     left.append(h("div", { class: "callout warn" }, h("strong", {}, "Nothing stored for this listing yet. "),
       STATUS?.live ? "Loading it from the sources now." : "Live sources are off, so there is nothing to load (KEERS_OFFLINE)."));
   }
-  if (c.listing?.coverage === "prices-only" && !c.sec) {
+  if (c.listing?.coverage === "prices-only" && !c.sec && !c.filer) {
     left.append(h("div", { class: "callout" }, c.listing.coverageText));
   }
   if (c.snapshot) {
@@ -521,7 +527,7 @@ async function overviewTab(c, body) {
     h("div", { class: "pb" }, chartBox, h("div", { class: "faint", id: "mini-meta", style: "margin-top:6px" }))));
   if (c.filings.length) {
     right.append(h("section", { class: "panel" },
-      h("div", { class: "ph" }, h("h2", {}, "Recent periodic filings"), h("span", { class: "faint" }, "SEC EDGAR")),
+      h("div", { class: "ph" }, h("h2", {}, "Recent periodic filings"), h("span", { class: "faint" }, c.filer ? "ESEF, via filings.xbrl.org" : "SEC EDGAR")),
       h("div", { class: "pb flush" }, h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Form"), h("th", {}, "Period"), h("th", { class: "n" }, "Filed"), h("th", {}, ""))),
         h("tbody", {}, c.filings.map((f) => h("tr", {}, h("td", { class: "mono" }, f.form), h("td", { class: "mono" }, fdate(f.period)),

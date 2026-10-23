@@ -86,6 +86,9 @@ class Fetcher:
             "data.sec.gov": 0.125,
             "query1.finance.yahoo.com": 0.5,  # unofficial endpoint: stay well clear of its throttling
             "api.openfigi.com": 12.5,  # OpenFIGI search/filter without a key: 5 requests a minute
+            "filings.xbrl.org": 1.0,  # run by XBRL International as a free public service: one a second
+            "api.gleif.org": 0.5,
+            "data-api.ecb.europa.eu": 0.5,
         }
         self.retries = retries
         self.timeout = timeout

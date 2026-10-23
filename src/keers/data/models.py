@@ -23,10 +23,10 @@ class Kind(StrEnum):
 
 @dataclass(frozen=True)
 class Fact:
-    """One XBRL fact from an SEC filing, as filed."""
+    """One XBRL fact, as filed: from SEC EDGAR, or from an ESEF annual report (``cik`` is then an entity id)."""
 
     cik: int
-    taxonomy: str  # "us-gaap" or "dei"
+    taxonomy: str  # "us-gaap", "ifrs-full" or "dei"
     concept: str  # e.g. "Revenues"
     unit: str  # e.g. "USD", "shares"
     start: date | None  # None for balance-sheet (instant) facts
@@ -39,6 +39,7 @@ class Fact:
     fp: str | None = None
     frame: str | None = None
     raw_sha256: str = ""
+    url: str = ""  # web address of the filing, for filings outside SEC EDGAR (not stored with the fact)
 
     @property
     def days(self) -> int | None:
@@ -54,7 +55,7 @@ class Fact:
             "form": self.form,
             "accn": self.accn,
             "filed": self.filed.isoformat(),
-        }
+        } | ({"url": self.url} if self.url else {})
 
 
 @dataclass(frozen=True)

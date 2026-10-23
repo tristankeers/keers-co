@@ -48,6 +48,22 @@ EXCHANGE_SUFFIXES = {".L", ".PA", ".AS", ".BR", ".LS", ".IR", ".MI", ".MC", ".SW
                      ".MX", ".SN"}  # fmt: skip
 
 
+def is_foreign(ticker: str) -> bool:
+    """True for a symbol that ends in a non-US exchange suffix (VOD.L, 7203.T)."""
+    t = ticker.upper()
+    dot = t.rfind(".")
+    return dot > 0 and t[dot:] in EXCHANGE_SUFFIXES
+
+
+def chart_currency(doc: Any) -> str | None:
+    """The currency Yahoo says a chart is quoted in (``meta.currency``), as written (``GBp`` is pence)."""
+    try:
+        cur = doc["chart"]["result"][0]["meta"].get("currency")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return None
+    return str(cur) if cur else None
+
+
 def symbol(ticker: str) -> str:
     """Yahoo writes US share classes with a dash (BRK.B -> BRK-B). A symbol that already ends in a non-US
     exchange suffix (VOD.L, 7203.T, BT-A.L) is a Yahoo symbol and is left as it is."""
