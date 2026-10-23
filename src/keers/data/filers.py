@@ -195,7 +195,7 @@ class Filers:
                             f"LEI {lei} ({esef_name}): filings.xbrl.org name equals listing name {name!r} after "
                             "normalising")  # fmt: skip
         return {"symbol": symbol.upper(), "name": name, "normalised": want, "linked": True, "lei": lei,
-                "lei_name": esef_name, "basis": "name-match", "via": "filings.xbrl.org filer list", "directory": how}  # fmt: skip
+                "lei_name": esef_name, "basis": "name-match", "candidates": [], "via": "filings.xbrl.org filer list", "directory": how}  # fmt: skip
 
     def find(self, symbol: str, name: str) -> dict[str, Any]:
         """Try to link ``symbol`` by name. Returns the link, or why not and the candidates to choose from."""

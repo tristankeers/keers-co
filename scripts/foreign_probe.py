@@ -123,7 +123,7 @@ def main() -> int:
                 report["links"][sym] = filers.link_cik(sym, int(spec[4:]))
             elif spec:
                 r = filers.find(sym, spec)
-                r["candidates"] = r["candidates"][:5]
+                r["candidates"] = r.get("candidates", [])[:5]
                 report["links"][sym] = r
         except (FetchError, ParseError, ValueError) as e:
             report["links"][sym] = {"error": str(e)}
