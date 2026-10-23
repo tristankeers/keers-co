@@ -1,0 +1,40 @@
+name: Valuation coverage
+
+# Runs the valuation across NYSE and Nasdaq SEC filers (or a random sample) and groups the blocked companies by
+# reason. Manual only: a full run makes several thousand SEC and Yahoo requests and takes a few hours.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: "Random sample size (0 = every company)"
+        default: "400"
+      seed:
+        description: "Sample seed"
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      KEERS_PRICE_SOURCES: yahoo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Coverage
+        run: python scripts/coverage.py --sample "${{ inputs.sample }}" --seed "${{ inputs.seed }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: |
+            coverage-out/coverage.md
+            coverage-out/coverage.json
