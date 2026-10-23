@@ -548,6 +548,9 @@ def validate_lbo(inp: Mapping[str, Any]) -> list[str]:
     tr = inp.get("taxRate")
     if not is_num(tr) or tr < 0 or tr >= 1:
         e.append("Tax rate must be between 0% and 99%")
+    cap = inp.get("interestCapPct")
+    if cap is not None and (not is_num(cap) or cap < 0 or cap > 1):
+        e.append("Interest deduction cap must be between 0% and 100% of EBITDA")
     tranches = inp.get("tranches")
     if not isinstance(tranches, list):
         e.append("Debt tranches are required")
@@ -588,7 +591,7 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
 
     Conventions: entry at t = 0, cash flows at year ends, exit at the end of year N. Cash-free, debt-free
     purchase. Interest on opening balances (no circularity); interest income on opening cash. Tax on positive
-    pre-tax profit after loss carry-forwards (losses carried forward indefinitely, no interest cap). Cash order
+    pre-tax profit after loss carry-forwards (losses carried forward indefinitely; interest capped only when ``interestCapPct`` is set). Cash order
     each year: operating FCF, mandatory amortisation, revolver draw to minimum cash, sponsor equity cure for
     any remaining deficit, then excess repays the revolver and the sweep % prepays sweep-eligible tranches in
     order. Equity cures do not change ownership. Exit equity is floored at zero.
@@ -664,6 +667,9 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
     checks: list[Json] = []
     commitment = or0(revolver_cfg.get("commitment"))
     tax_rate = inp["taxRate"]
+    cap_pct: float | None = inp.get("interestCapPct")
+    interest_cf = 0.0
+    capped: list[Json] = []
     for i in range(n):
         y = i + 1
         g = nz(at(inp["revenueGrowth"], i))
@@ -680,14 +686,24 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
         interest_expense = total(tranche_interest) + revolver_interest
         interest_income = max(0, open_cash) * or0(inp["interestOnCashRate"])
         ebt = ebit - interest_expense + interest_income
-        taxable, nol_used = ebt, 0.0
-        if ebt < 0:
-            nol += -ebt
+        # Optional US section 163(j) cap (``interestCapPct``, unset in kci-v1 and v2): net interest is
+        # deductible up to that share of EBITDA; the rest carries forward without limit.
+        tax_base, disallowed = ebt, 0.0
+        if cap_pct is not None:
+            net_interest = interest_expense - interest_income
+            claim = max(0.0, net_interest) + interest_cf
+            deducted = min(claim, cap_pct * max(0.0, ebitda))
+            disallowed = claim - deducted - interest_cf
+            interest_cf = claim - deducted
+            tax_base = ebit + max(0.0, -net_interest) - deducted
+        taxable, nol_used = tax_base, 0.0
+        if tax_base < 0:
+            nol += -tax_base
             taxable = 0
         else:
-            nol_used = min(nol, ebt)
+            nol_used = min(nol, tax_base)
             nol -= nol_used
-            taxable = ebt - nol_used
+            taxable = tax_base - nol_used
         tax = taxable * tax_rate
         net_income = ebt - tax
         capex = revenue * nz(at(inp["capexPct"], i))
@@ -814,6 +830,10 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
                 "debtRepaid": total(mandatory) + total(sweep) + revolver_repay - revolver_draw,
             }
         )
+        if cap_pct is not None:
+            years[-1].update(taxableIncome=tax_base, interestDisallowed=disallowed,
+                             interestCarryForward=interest_cf)  # fmt: skip
+            capped.append({"year": y, "disallowed": disallowed, "carryForward": interest_cf})
         prev_rev = revenue
 
     # Exit
@@ -890,7 +910,7 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
         }
     )
 
-    return {
+    out: Json = {
         "ok": True,
         "errors": [],
         "warnings": warnings,
@@ -956,6 +976,13 @@ def run_lbo(raw: Mapping[str, Any]) -> Json:
             "invested.",
         ],
     }
+    if cap_pct is not None:
+        out["interestCap"] = {"pct": cap_pct, "years": capped, "carryForwardAtExit": interest_cf}
+        out["conventions"].append(
+            f"Net interest deductible up to {cap_pct:.0%} of EBITDA (US section 163(j), simplified); the excess is "
+            "carried forward without limit and deducted in later years within the cap."
+        )
+    return out
 
 
 def break_even(lbo_result: Mapping[str, Any] | None, target_irr: float) -> Json | None:

@@ -7,13 +7,20 @@ second. The User-Agent comes from configuration (``SEC_USER_AGENT``); it is neve
 from __future__ import annotations
 
 import json
+import xml.etree.ElementTree as ET  # noqa: S405 (only for its ParseError)
 from collections.abc import Iterable
 from datetime import date
 from typing import Any
 
-from .http import Fetcher, Response
+from . import fundamentals as F
+from . import lines
+from .http import Fetcher, FetchError, Response
 from .models import Fact, Filing
 from .store import Store
+from .xbrl import InstanceError
+
+# Debt lines whose blanks on the face balance sheet are recorded, for companies in company_lines.toml.
+LINE_WATCH = set(F.DEBT_CONCEPTS + F.DEBT_DUE_12M)
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
@@ -172,7 +179,7 @@ class SEC:
         resp = self._get(FACTS_URL.format(cik=cik))
         facts = parse_company_facts(_json(resp), resp.sha256, concepts)
         added = self.store.put_facts(facts)
-        return {
+        out: dict[str, Any] = {
             "ticker": ticker.upper(),
             "cik": cik,
             "forms": sorted({f.form for f in filings}),
@@ -180,3 +187,10 @@ class SEC:
             "facts": len(facts),
             "newFacts": added,
         }
+        if cik in lines.config():
+            # A failure here leaves the company's own lines unread, so its debt reads as unknown: never zero.
+            try:
+                out["companyLines"] = lines.refresh_lines(self.fetcher, self.store, cik, LINE_WATCH)
+            except (FetchError, InstanceError, ValueError, ET.ParseError) as e:
+                out["companyLinesError"] = str(e)
+        return out

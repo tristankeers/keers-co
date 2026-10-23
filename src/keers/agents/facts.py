@@ -4,7 +4,7 @@ Each fact has a short key (``ev``, ``dcf.vsPrice``, ``distress.interestCover`` .
 writing its key in braces, ``{ev}``; code puts the formatted value and its source in place afterwards (see
 ``guard``). So a model can never type a number, and every number in a memo traces back to a fact here.
 
-Facts come from the workbench views: the company profile (filed figures with their SEC filings), the kci-v2
+Facts come from the workbench views: the company profile (filed figures with their SEC filings), the kci-v3
 valuation and the distress screen. Text facts (a check's reason, the engine's rationale) are sentences those
 engines wrote themselves.
 """
@@ -177,21 +177,21 @@ def _valuation(sheet: FactSheet, v: Mapping[str, Any]) -> None:
         str(_get(ps, "vsPrice", "method") or ""), "derived")  # fmt: skip
     dcf = v2.get("dcf") or {}
     if dcf.get("ok"):
-        add("dcf.ev", "DCF enterprise value", _get(dcf, "primary", "ev"), "USDm", "kci-v2 DCF")
+        add("dcf.ev", "DCF enterprise value", _get(dcf, "primary", "ev"), "USDm", "kci-v3 DCF")
         add("dcf.tvShare", "Terminal value share of DCF enterprise value", _get(dcf, "primary", "tvShareOfEV"),
             "ratio", "present value of terminal value ÷ DCF enterprise value")  # fmt: skip
     wacc = v2.get("wacc") or {}
     if wacc.get("ok"):
-        add("dcf.wacc", "Discount rate (WACC)", wacc.get("value"), "ratio", "kci-v2 WACC", "assumption")
+        add("dcf.wacc", "Discount rate (WACC)", wacc.get("value"), "ratio", "kci-v3 WACC", "assumption")
     for sc in ("downside", "base", "upside"):
         r = _get(v2, "scenarios", sc, "result", "returns") or {}
-        add(f"lbo.{sc}.irr", f"Buyout IRR, {sc} case", r.get("irr"), "ratio", f"kci-v2 LBO, {sc} scenario")
-        add(f"lbo.{sc}.moic", f"Buyout MOIC, {sc} case", r.get("moic"), "x", f"kci-v2 LBO, {sc} scenario")
+        add(f"lbo.{sc}.irr", f"Buyout IRR, {sc} case", r.get("irr"), "ratio", f"kci-v3 LBO, {sc} scenario")
+        add(f"lbo.{sc}.moic", f"Buyout MOIC, {sc} case", r.get("moic"), "x", f"kci-v3 LBO, {sc} scenario")
     entry = _get(v2, "lbo", "entry") or {}
     add("lbo.entryMultiple", "Buyout entry EV / EBITDA (with takeover premium)", entry.get("entryMultiple"), "x",
-        "kci-v2 LBO entry", "assumption")  # fmt: skip
+        "kci-v3 LBO entry", "assumption")  # fmt: skip
     score = v2.get("score") or {}
-    add("score.total", "Attractiveness score", score.get("total"), "score", "kci-v2 weighted score")
+    add("score.total", "Attractiveness score", score.get("total"), "score", "kci-v3 weighted score")
     for comp in score.get("components") or []:
         if comp.get("score") is not None:
             add(f"score.{comp['key']}", f"Score: {comp.get('label')}", comp.get("score"), "score",
@@ -199,9 +199,9 @@ def _valuation(sheet: FactSheet, v: Mapping[str, Any]) -> None:
     rec = v2.get("rec") or {}
     if rec.get("decision"):
         sheet.add(Fact("lbo.decision", "Buyout engine's decision", str(rec["decision"]), "text", "engine",
-                       "kci-v2 recommendation rule", eng))  # fmt: skip
+                       "kci-v3 recommendation rule", eng))  # fmt: skip
         sheet.add(Fact("lbo.rationale", "Buyout engine's reason", str(rec.get("rationale") or ""), "text", "engine",
-                       "kci-v2 recommendation rule", eng))  # fmt: skip
+                       "kci-v3 recommendation rule", eng))  # fmt: skip
     sheet.warnings += [str(w) for w in v.get("warnings") or [] if str(w) not in sheet.warnings]
 
 

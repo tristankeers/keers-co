@@ -16,7 +16,7 @@ decision, trade).
 
 ## How a run works (`src/keers/agents/committee.py`)
 
-1. **Fact sheet** (`facts.py`). The profile (filed figures with their SEC filings), the kci-v2 valuation and
+1. **Fact sheet** (`facts.py`). The profile (filed figures with their SEC filings), the kci-v3 valuation and
    the distress screen are read into a list of facts, each with a key such as `ev`, `dcf.vsPrice` or
    `distress.interestCover.reason`, a value, a label (reported, derived, market, assumption, estimate,
    engine) and its source.

@@ -189,7 +189,7 @@ def test_ifrs_deal_is_translated_to_dollars_at_one_rate() -> None:
     # Ratios do not move with the translation.
     assert deal["ev"] / deal["ebitda"] == pytest.approx(snap.values["ev"].value / snap.values["ebitda"].value)
     out = snapshot.analyse(snap)
-    assert out["ran"] and out["analysis"]["calcVersion"] == "kci-v2"
+    assert out["ran"] and out["analysis"]["calcVersion"] == "kci-v3"
 
 
 def test_annual_accounts_go_stale_after_the_annual_limit() -> None:

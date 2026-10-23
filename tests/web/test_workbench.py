@@ -38,7 +38,7 @@ def client(db: Path) -> TestClient:
 def test_status_reports_offline_and_versions(client: TestClient) -> None:
     s = client.get("/api/status").json()
     assert s["live"] is False and s["secEnabled"] is False
-    assert s["defaultCalcVersion"] == "kci-v2" and s["screenVersion"] == "distress-v1"
+    assert s["defaultCalcVersion"] == "kci-v3" and s["screenVersion"] == "distress-v1"
     assert [c["ticker"] for c in s["companies"]] == ["EXW"]
     assert "personal research only" in s["notice"]
 
@@ -132,9 +132,9 @@ def test_unknown_listing_is_prices_only_and_not_valued(client: TestClient) -> No
 
 
 # valuation ----------------------------------------------------------------------------------------------------
-def test_valuation_runs_v2_and_compares_with_v1(client: TestClient) -> None:
+def test_valuation_runs_v3_and_compares_with_v1(client: TestClient) -> None:
     v = client.get("/api/companies/EXW/valuation").json()
-    assert v["ran"] and v["calcVersion"] == "kci-v2" and v["custom"] == {}
+    assert v["ran"] and v["calcVersion"] == "kci-v3" and v["custom"] == {}
     rows = {r["title"]: r for r in v["comparison"]}
     assert rows["Beta used"]["v1"] == 1.1  # v1's house beta
     assert rows["Beta used"]["v2"] == pytest.approx({f["key"]: f for f in v["inputs"]}["beta"]["value"])
