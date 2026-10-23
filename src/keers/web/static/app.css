@@ -233,6 +233,34 @@ details[open] > summary { margin-bottom: 6px; }
 .src { border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; margin-top: 8px; font-size: 12px; }
 .src .hash { color: var(--faint); font: 10.5px var(--mono); word-break: break-all; }
 
+/* top navigation ------------------------------------------------------------------------------------------ */
+.nav { display: flex; gap: 2px; }
+.nav a { padding: 4px 10px; text-decoration: none; color: var(--muted); border-radius: 3px; white-space: nowrap; }
+.nav a:hover { color: var(--text); background: var(--panel-2); }
+.nav a[aria-current="page"] { color: var(--text); background: var(--panel-2); font-weight: 600; }
+
+/* paper portfolio ---------------------------------------------------------------------------------------- */
+.form { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+.form label { display: grid; gap: 3px; color: var(--muted); font-size: 11.5px; min-width: 0; }
+.form input:not([type="checkbox"]), .form select { width: 100%; }
+.btn.primary:disabled { background: transparent; color: var(--muted); border-color: var(--line-strong); cursor: not-allowed; }
+.form label.check { display: flex; gap: 6px; align-items: center; }
+.form input:not([type="checkbox"]), .form select, select.sel {
+  height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 3px;
+  background: var(--bg); color: var(--text); font: 13px var(--sans); min-width: 0;
+}
+.form input:disabled, .form select:disabled { opacity: .5; }
+.form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+select.sel { margin-left: 10px; vertical-align: 3px; }
+tr.closed td { color: var(--faint); }
+.bar-row { display: grid; grid-template-columns: minmax(70px, 160px) 1fr 56px; gap: 10px; align-items: center; padding: 3px 0; }
+.bar-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-row > span:last-child { text-align: right; }
+.bar { position: relative; height: 10px; background: var(--panel-2); border-radius: 2px; }
+.bar .fillx { position: absolute; left: 0; top: 0; bottom: 0; background: var(--c-market); border-radius: 2px; }
+.bar .fillx.over { background: var(--down); }
+.bar .cap { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .55; }
+
 .loading { color: var(--muted); padding: 24px 0; }
 .err { color: var(--down); }
 .home-hero { padding: 24px 0 8px; }
@@ -242,5 +270,6 @@ details[open] > summary { margin-bottom: 6px; }
   .brand-sub, .hint { display: none; }
   .topbar { gap: 10px; }
   .sys { display: none; }
+  .nav a { padding: 4px 6px; }
   .news li { grid-template-columns: 1fr; gap: 2px; }
 }
