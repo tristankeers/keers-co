@@ -2,7 +2,7 @@
 # or SYMBOL | cik=<SEC CIK> to use an SEC 20-F/40-F filer's accounts. Real companies, for live checks only.
 VOD.L | VODAFONE GROUP PLC
 AZN.L | ASTRAZENECA PLC
-SAP.DE | SAP SE
+SAP.DE | cik=1000184   # SAP files 20-F with the SEC; its ESEF entry has no reports
 SIE.DE | SIEMENS AG-REG
 TTE.PA | TOTALENERGIES SE
 ASML.AS | ASML HOLDING NV
