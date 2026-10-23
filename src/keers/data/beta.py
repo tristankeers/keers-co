@@ -6,12 +6,17 @@ then Blume-adjusted (0.67 × raw + 0.33), the usual correction for raw betas dri
 
 The beta is missing, never guessed, when either series lacks adjusted closes, the benchmark is stale, or there
 are fewer than ``MIN_WEEKS`` paired weekly returns (a recent listing, say).
+
+A share quoted in another currency is first converted to US dollars with each week's exchange rate (FRED or ECB,
+``keers.data.fx``), so the beta is that of a dollar investor's returns against the US market: the same basis as
+the dollar valuation it feeds. The benchmark stays SPY; a local-market beta is not computed.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 
+from . import fx
 from .models import Kind, Value, missing
 from .store import Store
 
@@ -44,9 +49,34 @@ def regress(y: list[float], x: list[float]) -> tuple[float, float]:
     return slope, r2
 
 
-def beta(store: Store, ticker: str, as_of: date, benchmark: str = BENCHMARK) -> Value:
+def _in_usd(
+    daily: list[tuple[date, float | None]], rates: dict[date, float]
+) -> list[tuple[date, float | None]]:
+    """Each close times the last published US-dollar rate on or before its day (within ``fx.MAX_AGE_DAYS``)."""
+    days = sorted(rates)
+    out: list[tuple[date, float | None]] = []
+    i = -1
+    for day, adj in daily:
+        while i + 1 < len(days) and days[i + 1] <= day:
+            i += 1
+        ok = adj is not None and i >= 0 and (day - days[i]).days <= fx.MAX_AGE_DAYS
+        out.append((day, adj * rates[days[i]] if ok and adj is not None else None))
+    return out
+
+
+def beta(store: Store, ticker: str, as_of: date, benchmark: str = BENCHMARK, currency: str = "USD") -> Value:
+    """``currency`` is the currency the share is quoted in. An empty string means unknown: no beta."""
     start = as_of - timedelta(days=LOOKBACK_DAYS)
     stock_daily = store.adjusted_closes(ticker, start, as_of)
+    note = ""
+    if not currency:
+        return missing("x", "beta: the currency of the share price is not known")
+    if fx.major(currency) != ("USD", 1.0):
+        rates = fx.daily_usd_per(store, currency, start - timedelta(days=fx.MAX_AGE_DAYS), as_of)
+        if isinstance(rates, str):
+            return missing("x", f"beta: cannot convert {currency} prices to USD: {rates}")
+        stock_daily = _in_usd(stock_daily, rates)
+        note = f"; {currency} prices converted to USD at each day's rate"
     bench_daily = store.adjusted_closes(benchmark, start, as_of)
     if not bench_daily:
         return missing("x", f"beta: no {benchmark} prices in the store")
@@ -66,7 +96,7 @@ def beta(store: Store, ticker: str, as_of: date, benchmark: str = BENCHMARK) -> 
     adjusted = BLUME_WEIGHT * raw + (1 - BLUME_WEIGHT)
     method = (
         f"weekly returns vs {benchmark}, {len(pairs)} weeks to {as_of}: raw {raw:.3f}, R² {r2:.2f}, "
-        f"Blume-adjusted {BLUME_WEIGHT} × raw + {1 - BLUME_WEIGHT:.2f}"
+        f"Blume-adjusted {BLUME_WEIGHT} × raw + {1 - BLUME_WEIGHT:.2f}{note}"
     )
     last = min(stock_daily[-1][0], bench_daily[-1][0])
     src = {"source": "prices", "ticker": ticker.upper(), "benchmark": benchmark, "weeks": len(pairs),

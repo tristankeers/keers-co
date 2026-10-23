@@ -1,0 +1,16 @@
+# Non-US listings for the foreign-filings probe: SYMBOL | name as the global universe (OpenFIGI) writes it,
+# or SYMBOL | cik=<SEC CIK> to use an SEC 20-F/40-F filer's accounts. Real companies, for live checks only.
+VOD.L | VODAFONE GROUP PLC
+AZN.L | ASTRAZENECA PLC
+SAP.DE | SAP SE
+SIE.DE | SIEMENS AG-REG
+TTE.PA | TOTALENERGIES SE
+ASML.AS | ASML HOLDING NV
+IBE.MC | IBERDROLA SA
+ENEL.MI | ENEL SPA
+NOVO-B.CO | NOVO NORDISK A/S-B
+VOLV-B.ST | VOLVO AB-B
+SHEL.L | cik=1306965
+# SEC tickers of foreign filers: a 20-F filer's US listing (expect no market cap: depositary shares) and a 40-F filer
+SAP
+CNQ

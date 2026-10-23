@@ -61,9 +61,10 @@ It also says how much of it to trust:
 
 ## Where coverage is thin
 
-**Fundamentals.** Only SEC filers (`coverage = "sec"`) have financial statements today. For every other listing
-the platform can show prices, charts and headlines, but the snapshot, the KCI valuation and the distress screen
-cannot run. The phased plan below adds free official filings sources market by market.
+**Fundamentals.** SEC filers (`coverage = "sec"`) have financial statements. EU and UK listed companies (ESEF
+annual reports) and home listings of SEC 20-F/40-F filers get them once linked to their filer: see
+[foreign-financials.md](foreign-financials.md). The `coverage` field still says `prices-only` for those until the
+universe build records links. Other markets are prices-only.
 
 **Listings.** About 41 exchanges are covered. Not yet covered: Vietnam, Argentina, Colombia, Peru, Egypt,
 Nigeria, Kenya, Pakistan, the Gulf markets other than Saudi Arabia, Central and Eastern Europe other than
@@ -77,10 +78,12 @@ mismatches. `check` finds these; until a listing is checked its symbol is marked
 **Identity.** No ISINs, LEIs, sectors or company domicile yet. `country` is where the share trades, not where
 the company is based.
 
-## What fails for a non-US company today
+## What failed for a non-US company before phase 2
 
-These are the existing checks and what happens when a non-US company reaches them. They are why non-US listings
-are `prices-only` for now.
+These are the checks that kept non-US listings `prices-only`. [foreign-financials.md](foreign-financials.md) says
+how each is handled now: IFRS concepts, reporting currencies and FX, a reporting-cadence staleness rule, a dollar
+beta, translation to dollars for the engines. Local benchmarks, local risk-free rates and KCI's US LBO defaults
+are still US-based.
 
 | Check | What goes wrong |
 |---|---|
@@ -96,10 +99,10 @@ are `prices-only` for now.
 
 1. **Listing master (this change).** Global search, identifiers, currency and symbol checks, coverage stats,
    weekly rebuild.
-2. **SEC foreign filers.** Read the `ifrs-full` facts that 20-F and 40-F filers already send to SEC (many of the
+2. **SEC foreign filers (done, see foreign-financials.md).** Read the `ifrs-full` facts that 20-F and 40-F filers already send to SEC (many of the
    largest non-US companies), keep facts in their reporting currency, add FX rates from FRED, link those
    companies' home listings to their CIK, and add a reporting-cadence staleness rule.
-3. **Europe and UK.** Annual IFRS reports in ESEF format from filings.xbrl.org (free). Local benchmarks and
+3. **Europe and UK (done except local benchmarks and rates; valuation is in dollars instead).** Annual IFRS reports in ESEF format from filings.xbrl.org (free). Local benchmarks and
    local risk-free rates.
 4. **Asia and Brazil.** Japan's EDINET and Korea's DART (both free with a key), Brazil's CVM open data.
 5. **Markets with no free structured filings** (China, Hong Kong, India, Canada, Australia, South-East Asia):
