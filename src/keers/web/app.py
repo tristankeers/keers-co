@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from keers.data.market import price_sources
 from keers.data.refresh import DEFAULT_DB
+from keers.risk.limits import Limits
 
 from .service import InputError, Live, LiveConfig, Workbench
 
@@ -29,16 +30,23 @@ SYMBOL = r"^[A-Za-z0-9.\-=^]{1,24}$"
 
 
 def workbench_from_env() -> Workbench:
-    """Configuration from the environment, as for the command line. ``KEERS_OFFLINE=1`` turns live fetching off."""
+    """Configuration from the environment, as for the command line. ``KEERS_OFFLINE=1`` turns live fetching off.
+
+    ``KEERS_PAPER_DB`` moves the paper-trading ledger (default: ``paper.sqlite`` next to the store) and
+    ``KEERS_RISK_LIMITS`` names a JSON file that replaces every risk limit (all keys required).
+    """
     db = os.environ.get("KEERS_DB", DEFAULT_DB)
+    paper = os.environ.get("KEERS_PAPER_DB", "").strip() or None
+    limits_file = os.environ.get("KEERS_RISK_LIMITS", "").strip()
+    limits = Limits.from_json(limits_file) if limits_file else None
     if os.environ.get("KEERS_OFFLINE", "").strip() in ("1", "true", "yes"):
-        return Workbench(db)
+        return Workbench(db, paper_db=paper, limits=limits)
     cfg = LiveConfig(
         sec_user_agent=os.environ.get("SEC_USER_AGENT", "").strip() or None,
         tiingo_token=os.environ.get("TIINGO_TOKEN", "").strip() or None,
         price_sources=price_sources(os.environ.get("KEERS_PRICE_SOURCES")),
     )
-    return Workbench(db, Live(cfg))
+    return Workbench(db, Live(cfg), paper_db=paper, limits=limits)
 
 
 def create_app(wb: Workbench | None = None) -> FastAPI:
@@ -109,6 +117,27 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     @app.get("/api/companies/{symbol}/distress")
     def distress(symbol: str) -> dict[str, Any]:
         return wb.distress(sym(symbol))
+
+    # paper portfolios: every trade is checked by keers.risk before it can fill ---------------------------------
+    @app.get("/api/portfolios")
+    def portfolios() -> dict[str, Any]:
+        return wb.portfolios()
+
+    @app.post("/api/portfolios")
+    def create_portfolio(body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.create_portfolio(str(body.get("name") or ""), body.get("startingCash"))
+
+    @app.get("/api/portfolios/{pid}")
+    def portfolio(pid: int) -> dict[str, Any]:
+        return wb.portfolio(pid)
+
+    @app.post("/api/portfolios/{pid}/preview")
+    def preview(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.paper_trade(pid, body, execute=False)
+
+    @app.post("/api/portfolios/{pid}/trades")
+    def trade(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.paper_trade(pid, body, execute=True)
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

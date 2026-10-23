@@ -5,7 +5,8 @@ name: Workbench live check
 
 on:
   pull_request:
-    paths: ["src/keers/web/**", "scripts/workbench_check.py", ".github/workflows/workbench-live.yml"]
+    paths: ["src/keers/web/**", "src/keers/portfolio/**", "src/keers/risk/**", "scripts/workbench_check.py",
+            ".github/workflows/workbench-live.yml"]
   workflow_dispatch:
     inputs:
       symbols:

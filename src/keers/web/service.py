@@ -23,7 +23,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from pathlib import Path
@@ -40,6 +40,10 @@ from keers.data.models import Value
 from keers.data.refresh import PRICE_HISTORY_DAYS
 from keers.data.sec import SEC, TICKERS_URL, ParseError
 from keers.data.store import Store
+from keers.portfolio import market as PM
+from keers.portfolio.desk import Desk, TradeError, TradeRequest
+from keers.portfolio.ledger import Ledger
+from keers.risk.limits import Limits
 from keers.strategies import distress
 from keers.valuation import kci_v1_defaults as V1
 from keers.valuation import kci_v2_defaults as V2
@@ -322,8 +326,13 @@ class Workbench:
         data_dir: Path | None = None,
         today: Callable[[], date] = date.today,
         extra_directories: list[Directory] | None = None,
+        paper_db: str | None = None,
+        limits: Limits | None = None,
     ) -> None:
         self.db_path = db_path
+        self.paper_db = paper_db or str(Path(db_path).resolve().parent / "paper.sqlite")
+        self.limits = limits or Limits()
+        self.paper_lock = threading.Lock()  # one paper trade at a time, so each sees the last one's cash
         self.live = live
         self.today = today
         data_dir = data_dir or Path(db_path).resolve().parent
@@ -556,27 +565,34 @@ class Workbench:
                 "fetchedFrom": "store" if error or self.live is None else "yahoo"}  # fmt: skip
 
     # charts -----------------------------------------------------------------------------------------------------
+    def _refresh_daily(self, sym: str, notes: list[str]) -> str | None:
+        """Fetch daily prices when the stored ones are more than a business day old. Returns the error, if any."""
+        today = self.today()
+        with self.store() as st:
+            last = st.last_price(sym)
+        if self.live is None or (last is not None and S.business_days_between(last.day, today) <= 1) \
+                or not self.live.due(("daily", sym), BARS_MAX_AGE):  # fmt: skip
+            return None
+        try:
+            with self.live.slot(f"daily prices {sym}"), self.store() as st:
+                res = self.live.market(st).refresh_prices(sym, today - timedelta(days=CHART_DAYS))
+        except LIVE_ERRORS as e:
+            return str(e)
+        notes += res.get("notes", [])
+        if res.get("fallbackFrom"):
+            notes.append(
+                f"fell back to {res['source']}: "
+                + "; ".join(f"{k}: {v}" for k, v in res["fallbackFrom"].items())
+            )
+        return None
+
     def bars(self, symbol: str, interval: str = "1d") -> dict[str, Any]:
         sym = sources.symbol(symbol)
         today = self.today()
         error = None
         notes: list[str] = []
         if interval == "1d":
-            with self.store() as st:
-                last = st.last_price(sym)
-            if self.live is not None and (last is None or S.business_days_between(last.day, today) > 1) \
-                    and self.live.due(("daily", sym), BARS_MAX_AGE):  # fmt: skip
-                try:
-                    with self.live.slot(f"daily prices {sym}"), self.store() as st:
-                        res = self.live.market(st).refresh_prices(sym, today - timedelta(days=CHART_DAYS))
-                    notes += res.get("notes", [])
-                    if res.get("fallbackFrom"):
-                        notes.append(
-                            f"fell back to {res['source']}: "
-                            + "; ".join(f"{k}: {v}" for k, v in res["fallbackFrom"].items())
-                        )
-                except LIVE_ERRORS as e:
-                    error = str(e)
+            error = self._refresh_daily(sym, notes)
             with self.store() as st:
                 pts = sources.price_history(st, sym, today - timedelta(days=CHART_DAYS), today)
             rows = []
@@ -707,6 +723,81 @@ class Workbench:
         return [{"key": k, "title": titles.get(k, k),
                  **labelled(snap.values[k], snap.cik, snap.ticker, (k == "price" and price_stale) or (k in FUNDAMENTAL_KEYS and fund_stale))}
                 for k in keys if k in snap.values]  # fmt: skip
+
+    # paper portfolios ------------------------------------------------------------------------------------------
+    def paper_mark(self, symbol: str) -> PM.MarketMark:
+        """The latest Yahoo price for a paper fill or mark (fetched first when live), with ADV and a sector hint."""
+        sym = sources.symbol(symbol)
+        if self.live is not None:
+            self.quote(sym)  # refreshes the stored quote at most every QUOTE_MAX_AGE seconds
+            self._refresh_daily(sym, [])
+        found = self.local_directory.get(sym)
+        with self.store() as st:
+            m = PM.mark(st, sym, self.today(), (found.currency if found else None) or None, self.limits.adv_days,
+                        self.limits.min_adv_days)  # fmt: skip
+            co = st.company(sym)
+        if found is not None and found.sector:
+            return replace(m, sector=found.sector, sector_basis="listing")
+        sic_sector = PM.sector_from_sic(co.get("sic") if co else None)
+        if sic_sector:
+            return replace(m, sector=sic_sector, sector_basis="sic")
+        return m
+
+    def _closes(self, symbol: str, start: date, end: date) -> list[tuple[date, float]]:
+        with self.store() as st:
+            return PM.closes(st, symbol, start, end)
+
+    @contextmanager
+    def desk(self) -> Iterator[Desk]:
+        ledger = Ledger(self.paper_db)
+        try:
+            yield Desk(ledger, self.paper_mark, self._closes, self.today, self.limits)
+        finally:
+            ledger.close()
+
+    def portfolios(self) -> dict[str, Any]:
+        with self.desk() as d:
+            ps = d.ledger.portfolios()
+        return {
+            "portfolios": [p.as_dict() for p in ps],
+            "limits": self.limits.as_dict(),
+            "notice": PAPER_NOTICE,
+        }
+
+    def create_portfolio(self, name: str, starting_cash: Any) -> dict[str, Any]:
+        try:
+            cash = float(starting_cash)
+        except (TypeError, ValueError) as e:
+            raise InputError("starting cash must be a number") from e
+        with self.paper_lock, self.desk() as d:
+            try:
+                p = d.ledger.create_portfolio(name, cash, self.limits.base_currency)
+            except ValueError as e:
+                raise InputError(str(e)) from e
+        return p.as_dict()
+
+    def portfolio(self, pid: int) -> dict[str, Any]:
+        with self.desk() as d:
+            try:
+                out = d.view(pid)
+            except TradeError as e:
+                raise InputError(str(e)) from e
+        out["notice"] = PAPER_NOTICE
+        return out
+
+    def paper_trade(self, pid: int, body: Mapping[str, Any], execute: bool) -> dict[str, Any]:
+        with self.paper_lock, self.desk() as d:
+            try:
+                req = TradeRequest.from_dict(dict(body))
+                return d.execute(pid, req) if execute else d.preview(pid, req)
+            except TradeError as e:
+                raise InputError(str(e)) from e
+
+
+PAPER_NOTICE = (
+    "Paper trading only: no broker is connected and no real order is ever sent. Fills are simulated at the latest "
+    "Yahoo price with a slippage and commission margin."
+)
 
 
 def _trim(a: Mapping[str, Any]) -> dict[str, Any]:

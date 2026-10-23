@@ -74,12 +74,46 @@ def main() -> int:
         print(f"{sym}: refresh {'ok' if row['refresh']['ok'] else row['refresh']['errors']} in {row['refreshSeconds']}s; "
               f"valuation ran={v['ran']}; distress={d['status']}; daily bars={row['bars_1d']['n']}; "
               f"5m bars={row['bars_5m']['n']}; news={row['news']['n']}")  # fmt: skip
+    summary["paper"] = paper_check(client, a.symbols, failures)
     (OUT / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
     if a.screens:
         screens(a.symbols)
     for f in failures:
         print(f"::error::{f}")
     return 1 if failures else 0
+
+
+def paper_check(client: Any, symbols: list[str], failures: list[str]) -> dict[str, Any]:
+    """Paper trading on live prices: a small trade in each symbol, through the risk checks. Nothing real is sent."""
+    out: dict[str, Any] = {}
+    r = client.post("/api/portfolios", json={"name": f"Live check {time.strftime('%Y-%m-%d %H:%M')}",
+                                             "startingCash": 1_000_000})  # fmt: skip
+    if r.status_code != 200:
+        failures.append(f"paper: could not create a portfolio: {r.text[:200]}")
+        return out
+    pid = r.json()["id"]
+    for sym in symbols:
+        t = client.post(f"/api/portfolios/{pid}/trades", json={"symbol": sym, "strategy": "B", "side": "buy",
+                                                               "weight": 0.02})  # fmt: skip
+        if t.status_code != 200:
+            out[sym] = {"error": t.text[:300]}
+            failures.append(f"paper {sym}: {t.status_code} {t.text[:200]}")
+            continue
+        j = t.json()
+        out[sym] = {"filled": j["filled"], "quantity": j["quantity"], "mark": j["mark"], "fill": j["fill"],
+                    "breaches": [(b["name"], b["detail"]) for b in j["risk"]["breaches"]]}  # fmt: skip
+        print(f"paper {sym}: {'filled' if j['filled'] else 'blocked'} {j['quantity']} at "
+              f"{j['mark']['price']} ({j['mark']['source']} {j['mark']['at']}); "
+              f"breaches: {'; '.join(b['name'] for b in j['risk']['breaches']) or 'none'}")  # fmt: skip
+    v = client.get(f"/api/portfolios/{pid}")
+    if v.status_code != 200:
+        failures.append(f"paper view: {v.status_code} {v.text[:200]}")
+        return out
+    s = v.json()["summary"]
+    out["summary"] = s
+    out["bookBreaches"] = [(b["name"], b["detail"]) for b in v.json()["risk"]["breaches"]]
+    print(f"paper book: NAV {s['nav']}, gross {s['grossPct']}, breaches {len(out['bookBreaches'])}")
+    return out
 
 
 def screens(symbols: list[str]) -> None:
@@ -94,6 +128,9 @@ def screens(symbols: list[str]) -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1440, "height": 1000}, color_scheme="dark")
+        page.goto("http://127.0.0.1:8777/#/portfolio")
+        page.wait_for_timeout(5000)
+        page.screenshot(path=str(OUT / "portfolio.png"), full_page=True)
         for sym in symbols:
             for tab in ("overview", "valuation", "distress", "chart", "news"):
                 page.goto(f"http://127.0.0.1:8777/#/c/{sym}/{tab}")

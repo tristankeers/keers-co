@@ -47,6 +47,11 @@ export SEC_USER_AGENT="Your Name you@example.com"
 python -m keers.web                  # http://127.0.0.1:8000 ; KEERS_OFFLINE=1 for the store only
 ```
 
+The Portfolio tab holds paper portfolios: positions tagged by strategy (A, B, C), simulated fills at the latest
+Yahoo price with a slippage and commission margin, P&L, exposures and drawdown. Every trade goes through the
+deterministic risk limits in `src/keers/risk/` first and fills only if every check passes; blocked attempts are
+recorded too. See `docs/paper-portfolio.md`.
+
 It runs on your own machine only: Yahoo's data is for personal use, so do not put it on a public address. Why
 this stack: `docs/adr/0004-research-workbench-stack.md`. The `workbench-live.yml` workflow runs it against the
 live sources and saves screenshots.

@@ -267,12 +267,15 @@ async function route() {
   closeDrawer();
   if (chartHandle) { chartHandle.remove(); chartHandle = null; }
   const parts = location.hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  const section = parts[0] === "portfolio" ? "#/portfolio" : "#/";
+  document.querySelectorAll(".nav a").forEach((a) => a.setAttribute("aria-current", a.getAttribute("href") === section ? "page" : "false"));
   if (parts[0] === "c" && parts[1]) {
     const symbol = parts[1].toUpperCase();
     const tab = TABS.some(([k]) => k === parts[2]) ? parts[2] : "overview";
     return companyView(symbol, tab);
   }
   current = { symbol: null, company: null };
+  if (parts[0] === "portfolio") return portfolioView(parts[1], parts[2]);
   return homeView();
 }
 window.addEventListener("hashchange", route);
@@ -458,7 +461,9 @@ function tabsBar(c, tab) {
     onclick: () => runRefresh(c, tab, btn) }, "Refresh from sources");
   return h("nav", { class: "tabs" },
     TABS.map(([k, label]) => h("a", { href: `#/c/${encodeURIComponent(c.symbol)}/${k}`, "aria-current": k === tab ? "page" : null }, label)),
-    h("span", { class: "spacer" }), btn);
+    h("span", { class: "spacer" }),
+    h("a", { class: "btn", style: "line-height:26px;text-decoration:none;margin-right:8px", href: `#/portfolio/trade/${encodeURIComponent(c.symbol)}`, title: "Open the paper portfolio with a trade ticket for this company" }, "Paper trade"),
+    btn);
 }
 
 // --- overview ------------------------------------------------------------------------------------------------
@@ -800,6 +805,267 @@ async function valuationTab(c, body, edits = null) {
       h("td", {}, f.title), h("td", { class: "n" }, fval(f.value, f.unit)), h("td", { class: "muted" }, unitText(f.unit, "USD")), h("td", {}, chips(f))))))));
 
   fill(body, kpis, status, h("div", { class: "grid cols-2" }, h("div", { class: "stack" }, dcfPanel, lboPanel), h("div", { class: "stack" }, cmp, recPanel, inPanel)));
+}
+
+// --- paper portfolio -----------------------------------------------------------------------------------------
+// Display and data entry only. Sizing, fills, P&L and every risk check happen in Python (keers.portfolio,
+// keers.risk); this code shows what the API returns and never decides whether a trade may go ahead.
+const CHECK_TEXT = {
+  "data.strategy": "Strategy tag", "data.trade_price": "Trade price fresh", "data.currency": "Currency",
+  "data.book_prices": "Book prices fresh", "data.sector": "Sector known", "position.size": "Position size",
+  "concentration.sector": "Sector concentration", "concentration.strategy": "Strategy concentration",
+  "liquidity.trade": "Trade vs volume", "liquidity.position": "Position vs volume", "exposure.gross": "Gross exposure",
+  "exposure.net": "Net exposure", "cash.no_borrowing": "No borrowing", "drawdown": "Drawdown",
+};
+const STATUS_LVL = { pass: "clear", warn: "watch", fail: "severe", unknown: "unknown" };
+function checkBadge(st) { return h("span", { class: `lvl ${STATUS_LVL[st] || "unknown"}` }, st); }
+function money(v, dp = 0) { return isNum(v) ? fnum(v, dp) : "—"; }
+function pnlCell(v, dp = 0) { return h("td", { class: `n ${isNum(v) ? (v < 0 ? "neg" : v > 0 ? "pos" : "") : ""}` }, isNum(v) ? signed(fnum(v, dp), v) : "—"); }
+
+function checksTable(checks) {
+  return h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Check"), h("th", {}, "Result"), h("th", {}, "On"), h("th", {}, "Detail"))),
+    h("tbody", {}, checks.map((c) => h("tr", {}, h("td", {}, CHECK_TEXT[c.name] || c.name), h("td", {}, checkBadge(c.status)),
+      h("td", { class: "mono" }, c.subject || ""), h("td", { class: "muted" }, c.detail)))));
+}
+
+let PF = { id: null, data: null, list: null, prefill: null };
+
+async function portfolioView(idPart, symPart) {
+  document.title = "Paper portfolio · Keers & Co";
+  fill(view, h("div", { class: "loading" }, "Loading the paper portfolio…"));
+  let list;
+  try { list = await api("/api/portfolios"); } catch (e) { fill(view, h("div", { class: "callout bad" }, e.message)); return; }
+  if (idPart === "trade" && symPart) PF.prefill = { symbol: symPart.toUpperCase() };
+  if (!list.portfolios.length) return createPortfolioView(list);
+  const wanted = Number(idPart);
+  const p = list.portfolios.find((x) => x.id === wanted) || list.portfolios[0];
+  PF.id = p.id;
+  return renderPortfolio(list, p.id);
+}
+
+function createPortfolioView(list) {
+  const name = h("input", { value: "Paper", "aria-label": "Portfolio name", maxlength: 60 });
+  const cash = h("input", { value: "1000000", inputmode: "decimal", "aria-label": "Starting cash" });
+  const msg = h("p", { class: "err" });
+  const go = async () => {
+    try {
+      const p = await api("/api/portfolios", { method: "POST", body: JSON.stringify({ name: name.value, startingCash: Number(cash.value) }) });
+      location.hash = `#/portfolio/${p.id}`;
+    } catch (e) { msg.textContent = e.message; }
+  };
+  fill(view, h("div", { class: "home-hero" }, h("h1", {}, "Paper portfolio"), h("p", {}, list.notice)),
+    h("section", { class: "panel", style: "max-width:520px" },
+      h("div", { class: "ph" }, h("h2", {}, "Start a paper portfolio")),
+      h("div", { class: "pb form" },
+        h("label", {}, "Name", name), h("label", {}, `Starting cash (${list.limits.base_currency})`, cash),
+        h("button", { class: "btn primary", onclick: go }, "Create"), msg,
+        h("p", { class: "faint" }, "Every trade is checked against the risk limits before it can fill. Orders are never deleted, so the record shows everything that was tried."))));
+}
+
+async function renderPortfolio(list, pid) {
+  let d;
+  try { d = await api(`/api/portfolios/${pid}`, { timeout: 90000 }); } catch (e) {
+    fill(view, h("div", { class: "callout bad" }, h("strong", {}, "Could not load the portfolio. "), e.message,
+      h("div", { style: "margin-top:10px" }, h("button", { class: "btn primary", onclick: () => renderPortfolio(list, pid) }, "Retry"))));
+    return;
+  }
+  PF.data = d; PF.list = list;
+  const s = d.summary, r = d.risk, cur = d.portfolio.baseCurrency;
+  const picker = list.portfolios.length > 1 ? h("select", { class: "sel", "aria-label": "Portfolio", onchange: (e) => { location.hash = `#/portfolio/${e.target.value}`; } },
+    list.portfolios.map((p) => h("option", { value: p.id, selected: p.id === pid ? true : null }, p.name))) : null;
+
+  const kpis = h("div", { class: "kpis" },
+    kpi("Net asset value", money(s.nav), `${cur} · started with ${money(s.startingCash)}`),
+    kpi("Total P&L", isNum(s.pnl) ? signed(fnum(s.pnl, 0), s.pnl) : "—", `${isNum(s.totalReturn) ? signed(fpct(s.totalReturn, 2), s.totalReturn) : "—"} · realised ${money(s.realised)} · unrealised ${money(s.unrealised)} · costs ${money(s.commissions)}`),
+    kpi("Cash", money(s.cash), `${fpct(s.cashPct, 1)} of NAV`),
+    kpi("Gross / net exposure", `${fpct(s.grossPct, 0)} / ${fpct(s.netPct, 0)}`, `long ${money(s.long)} · short ${money(s.short)}`),
+    kpi("Drawdown", fpct(s.drawdown, 1), `worst ${fpct(s.maxDrawdown, 1)} · halt at ${fpct(d.limits.drawdown_halt, 0)}`),
+  );
+
+  const riskPanel = h("section", { class: "panel" },
+    h("div", { class: "ph" }, h("h2", {}, "Risk limits on the current book"), h("span", { class: "faint mono" }, r.limitsVersion)),
+    h("div", { class: "pb" }, r.breaches.length
+      ? h("div", { class: "callout bad" }, h("strong", {}, `${r.breaches.length} breach${r.breaches.length > 1 ? "es" : ""}. `), "Trades that add to a breach are blocked; trades that reduce it are allowed.",
+        h("ul", {}, r.breaches.map((b) => h("li", {}, `${CHECK_TEXT[b.name] || b.name}${b.subject ? ` (${b.subject})` : ""}: ${b.detail}`))))
+      : h("div", { class: "callout" }, h("strong", {}, "No breaches. "), "Every limit is within bounds and every price is fresh."),
+      r.warnings.length ? h("div", { class: "callout warn", style: "margin-top:8px" }, h("ul", {}, r.warnings.map((w) => h("li", {}, `${CHECK_TEXT[w.name] || w.name}: ${w.detail}`)))) : null,
+      h("details", { style: "margin-top:10px" }, h("summary", {}, `All checks (${r.checks.length})`), checksTable(r.checks)),
+      h("details", { style: "margin-top:6px" }, h("summary", {}, "The limits"), limitsTable(d.limits, d.costs))));
+
+  const posPanel = h("section", { class: "panel" },
+    h("div", { class: "ph" }, h("h2", {}, `Positions (${d.positions.filter((x) => x.open).length} open)`), h("span", { class: "faint" }, "Marked at the latest Yahoo price")),
+    h("div", { class: "pb flush scroll-x" }, d.positions.length ? h("table", {},
+      h("thead", {}, h("tr", {}, ["Symbol", "Strategy", "Sector", "Shares", "Avg cost", "Price", "Market value", "Weight", "Unrealised", "Realised", "P&L", ""].map((t, i) => h("th", { class: i >= 3 && i <= 10 ? "n" : "" }, t)))),
+      h("tbody", {}, d.positions.map((p) => h("tr", { class: p.open ? "" : "closed" },
+        h("td", { class: "mono" }, h("a", { href: `#/c/${encodeURIComponent(p.symbol)}` }, p.symbol)),
+        h("td", { title: d.strategies[p.strategy] }, p.strategy),
+        h("td", { title: p.sectorBasis ? `sector from: ${p.sectorBasis}` : "" }, p.sector || "—"),
+        h("td", { class: "n" }, fnum(p.quantity, 0)),
+        h("td", { class: "n" }, isNum(p.avgCost) ? fnum(p.avgCost, 2) : "—"),
+        h("td", { class: "n", title: [p.priceSource, p.priceAt, ...(p.priceWarnings || [])].filter(Boolean).join("\n") }, isNum(p.price) ? fnum(p.price, 2) : "—", " ",
+          (p.priceWarnings || []).some((w) => /^stale|no price/i.test(w)) ? chip("stale") : null),
+        h("td", { class: "n" }, money(p.marketValue)), h("td", { class: "n" }, fpct(p.weight, 1)),
+        pnlCell(p.unrealised), pnlCell(p.realised), pnlCell(p.pnl),
+        h("td", { class: "n" }, p.open ? [
+          h("button", { class: "btn", onclick: () => ticketPrefill({ symbol: p.symbol, strategy: p.strategy, side: p.quantity > 0 ? "buy" : "sell" }) }, "Size"), " ",
+          h("button", { class: "btn", onclick: () => ticketPrefill({ symbol: p.symbol, strategy: p.strategy, side: p.quantity > 0 ? "sell" : "buy", close: true }) }, "Close"),
+        ] : h("span", { class: "faint" }, "closed")))))) : h("p", { class: "muted", style: "padding:12px" }, "No positions yet. Use the trade ticket.")));
+
+  const expo = (title, obj, caps) => h("section", { class: "panel" },
+    h("div", { class: "ph" }, h("h2", {}, title)),
+    h("div", { class: "pb" }, Object.keys(obj).length ? Object.entries(obj).map(([k, v]) => {
+      const cap = typeof caps === "number" ? caps : caps?.[k];
+      const over = isNum(cap) && isNum(v.pct) && v.pct > cap;
+      return h("div", { class: "bar-row" },
+        h("span", { title: d.strategies[k] || "" }, k), h("span", { class: "bar" }, h("span", { class: over ? "fillx over" : "fillx", style: `width:${Math.min(100, Math.max(0, (v.pct || 0) * 100))}%` }),
+          isNum(cap) ? h("span", { class: "cap", style: `left:${Math.min(100, cap * 100)}%`, title: `limit ${fpct(cap, 0)}` }) : null),
+        h("span", { class: `mono ${over ? "neg" : ""}` }, fpct(v.pct, 1)));
+    }) : h("p", { class: "muted" }, "Nothing held.")));
+
+  const navPanel = h("section", { class: "panel" },
+    h("div", { class: "ph" }, h("h2", {}, "NAV by day"), h("span", { class: "faint" }, "from stored closes")),
+    h("div", { class: "pb" }, h("div", { class: "chart small", id: "nav-chart" })));
+
+  const ordersPanel = h("section", { class: "panel" },
+    h("div", { class: "ph" }, h("h2", {}, `Order record (${d.orders.length})`), h("span", { class: "faint" }, "Append-only; rejected attempts included")),
+    h("div", { class: "pb flush scroll-x" }, d.orders.length ? h("table", {},
+      h("thead", {}, h("tr", {}, ["When", "Status", "Symbol", "Strat.", "Shares", "Price used", "Fill", "Costs", "Why / note"].map((t, i) => h("th", { class: i >= 4 && i <= 7 ? "n" : "" }, t)))),
+      h("tbody", {}, d.orders.map((o) => h("tr", {},
+        h("td", { class: "mono" }, fdatetime(o.created_at)), h("td", {}, checkBadge(o.status === "filled" ? "pass" : "fail"), " ", o.status),
+        h("td", { class: "mono" }, o.symbol), h("td", {}, o.strategy), h("td", { class: "n" }, signed(fnum(o.quantity, 0), o.quantity)),
+        h("td", { class: "n", title: `${o.price_source} ${o.price_at || ""}\nraw sha256 ${o.price_sha256 || "—"}` }, isNum(o.reference_price) ? fnum(o.reference_price, 2) : "—", h("div", { class: "faint" }, o.price_source)),
+        h("td", { class: "n" }, isNum(o.fill_price) ? fnum(o.fill_price, 4) : "—"), h("td", { class: "n" }, isNum(o.commission) ? fnum(o.commission, 2) : "—"),
+        h("td", { class: o.status === "rejected" ? "neg" : "muted" }, o.reason || o.note || "")))))
+      : h("p", { class: "muted", style: "padding:12px" }, "No orders yet.")));
+
+  const ticket = h("section", { class: "panel", id: "ticket" });
+  fill(view,
+    h("div", { class: "co-head" }, h("div", { class: "co-id" }, h("div", {}, h("span", { class: "ticker" }, d.portfolio.name), h("span", { class: "name" }, "Paper portfolio"), " ", picker),
+      h("div", { class: "facts" }, h("span", {}, `${cur}`), h("span", {}, `opened ${fdate(d.portfolio.createdAt)}`), h("span", {}, `as of ${d.today}`))),
+      h("div", {}, h("button", { class: "btn", onclick: () => renderPortfolio(list, pid) }, "Reload prices"))),
+    h("div", { class: "callout", style: "margin-bottom:12px" }, d.notice),
+    kpis,
+    h("div", { class: "grid cols-2", style: "margin-top:16px" },
+      h("div", { class: "stack" }, posPanel, navPanel, ordersPanel),
+      h("div", { class: "stack" }, ticket, riskPanel, expo("Exposure by strategy (gross, % of NAV)", s.byStrategy, d.limits.max_strategy), expo("Exposure by sector (gross, % of NAV)", s.bySector, d.limits.max_sector))));
+  renderTicket(ticket, d, list, pid);
+  drawNav(d.history, s.nav, d.today);
+}
+
+function limitsTable(l, c) {
+  const rows = [
+    ["One position", fpct(l.max_position, 0) + " of NAV"], ["One sector", fpct(l.max_sector, 0) + " of NAV"],
+    ["Strategy sleeves", Object.entries(l.max_strategy).map(([k, v]) => `${k} ${fpct(v, 0)}`).join(" · ")],
+    ["One trade", `${fpct(l.max_trade_adv, 0)} of ${l.adv_days}-day average volume`], ["One position", `${fpct(l.max_position_adv, 0)} of average volume`],
+    ["Gross exposure", `up to ${fpct(l.max_gross, 0)}`], ["Net exposure", `${fpct(l.min_net, 0)} to ${fpct(l.max_net, 0)}`],
+    ["Drawdown", `warn at ${fpct(l.drawdown_warn, 0)}, halt new risk at ${fpct(l.drawdown_halt, 0)}`],
+    ["Price age", `at most ${l.max_price_age_days} business days; a stale quote blocks`], ["Currency", `${l.base_currency} only (no FX yet)`],
+    ["Fill costs", `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
+  ];
+  return h("table", {}, h("tbody", {}, rows.map(([a, b]) => h("tr", {}, h("td", {}, a), h("td", { class: "muted" }, b)))));
+}
+
+function ticketPrefill(p) {
+  PF.prefill = p;
+  const box = $("#ticket");
+  if (box && PF.data) renderTicket(box, PF.data, PF.list, PF.id);
+  box?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderTicket(box, d, list, pid) {
+  const pre = PF.prefill || {};
+  PF.prefill = null;
+  const sym = h("input", { value: pre.symbol || "", placeholder: "e.g. ADBE", "aria-label": "Symbol", autocomplete: "off", spellcheck: "false" });
+  const strat = h("select", { "aria-label": "Strategy" }, Object.entries(d.strategies).map(([k, v]) => h("option", { value: k, selected: k === (pre.strategy || "B") ? true : null }, `${k}: ${v}`)));
+  const side = h("select", { "aria-label": "Side" }, ["buy", "sell"].map((k) => h("option", { value: k, selected: k === (pre.side || "buy") ? true : null }, k === "buy" ? "Buy (or cover a short)" : "Sell (or short)")));
+  const mode = h("select", { "aria-label": "Size by" }, [["weight", "% of NAV"], ["shares", "Shares"], ["amount", `Amount (${d.portfolio.baseCurrency})`]].map(([k, v]) => h("option", { value: k }, v)));
+  const size = h("input", { inputmode: "decimal", placeholder: "e.g. 2.5", "aria-label": "Size" });
+  const closeBox = h("input", { type: "checkbox", checked: pre.close ? true : null, "aria-label": "Close the whole position" });
+  const sector = h("input", { placeholder: "from the listing or SIC code if blank", "aria-label": "Sector", maxlength: 60 });
+  const note = h("input", { placeholder: "optional", maxlength: 200, "aria-label": "Note" });
+  const out = h("div", { class: "scroll-x" });
+  const place = h("button", { class: "btn primary", disabled: true }, "Place paper trade");
+  let previewed = null;
+  const body = () => {
+    const b = { symbol: sym.value.trim().toUpperCase(), strategy: strat.value, side: side.value, sector: sector.value.trim() || null, note: note.value };
+    if (closeBox.checked) b.close = true;
+    else if (mode.value === "weight") b.weight = Number(size.value) / 100;
+    else b[mode.value] = Number(size.value);
+    return b;
+  };
+  const invalidate = () => { previewed = null; place.disabled = true; };
+  for (const el of [sym, strat, side, mode, size, closeBox, sector]) el.addEventListener("input", invalidate);
+  closeBox.addEventListener("change", () => { size.disabled = mode.disabled = closeBox.checked; });
+  size.disabled = mode.disabled = closeBox.checked;
+
+  const show = (r, done = false) => {
+    const f = r.fill, m = r.mark;
+    fill(out,
+      done ? h("div", { class: r.filled ? "callout" : "callout bad", style: "margin-bottom:8px" }, h("strong", {}, r.filled ? `Filled on paper: ${signed(fnum(r.quantity, 0), r.quantity)} ${r.symbol}. ` : "Not filled. "),
+        r.filled ? `Order ${r.order.id} recorded.` : "The risk checks blocked it, and the attempt is recorded.") : null,
+      h("table", {}, h("tbody", {},
+        h("tr", {}, h("td", {}, "Shares"), h("td", { class: "n" }, signed(fnum(r.quantity, 0), r.quantity)), h("td", { class: "muted" }, `position ${fnum(r.positionBefore, 0)} → ${fnum(r.positionAfter, 0)}`)),
+        h("tr", {}, h("td", {}, "Price used"), h("td", { class: "n" }, isNum(m.price) ? fnum(m.price, 2) : "—"), h("td", { class: "muted" }, `${m.source}${m.at ? ` · ${m.at}` : ""}${m.currency ? ` · ${m.currency}` : ""}`)),
+        (m.warnings || []).length ? h("tr", {}, h("td", {}, "Price notes"), h("td", { colspan: 2, class: "muted" }, m.warnings.join(" · "))) : null,
+        h("tr", {}, h("td", {}, "Simulated fill"), h("td", { class: "n" }, f ? fnum(f.price, 4) : "—"), h("td", { class: "muted" }, f ? `${fnum(f.slippage_bps, 0)} bp slippage` : "no price to fill at")),
+        h("tr", {}, h("td", {}, "Notional + commission"), h("td", { class: "n" }, f ? money(f.notional, 2) : "—"), h("td", { class: "muted" }, f ? `commission ${fnum(f.commission, 2)}` : "")),
+        h("tr", {}, h("td", {}, "Average daily volume"), h("td", { class: "n" }, isNum(m.advShares) ? fnum(m.advShares, 0) : "unknown"), h("td", { class: "muted" }, `${m.advSessions} sessions`)),
+        h("tr", {}, h("td", {}, "Sector"), h("td", { class: "n" }, r.sector || "unknown"), h("td", { class: "muted" }, r.sectorBasis ? `from: ${r.sectorBasis}` : "enter one above")),
+      )),
+      h("div", { style: "margin:10px 0 6px" }, r.risk.approved ? h("span", { class: "lvl clear" }, "risk checks pass") : h("span", { class: "lvl severe" }, "blocked by risk checks"),
+        r.risk.missing.length ? h("span", { class: "err" }, ` missing checks: ${r.risk.missing.join(", ")}`) : null),
+      r.risk.breaches.length ? h("div", { class: "callout bad" }, h("ul", {}, r.risk.breaches.map((b) => h("li", {}, `${CHECK_TEXT[b.name] || b.name}: ${b.detail}`)))) : null,
+      r.risk.warnings.length ? h("div", { class: "callout warn", style: "margin-top:6px" }, h("ul", {}, r.risk.warnings.map((b) => h("li", {}, `${CHECK_TEXT[b.name] || b.name}: ${b.detail}`)))) : null,
+      h("details", { style: "margin-top:8px" }, h("summary", {}, `All ${r.risk.checks.length} checks`), checksTable(r.risk.checks)));
+  };
+  const preview = async (btn) => {
+    invalidate();
+    btn.disabled = true; fill(out, h("div", { class: "loading" }, "Fetching the latest price and checking limits…"));
+    try {
+      const r = await api(`/api/portfolios/${pid}/preview`, { method: "POST", body: JSON.stringify(body()), timeout: 60000 });
+      show(r);
+      if (r.risk.approved && r.fill) { previewed = JSON.stringify(body()); place.disabled = false; }
+    } catch (e) { fill(out, h("p", { class: "err" }, e.message)); } finally { btn.disabled = false; }
+  };
+  place.addEventListener("click", async () => {
+    // The server runs every check again at the moment of the trade; this preview is only for the person.
+    if (!previewed || previewed !== JSON.stringify(body())) { invalidate(); return; }
+    place.disabled = true;
+    try {
+      const r = await api(`/api/portfolios/${pid}/trades`, { method: "POST", body: previewed, timeout: 60000 });
+      show(r, true);
+      setTimeout(() => renderPortfolio(list, pid), r.filled ? 900 : 2500);
+    } catch (e) { fill(out, h("p", { class: "err" }, e.message)); }
+  });
+  const prevBtn = h("button", { class: "btn", onclick: (e) => preview(e.target) }, "Preview");
+  fill(box, h("div", { class: "ph" }, h("h2", {}, "Trade ticket (paper)"), h("span", { class: "faint" }, "Preview first; the server checks again when you place it")),
+    h("div", { class: "pb form" },
+      h("label", {}, "Symbol", sym), h("label", {}, "Strategy", strat), h("label", {}, "Side", side),
+      h("div", { class: "row2" }, h("label", {}, "Size by", mode), h("label", {}, "Size", size)),
+      h("label", { class: "check" }, closeBox, " Close the whole position"),
+      h("label", {}, "Sector", sector), h("label", {}, "Note", note),
+      h("div", { style: "display:flex;gap:8px;margin-top:4px" }, prevBtn, place), out));
+  if (pre.close) preview(prevBtn); // a close needs no size, so show its checks straight away
+  else if (pre.symbol) size.focus();
+}
+
+function drawNav(history, nav, today) {
+  const box = $("#nav-chart");
+  if (chartHandle) { chartHandle.remove(); chartHandle = null; }
+  if (!box) return;
+  const pts = history.map((x) => ({ time: x.day, value: x.nav }));
+  if (isNum(nav) && (!pts.length || pts[pts.length - 1].time < today)) pts.push({ time: today, value: nav });
+  if (pts.length < 2 || !window.LightweightCharts) { fill(box, h("div", { class: "empty" }, "The chart starts once the book has two days of history.")); return; }
+  const LW = window.LightweightCharts;
+  const chart = LW.createChart(box, {
+    autoSize: true,
+    layout: { background: { type: "solid", color: cssVar("--panel") }, textColor: cssVar("--muted"), fontFamily: cssVar("--mono"), fontSize: 11, attributionLogo: true },
+    grid: { vertLines: { color: cssVar("--line") }, horzLines: { color: cssVar("--line") } },
+    rightPriceScale: { borderColor: cssVar("--line-strong") }, timeScale: { borderColor: cssVar("--line-strong") },
+  });
+  chart.addSeries(LW.LineSeries, { color: cssVar("--accent"), lineWidth: 1.5, priceLineVisible: false }).setData(pts);
+  chart.timeScale().fitContent();
+  chartHandle = chart;
 }
 
 // --- start ---------------------------------------------------------------------------------------------------
