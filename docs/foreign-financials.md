@@ -28,9 +28,11 @@ python -m keers.data refresh VOD.L                 # links by name first if need
 
 The workbench does the same when a non-US listing is opened: it tries the automatic link, then loads the reports.
 
-**Automatic links** are made only when exactly one active GLEIF record has a legal or other name equal to the
+**Automatic links** come first from the filings.xbrl.org filer list (about 7,500 LEIs with names, cached for a
+week): a link is made only when exactly one filer's name equals the listing's name after normalising. Failing that,
+a link is made only when exactly one active GLEIF record has a legal or other name equal to the
 listing's name after normalising (case, accents, punctuation, legal forms such as "Public Limited Company" = "PLC",
-and share-class suffixes such as "-REG" or "-B"), and that record has reports on filings.xbrl.org. Otherwise
+and share-class suffixes such as "-REG" or "-B", "A/S" = "AS", and a leading "AB" as in "AB Volvo"), and that record has reports on filings.xbrl.org. Otherwise
 nothing is linked and the candidates are listed. Automatic links carry the basis `name-match` and a warning on
 every snapshot until a person confirms them with `link`.
 
@@ -58,6 +60,17 @@ every snapshot until a person confirms them with `link`.
   that stand for some number of ordinary shares. That ratio is not in the XBRL facts, so its market cap is missing
   (this also fixes US GAAP 20-F filers, which were priced as if one ADS were one share). Use the home listing
   linked to the CIK instead. 40-F filers list their own shares in New York and are unaffected.
+
+## Line items that IFRS filers tag differently
+
+- **D&A**: the total line, else depreciation plus amortisation, else the sum of its IFRS parts (property, plant and
+  equipment depreciation, right-of-use depreciation, intangible amortisation; parts not filed are named in a warning).
+  As a last resort a line that also includes impairment is used, with a warning that EBITDA may be overstated.
+- **Shares**: basic weighted-average shares are used when neither a current count nor diluted shares are filed.
+- **Interest check**: finance costs include lease interest and the unwinding of provisions, so the "debt looks
+  incomplete" check allows up to 25% of debt found for them (15% for an interest-expense line).
+- **Cadence of SEC filers** comes from their forms: a 10-Q in the last 400 days means quarterly; a filer of 20-F or
+  40-F (and 6-K) only is annual, even though its 20-F carries quarterly comparatives.
 
 ## Reporting cadence and staleness
 

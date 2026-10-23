@@ -13,7 +13,9 @@ Linking. A wrong link would put another company's accounts under a share price, 
 ways, and every snapshot says which:
 
 - ``manual``: a person ran ``python -m keers.data link SYMBOL --lei ...`` (or ``--cik``).
-- ``name-match``: automatic, only when exactly one active LEI record in GLEIF (the official LEI register) has a
+- ``name-match``: automatic, only when exactly one filer in the filings.xbrl.org filer list has a name equal to the
+  listing's name after normalising (the list is cached for ``DIRECTORY_MAX_AGE_DAYS``); failing that, only when
+  exactly one active LEI record in GLEIF (the official LEI register) has a
   legal or other name that equals the listing's name after normalising legal forms and punctuation and has at
   least one report on filings.xbrl.org. Anything less (no match, several matches, no reports) is not linked;
   the candidates are returned so a person can choose.
@@ -26,6 +28,7 @@ import re
 import unicodedata
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
@@ -34,6 +37,7 @@ from .http import Fetcher, FetchError, Response
 from .sec import SEC, ParseError
 from .store import Store, is_sec_cik
 
+DIRECTORY_MAX_AGE_DAYS = 7
 GLEIF_RECORD = "https://api.gleif.org/api/v1/lei-records/{lei}"
 GLEIF_SEARCH = "https://api.gleif.org/api/v1/lei-records?filter%5Bfulltext%5D={q}&page%5Bsize%5D=20"
 
@@ -44,8 +48,10 @@ LEGAL_FORMS = (
     ("SOCIETA PER AZIONI", "SPA"), ("AKTIEBOLAGET", "AB"), ("AKTIEBOLAG", "AB"), ("AKTIESELSKAB", "AS"),
     ("ALLMENNAKSJESELSKAP", "ASA"), ("JULKINEN OSAKEYHTIO", "OYJ"), ("OSAKEYHTIO", "OY"),
     ("KOMMANDITGESELLSCHAFT AUF AKTIEN", "KGAA"), ("SOCIETE EUROPEENNE", "SE"), ("LIMITED", "LTD"),
-    ("P L C", "PLC"), ("N V", "NV"), ("S A", "SA"), ("S P A", "SPA"), ("A S A", "ASA"), ("A G", "AG"),
+    ("P L C", "PLC"), ("N V", "NV"), ("S A", "SA"), ("S P A", "SPA"), ("A S A", "ASA"), ("A G", "AG"), ("A S", "AS"),
 )  # fmt: skip
+# Legal-form words dropped from the start of a name ("AB Volvo", "Koninklijke Philips N.V." keeps Koninklijke).
+LEADING = {"AB"}
 # Legal-form words dropped from the end of a name before comparing.
 TRAILING = {"PLC", "AG", "SA", "SE", "NV", "SPA", "AB", "PUBL", "AS", "ASA", "OYJ", "OY", "KGAA", "LTD", "CO",
             "INC", "CORP", "SCA", "SGPS", "SAB", "DE", "CV", "AND", "GMBH",
@@ -64,6 +70,8 @@ def normalise(name: str) -> str:
     words = s.split()
     while len(words) > 1 and words[-1] in TRAILING:
         words.pop()
+    while len(words) > 1 and words[0] in LEADING:
+        words.pop(0)
     return " ".join(words)
 
 
@@ -158,8 +166,42 @@ class Filers:
         self.store.put_link(symbol, cik, basis, f"SEC CIK {cik}")
         return {"symbol": symbol.upper(), "cik": cik, "basis": basis}
 
+    def directory(self) -> str:
+        """Refresh the cached filings.xbrl.org filer list if it is missing or old. Returns what happened."""
+        at = self.store.esef_entities_fetched()
+        if at and datetime.fromisoformat(at) > datetime.now(UTC) - timedelta(days=DIRECTORY_MAX_AGE_DAYS):
+            return f"cached {at}"
+        try:
+            rows = self.esef.entities()
+        except (FetchError, ParseError) as e:
+            return f"filer list unavailable: {e}"
+        if not rows:
+            return "filer list empty"
+        n = self.store.put_esef_entities((lei, nm, normalise(nm)) for lei, nm in rows)
+        return f"fetched {n} filers"
+
+    def find_in_directory(self, symbol: str, name: str) -> dict[str, Any] | None:
+        """Link by an exact normalised name in the filings.xbrl.org filer list, if exactly one filer has it."""
+        how = self.directory()
+        want = normalise(name)
+        hits = sorted({lei: nm for lei, nm in self.store.esef_entities(want)}.items()) if want else []
+        if len(hits) != 1:
+            return None
+        lei, esef_name = hits[0]
+        cik = self.store.entity_id("lei", lei, esef_name, None, "filings.xbrl.org")
+        if self.store.company_by_cik(cik) is None:
+            self.store.put_company(cik, lei, esef_name, None, None)
+        self.store.put_link(symbol, cik, "name-match",
+                            f"LEI {lei} ({esef_name}): filings.xbrl.org name equals listing name {name!r} after "
+                            "normalising")  # fmt: skip
+        return {"symbol": symbol.upper(), "name": name, "normalised": want, "linked": True, "lei": lei,
+                "lei_name": esef_name, "basis": "name-match", "via": "filings.xbrl.org filer list", "directory": how}  # fmt: skip
+
     def find(self, symbol: str, name: str) -> dict[str, Any]:
         """Try to link ``symbol`` by name. Returns the link, or why not and the candidates to choose from."""
+        hit = self.find_in_directory(symbol, name)
+        if hit is not None:
+            return hit
         recs = self.search(name)
         hits = name_matches(name, recs)
         out: dict[str, Any] = {"symbol": symbol.upper(), "name": name, "normalised": normalise(name),

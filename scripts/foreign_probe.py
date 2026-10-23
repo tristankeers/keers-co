@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -51,6 +52,47 @@ def shape(fetcher: Fetcher) -> dict[str, Any]:
         except (FetchError, ValueError) as e:
             out[u] = {"error": str(e)}
     return out
+
+
+# Lines that were missing in the first live check; the probe lists every concept a company filed that looks like one.
+DIAG = re.compile(r"(?i)(depreciation|amorti[sz]|purchase.*(property|intangible)|capitalexpend|operating(profit|income)|"
+                  r"profitlossfromoperating|borrowing|loan|notespayable|bond|leaseliabilit|weightedaverage|"
+                  r"numberofshares|sharesoutstanding|financecost|interestexpense)")  # fmt: skip
+
+
+def concept_diag(store: Store, cik: int) -> dict[str, Any]:
+    """Concepts in the latest stored raw report (ESEF xBRL-JSON or SEC companyfacts) that match ``DIAG``.
+
+    Only names and how often each appears are listed; no figures are read from them.
+    """
+    ent = store.entity(cik)
+    like = f"%/{ent['identifier']}/%.json" if ent else f"%CIK{cik:010d}.json"
+    row = store.db.execute(
+        "SELECT url, body FROM raw_documents WHERE url LIKE ? AND body IS NOT NULL ORDER BY url DESC LIMIT 1",
+        (like,),
+    ).fetchone()
+    if row is None:
+        return {"error": f"no stored report matching {like}"}
+    try:
+        doc = json.loads(row[1])
+    except ValueError:
+        return {"url": row[0], "error": "not JSON"}
+    names: dict[str, int] = {}
+    if "facts" in doc and isinstance(doc["facts"], dict) and "documentInfo" in doc:
+        for f in doc["facts"].values():
+            dims = (f or {}).get("dimensions") or {}
+            c = str(dims.get("concept") or "")
+            extra = sorted(k for k in dims if k not in ("concept", "entity", "period", "unit", "language"))
+            key = c + (" [dims: " + ",".join(extra) + "]" if extra else "")
+            if DIAG.search(c):
+                names[key] = names.get(key, 0) + 1
+    else:
+        for tax, concepts in (doc.get("facts") or {}).items():
+            for c, body in concepts.items():
+                if DIAG.search(c):
+                    ends = [x.get("end", "") for u in (body.get("units") or {}).values() for x in u]
+                    names[f"{tax}:{c} (latest {max(ends) if ends else '?'})"] = len(ends)
+    return {"url": row[0], "concepts": dict(sorted(names.items()))}
 
 
 def brief(v: Any) -> Any:
@@ -104,6 +146,10 @@ def main() -> int:
             "values": {k: brief(v.get(k)) for k in ("revenue", "ebitda", "netIncome", "capex", "debt", "netDebt",
                                                     "shares", "price", "marketCap", "ev", "fx_USD", "beta")},
         }  # fmt: skip
+        co = store.company(sym)
+        if co is not None and (not ana["ran"] or snap.blocked_by):
+            row["conceptDiag"] = concept_diag(store, int(co["cik"]))
+            print("   concepts:", json.dumps(row["conceptDiag"], default=str)[:3000])
         report["companies"][sym] = row
         print(
             f"\n== {sym} {snap.name!r} {snap.currency} {snap.cadence} ran={ana['ran']} screen={scr['status']}"
