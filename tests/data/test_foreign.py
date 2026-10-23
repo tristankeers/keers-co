@@ -506,3 +506,30 @@ def test_bonds_issued_are_read_only_when_no_borrowings_line_is_filed() -> None:
     debt = snapshot.build(st, ff.SYMBOL, AS_OF).values["debt"]
     assert debt.value == pytest.approx(280 + 60 + 90)
     assert any("bonds issued only" in w for w in debt.warnings)
+
+
+def test_shares_derived_from_basic_eps_when_no_count_is_filed() -> None:
+    st = _load_renamed({"NumberOfSharesOutstanding": None})
+    cik = st.company(ff.SYMBOL)["cik"]  # type: ignore[index]
+    fu = Fundamentals(st, cik, AS_OF)
+    assert not fu.shares(None).known
+    f = esef_filing(2025, "2026-03-20")
+    doc = {"documentInfo": ff.report(2025)["documentInfo"],
+           "facts": {"eps": ff._fact("BasicEarningsLossPerShare", ff.duration(2025), 0.385,
+                                     "iso4217:EUR/xbrli:shares", 3),
+                     "eps24": ff._fact("BasicEarningsLossPerShare", ff.duration(2024), 0.4, "iso4217:EUR/xbrli:shares",
+                                       2)}}  # fmt: skip
+    facts, _ = esef.parse_xbrl_json(doc, ff.LEI, cik, f, "sha-eps")
+    assert {x.unit for x in facts} == {"EUR/shares"}
+    st.put_facts(facts)
+    fu = Fundamentals(st, cik, AS_OF)
+    fu.shares_max_age = 500  # as the snapshot sets it for annual accounts
+    v = fu.shares(None)
+    assert v.value == pytest.approx(80 / 0.385) and v.kind.name == "DERIVED"
+    assert "BasicEarningsLossPerShare" in v.method and "derived" in v.warnings[0]
+    # Too coarse: 0.4 (one decimal place shown) could be anything from 0.35 to 0.45, so nothing is derived.
+    st2 = _load_renamed({"NumberOfSharesOutstanding": None})
+    st2.put_facts([x for x in facts if x.end.year == 2024])
+    fu2 = Fundamentals(st2, cik, AS_OF)
+    fu2.shares_max_age = 800
+    assert not fu2.shares(None).known
