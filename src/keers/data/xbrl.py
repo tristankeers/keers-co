@@ -182,3 +182,88 @@ def fetch_latest_instance(fetcher: Fetcher, cik: int) -> Instance:
     subs = _json(fetcher.get(SUBMISSIONS_URL.format(cik=cik)).body, "submissions")
     accn, form, filed = latest_periodic(subs)
     return fetch_instance(fetcher, cik, accn, form, filed)
+
+
+# ---------- linkbases: labels and statement membership (for review and diagnostics) ----------
+
+XLINK = "{http://www.w3.org/1999/xlink}"
+
+
+def _concept_from_href(href: str) -> str:
+    """``foo.xsd#us-gaap_LongTermDebt`` → ``us-gaap:LongTermDebt``."""
+    frag = href.rsplit("#", 1)[-1]
+    prefix, _, name = frag.partition("_")
+    return f"{prefix}:{name}" if name else frag
+
+
+def parse_labels(body: bytes) -> dict[str, str]:
+    """Label linkbase → {concept: standard label} (terse label where no standard one is given)."""
+    root = ET.fromstring(body)  # noqa: S314
+    out: dict[str, str] = {}
+    for link in root.iter():
+        if _local(link.tag)[1] != "labelLink":
+            continue
+        locs: dict[str, str] = {}
+        labels: dict[str, list[tuple[str, str]]] = {}
+        arcs: list[tuple[str, str]] = []
+        for el in link:
+            n = _local(el.tag)[1]
+            if n == "loc":
+                locs[el.get(f"{XLINK}label", "")] = _concept_from_href(el.get(f"{XLINK}href", ""))
+            elif n == "label":
+                labels.setdefault(el.get(f"{XLINK}label", ""), []).append(
+                    (el.get(f"{XLINK}role", ""), (el.text or "").strip())
+                )
+            elif n == "labelArc":
+                arcs.append((el.get(f"{XLINK}from", ""), el.get(f"{XLINK}to", "")))
+        for frm, to in arcs:
+            concept = locs.get(frm)
+            if concept is None:
+                continue
+            for role, text in labels.get(to, []):
+                if role.endswith("/label") or (role.endswith("/terseLabel") and concept not in out):
+                    out[concept] = text
+    return out
+
+
+def parse_statements(body: bytes) -> dict[str, list[str]]:
+    """Presentation linkbase → {role URI: concepts in presentation order}."""
+    root = ET.fromstring(body)  # noqa: S314
+    out: dict[str, list[str]] = {}
+    for link in root.iter():
+        if _local(link.tag)[1] != "presentationLink":
+            continue
+        role = link.get(f"{XLINK}role", "")
+        seen = out.setdefault(role, [])
+        for el in link:
+            if _local(el.tag)[1] == "loc":
+                c = _concept_from_href(el.get(f"{XLINK}href", ""))
+                if c not in seen:
+                    seen.append(c)
+    return out
+
+
+def statement_roles(roles: dict[str, list[str]], kind: str) -> list[str]:
+    """Role URIs of the face balance sheet (``kind="balance"``) or income statement (``"income"``)."""
+    keys = {"balance": ("balancesheet", "financialposition", "financialcondition"),
+            "income": ("operations", "incomestatement", "income", "earnings")}[kind]  # fmt: skip
+    hits = []
+    for r in roles:
+        low = r.lower().replace("_", "").replace("-", "")
+        tail = low.rsplit("/", 1)[-1]
+        if any(k in tail for k in keys) and not any(
+            x in tail
+            for x in ("parenthetical", "details", "tables", "policies", "narrative", "comprehensive")
+        ):
+            hits.append(r)
+    return hits
+
+
+def fetch_linkbase(fetcher: Fetcher, cik: int, accn: str, suffix: str) -> bytes:
+    """A filing's linkbase file by suffix (``_lab.xml``, ``_pre.xml``)."""
+    folder = accn.replace("-", "")
+    index = _json(fetcher.get(INDEX_URL.format(cik=cik, folder=folder)).body, "filing index")
+    names = [str(i["name"]) for i in index["directory"]["item"] if str(i["name"]).endswith(suffix)]
+    if len(names) != 1:
+        raise InstanceError(f"filing index: expected one *{suffix}, found {names or 'none'}")
+    return fetcher.get(DOC_URL.format(cik=cik, folder=folder, name=names[0])).body

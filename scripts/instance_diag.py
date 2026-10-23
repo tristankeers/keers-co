@@ -17,7 +17,13 @@ from keers.data.http import Fetcher
 from keers.data.refresh import user_agent
 from keers.data.sec import SEC
 from keers.data.store import Store
-from keers.data.xbrl import fetch_latest_instance
+from keers.data.xbrl import (
+    fetch_latest_instance,
+    fetch_linkbase,
+    parse_labels,
+    parse_statements,
+    statement_roles,
+)
 
 PATTERN = re.compile(
     r"(Debt|Borrow|Notes|Loan|Credit|Revolv|Facility|Convertible|Maturit|Obligation|Interest|OperatingIncome|"
@@ -28,7 +34,7 @@ PATTERN = re.compile(
 
 def main() -> int:
     tickers = [t.upper() for t in sys.argv[1:]]
-    if not all(re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", t) for t in tickers):
+    if not all(re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}|CIK\d{1,10}", t) for t in tickers):
         print("bad tickers")
         return 2
     f = Fetcher(user_agent())
@@ -36,10 +42,13 @@ def main() -> int:
     tmap = sec.tickers()
     for t in tickers:
         print(f"\n===== {t}")
-        if t not in tmap:
+        if t.startswith("CIK"):
+            cik = int(t[3:])
+        elif t not in tmap:
             print("not in SEC ticker map")
             continue
-        cik = tmap[t][0]
+        else:
+            cik = tmap[t][0]
         try:
             inst = fetch_latest_instance(f, cik)
         except Exception as e:  # noqa: BLE001 (diagnostics: report and carry on)
@@ -47,12 +56,37 @@ def main() -> int:
             continue
         print(f"  {inst.form} {inst.accn} filed {inst.filed}, instance {inst.url}")
         print(f"  extension prefix(es): {sorted(inst.extension_prefixes)}")
+        try:
+            labels = parse_labels(fetch_linkbase(f, cik, inst.accn, "_lab.xml"))
+            roles = parse_statements(fetch_linkbase(f, cik, inst.accn, "_pre.xml"))
+        except Exception as e:  # noqa: BLE001
+            print(f"  linkbase error: {e}")
+            labels, roles = {}, {}
+        for kind in ("balance", "income"):
+            for role in statement_roles(roles, kind):
+                print(f"  -- {kind} statement {role}")
+                for c in roles[role]:
+                    prefix, _, name = c.partition(":")
+                    hits = [
+                        x for x in inst.facts if x.prefix == prefix and x.concept == name and x.unit == "USD"
+                    ]
+                    if not hits:
+                        continue
+                    last = max(x.end for x in hits)
+                    for x in sorted(
+                        (x for x in hits if x.end == last), key=lambda x: (x.start or x.end, x.dims)
+                    ):
+                        d = (" [" + ", ".join(f"{a}={m}" for a, m in x.dims) + "]") if x.dims else ""
+                        span = f"{x.start}..{x.end}" if x.start else f"..{x.end}"
+                        print(f'    {c} "{labels.get(c, "")}" {span}{d} = {x.value:,.0f}')
         rows = [x for x in inst.facts if PATTERN.search(x.concept) and x.unit == "USD"]
         ext = [x for x in rows if x.prefix in inst.extension_prefixes and not x.dims]
         dim = [x for x in rows if x.prefix == "us-gaap" and x.dims]
         print(f"  -- company-specific concepts, no dimensions ({len(ext)})")
         for x in sorted(ext, key=lambda x: (x.concept, x.end)):
-            print(f"    {x.prefix}:{x.concept} {x.start or ''}..{x.end} = {x.value:,.0f}")
+            print(
+                f'    {x.prefix}:{x.concept} "{labels.get(f"{x.prefix}:{x.concept}", "")}" {x.start or ""}..{x.end} = {x.value:,.0f}'
+            )
         print(f"  -- us-gaap debt concepts with dimensions ({len(dim)}; first 80)")
         for x in sorted(dim, key=lambda x: (x.concept, x.end))[:80]:
             if re.search(r"Debt|Borrow|Notes|Loan|Credit|Convertible|Maturit", x.concept):
