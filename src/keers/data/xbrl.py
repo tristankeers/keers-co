@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import xml.etree.ElementTree as ET  # noqa: S405 (SEC filings; expat does not fetch external entities)
 from dataclasses import dataclass, field
 from datetime import date
@@ -45,7 +46,7 @@ class InstanceFact:
     unit: str  # "USD", "shares", or the raw measure
     start: date | None
     end: date
-    value: float
+    value: float  # NaN when the fact is tagged nil (no value)
     dims: tuple[tuple[str, str], ...]  # (axis, member) pairs; empty for the face statements' totals
     context: str
 
@@ -76,7 +77,7 @@ def _standard(ns: str) -> str | None:
 
 
 def parse_instance(body: bytes) -> tuple[list[InstanceFact], set[str]]:
-    """Instance XML → (numeric facts, the company's own prefixes). Text and nil facts are skipped."""
+    """Instance XML → (numeric facts, the company's own prefixes). Text facts are skipped; nil facts are NaN."""
     prefixes: dict[str, str] = {}
     try:
         events = ET.iterparse(io.BytesIO(body), events=("start-ns",))  # noqa: S314
@@ -121,11 +122,12 @@ def parse_instance(body: bytes) -> tuple[list[InstanceFact], set[str]]:
             continue
         ns, name = _local(el.tag)
         if el.get("{http://www.w3.org/2001/XMLSchema-instance}nil") == "true":
-            continue
-        try:
-            value = float((el.text or "").strip())
-        except ValueError:
-            continue
+            value = math.nan  # tagged as having no value (often a dash on the face statement)
+        else:
+            try:
+                value = float((el.text or "").strip())
+            except ValueError:
+                continue
         prefix = _standard(ns)
         if prefix is None:
             if any(h in ns for h in INFRA_HOSTS):
@@ -263,7 +265,10 @@ def fetch_linkbase(fetcher: Fetcher, cik: int, accn: str, suffix: str) -> bytes:
     """A filing's linkbase file by suffix (``_lab.xml``, ``_pre.xml``)."""
     folder = accn.replace("-", "")
     index = _json(fetcher.get(INDEX_URL.format(cik=cik, folder=folder)).body, "filing index")
-    names = [str(i["name"]) for i in index["directory"]["item"] if str(i["name"]).endswith(suffix)]
+    items = [str(i["name"]) for i in index["directory"]["item"]]
+    names = [n for n in items if n.endswith(suffix)]
+    if not names:  # newer filings embed their linkbases in the schema file
+        names = [n for n in items if n.endswith(".xsd")]
     if len(names) != 1:
         raise InstanceError(f"filing index: expected one *{suffix}, found {names or 'none'}")
     return fetcher.get(DOC_URL.format(cik=cik, folder=folder, name=names[0])).body

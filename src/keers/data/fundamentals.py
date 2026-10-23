@@ -67,6 +67,9 @@ CONVERTIBLE_NONCURRENT = (
     "us-gaap:ConvertibleLongTermNotesPayable",
 )
 CONVERTIBLE_CURRENT = ("us-gaap:ConvertibleDebtCurrent", "us-gaap:ConvertibleNotesPayableCurrent")
+# Borrowings under credit facilities, filed apart from long-term debt (Dropbox's term loan since 2024).
+LINES_OF_CREDIT_NONCURRENT = ("us-gaap:LongTermLineOfCredit", "us-gaap:LongTermLineOfCreditNoncurrent")
+LINES_OF_CREDIT_CURRENT = ("us-gaap:LinesOfCreditCurrent",)
 # Debt and finance leases on one line, as some companies file it (Lumen, Norwegian Cruise, Sirius XM).
 DEBT_AND_LEASES_NONCURRENT = ("us-gaap:LongTermDebtAndCapitalLeaseObligations",)
 DEBT_AND_LEASES_CURRENT = ("us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent",)
@@ -120,7 +123,7 @@ ROLLFORWARD_MIN_USDM = 50.0
 DEBT_CONCEPTS = (
     DEBT_TOTAL + DEBT_NONCURRENT + DEBT_CURRENT + DEBT_CURRENT_ALL + ST_BORROWINGS + CONVERTIBLE_NONCURRENT
     + CONVERTIBLE_CURRENT + FINANCE_LEASES + FINANCE_LEASES_SPLIT + DEBT_AND_LEASES_NONCURRENT
-    + DEBT_AND_LEASES_CURRENT + DEBT_AND_LEASES_TOTAL
+    + DEBT_AND_LEASES_CURRENT + DEBT_AND_LEASES_TOTAL + LINES_OF_CREDIT_NONCURRENT + LINES_OF_CREDIT_CURRENT
 )  # fmt: skip
 
 ALL_CONCEPTS: tuple[str, ...] = (
@@ -423,6 +426,22 @@ class Fundamentals:
                 )
             else:
                 parts.append(v)
+        # Credit-facility borrowings on their own lines. Like convertible notes, the non-current line is taken as
+        # already inside long-term debt when that is filed, since double counting would pass every check.
+        loc = self._first(tuple((c,) for c in LINES_OF_CREDIT_NONCURRENT), "credit facility borrowings", at)
+        if loc.known and loc.value:
+            if has_base:
+                notes.append(f"credit facility borrowings filed separately ({loc.value:,.1f}m); taken as already "
+                             "inside long-term debt")  # fmt: skip
+            else:
+                parts.append(loc)
+        loc_cur = self.balance(LINES_OF_CREDIT_CURRENT, "current credit facility borrowings", at)
+        if loc_cur.known and loc_cur.value:
+            if has_base or cur_all.known:
+                notes.append(f"current credit facility borrowings filed separately ({loc_cur.value:,.1f}m); taken "
+                             "as already inside current debt")  # fmt: skip
+            else:
+                parts.append(loc_cur)
         lease = self._first((FINANCE_LEASES, FINANCE_LEASES_SPLIT), "finance leases", at)
         if leases_inside:
             notes.append("finance leases are inside the debt line filed")

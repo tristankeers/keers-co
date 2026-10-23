@@ -62,23 +62,27 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             print(f"  linkbase error: {e}")
             labels, roles = {}, {}
+        bal = [x.end for x in inst.facts if x.prefix == "us-gaap" and x.concept == "Assets" and not x.dims]
+        bal_date = max(bal) if bal else None
+        print(f"  balance-sheet date: {bal_date}")
         for kind in ("balance", "income"):
             for role in statement_roles(roles, kind):
                 print(f"  -- {kind} statement {role}")
                 for c in roles[role]:
                     prefix, _, name = c.partition(":")
-                    hits = [
-                        x for x in inst.facts if x.prefix == prefix and x.concept == name and x.unit == "USD"
-                    ]
+                    hits = [x for x in inst.facts if x.prefix == prefix and x.concept == name and not x.dims]
+                    hits = [x for x in hits if x.unit == "USD"]
                     if not hits:
                         continue
                     last = max(x.end for x in hits)
-                    for x in sorted(
-                        (x for x in hits if x.end == last), key=lambda x: (x.start or x.end, x.dims)
-                    ):
-                        d = (" [" + ", ".join(f"{a}={m}" for a, m in x.dims) + "]") if x.dims else ""
+                    at = bal_date if kind == "balance" and bal_date else last
+                    now = [x for x in hits if x.end == at]
+                    if not now:
+                        print(f'    {c} "{labels.get(c, "")}" NO FACT at {at} (latest {last})')
+                    for x in sorted(now, key=lambda x: x.start or x.end):
                         span = f"{x.start}..{x.end}" if x.start else f"..{x.end}"
-                        print(f'    {c} "{labels.get(c, "")}" {span}{d} = {x.value:,.0f}')
+                        v = "nil" if x.value != x.value else f"{x.value:,.0f}"
+                        print(f'    {c} "{labels.get(c, "")}" {span} = {v}')
         rows = [x for x in inst.facts if PATTERN.search(x.concept) and x.unit == "USD"]
         ext = [x for x in rows if x.prefix in inst.extension_prefixes and not x.dims]
         dim = [x for x in rows if x.prefix == "us-gaap" and x.dims]

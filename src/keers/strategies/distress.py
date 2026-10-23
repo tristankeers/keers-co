@@ -249,6 +249,8 @@ def _debt_due(fu: F.Fundamentals, at: date) -> Value:
         return cur_dl
     parts = [fu.balance(F.DEBT_CURRENT, "current long-term debt", at),
              fu.balance(F.ST_BORROWINGS, "short-term borrowings", at)]  # fmt: skip
+    if not parts[1].known:  # short-term borrowings, where filed, already include drawn credit lines
+        parts.append(fu.balance(F.LINES_OF_CREDIT_CURRENT, "current credit facility borrowings", at))
     known = [p for p in parts if p.known]
     if known:
         return F._sum(known, " + ".join(F._name(p) for p in known))
