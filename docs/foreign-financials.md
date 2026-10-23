@@ -67,6 +67,10 @@ every snapshot until a person confirms them with `link`.
   equipment depreciation, right-of-use depreciation, intangible amortisation; parts not filed are named in a warning).
   As a last resort a line that also includes impairment is used, with a warning that EBITDA may be overstated.
 - **Shares**: basic weighted-average shares are used when neither a current count nor diluted shares are filed.
+  When no share count is filed at all (common in ESEF reports, which tag counts only in notes or by equity
+  component), weighted-average basic shares are derived as profit attributable to owners / basic EPS for the same
+  period. It is used only when EPS is written precisely enough that rounding moves the result by at most 1%, and is
+  flagged as derived. Items taken off only in the EPS numerator (hybrid bond coupons) make it slightly high.
 - **Interest check**: finance costs include lease interest and the unwinding of provisions, so the "debt looks
   incomplete" check allows up to 25% of debt found for them (15% for an interest-expense line).
 - **Cadence of SEC filers** comes from their forms: a 10-Q in the last 400 days means quarterly; a filer of 20-F or
