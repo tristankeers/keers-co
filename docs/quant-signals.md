@@ -1,4 +1,4 @@
-# Strategy C: systematic signals (first version)
+# Strategy C: systematic signals
 
 Paper trading only. Strategy C's trades come from rules in code, never from a model's opinion on one company.
 
@@ -7,8 +7,9 @@ Paper trading only. Strategy C's trades come from rules in code, never from a mo
 | Part | Module | Version |
 |---|---|---|
 | Point-in-time view of the store | `keers.strategies.quant.pit` | |
-| Signals: momentum 12-1, low volatility | `keers.strategies.quant.signals` | `signals-v1` |
-| Ranking and target book | `keers.strategies.quant.model` | `quant-c-v1` |
+| Signals: momentum 12-1, low volatility | `keers.strategies.quant.signals` | `signals-v2` |
+| Signals: value, quality (from filed accounts) | `keers.strategies.quant.fundamental` | `signals-v2` |
+| Ranking and target book | `keers.strategies.quant.model` | `quant-c-v2` (v1 kept as a preset) |
 | Monthly backtest | `keers.strategies.quant.backtest` | `backtest-v1` |
 | Rebalance tickets | `keers.strategies.quant.rebalance` | |
 
@@ -17,9 +18,29 @@ returns tend to reverse). Low volatility is the annualised standard deviation of
 score is its negative. Both use Yahoo adjusted closes. A signal is unknown (and the company is not ranked) when the
 history is short, has gaps (under 95% of business days), or the last price is more than 3 business days old.
 
-**Book.** Each signal becomes a z-score across the companies where it is known (clipped at the 5th and 95th
-percentiles), and the composite is their mean. Companies under $5 or with under $5m median daily traded value are
-left out. The top 15 are held equally, 30% of NAV in total and at most 5% a name. Long only.
+**Value and quality.** Value is the earnings yield, operating income (EBIT, trailing twelve months) / enterprise
+value. Quality is return on assets, the same EBIT / total assets at the end of that period. Both come from
+`keers.data.snapshot` built as of the signal date, so only filings made by then count, and the valuation's debt and
+period checks apply. They are unknown for banks, insurers and other financials (SIC 6000-6799), when enterprise
+value is not positive, or when the accounts are older than the company's reporting cadence allows.
+
+**Book (`quant-c-v2`).** Momentum, value and quality each become a z-score across the companies where they are known
+(clipped at the 5th and 95th percentiles), and the composite is the mean of the known ones; a company needs at least
+two of the three. Companies under $5 or with under $5m median daily traded value are left out. The top 15 are held,
+30% of NAV in total and at most 5% a name, long only. Low volatility no longer votes on what to buy; it sizes the
+book instead, with weights proportional to 1 / volatility.
+
+**Why v2.** The first live backtest (v1: momentum plus low volatility, equal weights, Feb 2017 to Oct 2026) made
+13.6% a year against 15.1% for SPY and 20.5% for an equal-weight book of the same 100 names. Low volatility was the
+problem: the calmest fifth trailed the most volatile fifth by 2.6% a month. v2 was designed from the published
+factor research before it was run, not tuned on this backtest; `--preset v1` still runs the old model for
+comparison.
+
+## Paper-trading gate
+
+`model.APPROVED_FOR_PAPER` is `False`. While it is, the rebalance endpoint previews tickets but refuses to execute
+them. It should only be set to `True` in a reviewed change, after a backtest of the current model beats both SPY and
+the equal-weight book on CAGR and Sharpe (the backtest reports this as `verdict`).
 
 ## No look-ahead
 
@@ -49,6 +70,5 @@ Paper trades go through the workbench: `POST /api/strategies/c/signals` shows th
 - Survivorship bias: the universe is today's ticker list, so companies that were delisted are missing. This flatters
   backtest results; every run says so.
 - Backtest costs are costs-v1 slippage plus commission on turnover; the minimum commission, borrow and tax are ignored.
-- No shorts, no value or quality signals yet (next steps: EBIT/EV and EBIT/assets from point-in-time filings,
-  excluding financial companies), no UI panel yet.
+- No shorts and no UI panel yet. Fundamentals are SEC filers only in the backtest universe.
 - Yahoo data is personal use only; it must be replaced before any commercial use.

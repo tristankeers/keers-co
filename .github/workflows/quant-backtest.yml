@@ -19,6 +19,7 @@ permissions:
 jobs:
   backtest:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
       TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
@@ -40,8 +41,11 @@ jobs:
         run: python -m keers.strategies.quant --db /tmp/q.sqlite fetch --universe config/universe/kci100.txt --years 10 || true
       - name: Signals today
         run: python -m keers.strategies.quant --db /tmp/q.sqlite signals --universe config/universe/kci100.txt > quant-out-signals.json && python -c "import json; d=json.load(open('quant-out-signals.json')); print(json.dumps(d['targets'], indent=2))"
-      - name: Backtest
-        run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --out quant-out/backtest.json
+      - name: Backtest v2 (momentum, value, quality; inverse-volatility sizing)
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --preset v2 --out quant-out/backtest-v2.json
+      - name: Backtest v1 (kept for comparison)
+        if: always()
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --preset v1 --out quant-out/backtest-v1.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

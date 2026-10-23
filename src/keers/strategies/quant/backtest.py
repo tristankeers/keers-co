@@ -25,8 +25,7 @@ from typing import Any
 from keers.data.store import Store
 from keers.portfolio.fills import BPS, CostModel
 
-from . import MODEL_VERSION
-from .model import Config, Row, rank
+from .model import SIGNALS, Config, Row, rank
 from .pit import PointInTime
 from .signals import SIGNALS_VERSION
 
@@ -104,6 +103,18 @@ def stats(values: Sequence[tuple[date, float]], rf_daily: Sequence[float]) -> di
             "sharpe": sharpe, "maxDrawdown": mdd}  # fmt: skip
 
 
+def verdict(strat: dict[str, Any], ew: dict[str, Any], spy: dict[str, Any]) -> dict[str, Any]:
+    """Whether the book beat each benchmark on both growth (CAGR) and risk-adjusted return (Sharpe)."""
+
+    def beats(b: dict[str, Any]) -> bool:
+        keys = ("cagr", "sharpe")
+        return all(strat.get(k) is not None and b.get(k) is not None and strat[k] > b[k] for k in keys)
+
+    out = {"beatsSpy": beats(spy), "beatsEqualWeight": beats(ew)}
+    out["passes"] = out["beatsSpy"] and out["beatsEqualWeight"]
+    return out
+
+
 def _spearman(a: list[float], b: list[float]) -> float | None:
     if len(a) < 5:
         return None
@@ -157,8 +168,8 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
 
     book, ew = _Book(), _Book()
     months: list[dict[str, Any]] = []
-    spreads: dict[str, list[float]] = {n: [] for n in cfg.signals}
-    ics: dict[str, list[float]] = {n: [] for n in cfg.signals}
+    spreads: dict[str, list[float]] = {n: [] for n in SIGNALS}
+    ics: dict[str, list[float]] = {n: [] for n in SIGNALS}
     exec_set = {e: s for s, e in execs}
     plan: dict[date, list[Row]] = {}
     for sig_day, ex_day in execs:
@@ -204,7 +215,7 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             p1 = _price_on(panel[r.ticker], pdays[r.ticker], b)
             if p0 and p1 and not r.liquidity:
                 fwd[r.ticker] = p1 / p0 - 1
-        for n in cfg.signals:
+        for n in SIGNALS:
             pairs = sorted(((s.score, fwd[r.ticker]) for r in rows if (s := r.signals[n]).score is not None
                             and r.ticker in fwd), key=lambda x: x[0])  # fmt: skip
             if len(pairs) >= 10:
@@ -224,10 +235,11 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
     warnings.append(
         "costs: costs-v1 slippage and commission on turnover; minimum commission, borrow and taxes ignored"
     )
+    strat, ew_stats, spy_stats = stats(curve, rf), stats(ew_curve, rf), stats(spy, rf)
     return {
         "ran": True,
         "version": BACKTEST_VERSION,
-        "model": MODEL_VERSION,
+        "model": cfg.version,
         "signalsVersion": SIGNALS_VERSION,
         "config": cfg.as_dict(),
         "costs": costs.as_dict(),
@@ -246,8 +258,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
                 "meanIC": statistics.fmean(ics[n]) if ics[n] else None,
                 "icT": _t(ics[n]),
             }
-            for n in cfg.signals
+            for n in SIGNALS
         },  # fmt: skip
+        "verdict": verdict(strat, ew_stats, spy_stats),
         "months": months,
         "curve": [(d.isoformat(), v) for d, v in curve],
         "warnings": warnings,

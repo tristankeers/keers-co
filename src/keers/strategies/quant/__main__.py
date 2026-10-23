@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -42,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--start", type=date.fromisoformat, required=True)
             p.add_argument("--end", type=date.fromisoformat, default=date.today())
             p.add_argument("--n-long", type=int, default=model.Config.n_long)
+            p.add_argument(
+                "--preset", choices=["v1", "v2"], default="v2", help="model version (v1 kept to compare)"
+            )
             p.add_argument("--out", help="write the full result as JSON here")
     a = ap.parse_args(argv)
     tickers = [t.upper() for t in a.tickers] + (read_universe(a.universe) if a.universe else [])
@@ -76,7 +80,9 @@ def main(argv: list[str] | None = None) -> int:
                           "targets": model.targets(rows)}, indent=2))  # fmt: skip
         return 0
 
-    res = backtest.run(store, tickers, a.start, a.end, model.Config(n_long=a.n_long))
+    res = backtest.run(
+        store, tickers, a.start, a.end, replace(model.Config.preset(a.preset), n_long=a.n_long)
+    )
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(res, indent=2))

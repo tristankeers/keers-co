@@ -889,8 +889,13 @@ class Workbench:
     def quant_rebalance(self, pid: int, execute: bool, tickers: Any = None) -> dict[str, Any]:
         """Move strategy C's holdings towards the target book. Every ticket goes through ``paper_trade`` (the desk
         and the risk limits); a blocked ticket is recorded as rejected and the rest carry on."""
-        from keers.strategies.quant import MODEL_VERSION, rebalance
+        from keers.strategies.quant import MODEL_VERSION, model, rebalance
 
+        if execute and not model.APPROVED_FOR_PAPER:
+            raise InputError(
+                f"strategy C ({MODEL_VERSION}) is not approved for paper trading yet: its backtest has not beaten "
+                "both SPY and the equal-weight book. Preview only."
+            )
         sig = self.quant_signals(tickers)
         view = self.portfolio(pid)
         tickets, problems = rebalance.plan(

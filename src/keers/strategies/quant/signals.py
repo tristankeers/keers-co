@@ -19,7 +19,7 @@ from keers.data.snapshot import business_days_between
 
 from .pit import PointInTime
 
-SIGNALS_VERSION = "signals-v1"
+SIGNALS_VERSION = "signals-v2"  # v2 adds value and quality (fundamental.py)
 LOOKBACK = 252  # sessions in a year
 SKIP = 21  # sessions in a month
 WINDOW_DAYS = 400  # calendar days fetched to find LOOKBACK + 1 sessions

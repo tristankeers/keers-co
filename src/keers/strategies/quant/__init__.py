@@ -5,4 +5,4 @@ any date after the as-of date, so a backtest cannot see the future. Trades are n
 ``rebalance`` only plans them, and the workbench sends each one through the paper desk and the risk limits.
 """
 
-MODEL_VERSION = "quant-c-v1"
+MODEL_VERSION = "quant-c-v2"
