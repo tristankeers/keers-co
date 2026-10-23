@@ -33,3 +33,12 @@ lines = [
     { concept = "kss:FinanceLeaseLiabilityAndFinancingObligationCurrent", role = "lease-current", label = "Finance Lease Liability And Financing Obligation Current" },
     { concept = "kss:FinanceLeaseLiabilityAndFinancingObligationNoncurrent", role = "lease-noncurrent", label = "Finance Lease Liability And Financing Obligation Noncurrent" },
 ]
+
+[[company]]
+ticker = "SMCI"
+cik = 1375365
+reviewed = "2026-10-23: 10-K for the year to 30 Jun 2026, accession 0001375365-26-000022"
+lines = [
+    { concept = "smci:LineOfCreditAndTermLoansCurrentMaturities", role = "debt-current", label = "Line Of Credit And Term Loans, Current Maturities" },
+    { concept = "smci:LineOfCreditAndTermLoansNoncurrentMaturities", role = "debt-noncurrent", label = "Line Of Credit And Term Loans, Noncurrent Maturities" },
+]
