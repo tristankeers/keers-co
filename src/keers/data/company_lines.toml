@@ -1,0 +1,35 @@
+# Balance-sheet lines that some companies file under their own XBRL concepts, which the SEC company-facts API
+# leaves out. Each entry was checked by reading the company's face balance sheet in the filing named under
+# "reviewed" (labels and values from the filing's own XBRL; see scripts/instance_diag.py). Nothing here is a
+# guess: a line listed here that has no value at a balance date makes debt unknown for that date.
+#
+# For a company listed here, a refresh also reads the latest 10-Q or 10-K's own XBRL instance and records which
+# debt lines its face balance sheet shows without a value (a dash), so they read as zero instead of unknown.
+#
+# Roles:
+#   debt-current       borrowings due within a year, on their own balance-sheet line
+#   debt-noncurrent    borrowings due after a year, on their own line
+#   lease-current      finance leases or lease-like financing obligations (sale-and-leaseback), current part
+#   lease-noncurrent   the same, non-current part
+# Debt lines count in total debt and the roll-forward check; current debt lines also count as debt due within
+# a year. Lease lines count in total debt like finance leases, but not in debt due or the roll-forward.
+
+[[company]]
+ticker = "PLUG"
+cik = 1093691
+reviewed = "2026-10-23: 10-Q for the quarter to 30 Jun 2026, accession 0001104659-26-093454"
+lines = [
+    { concept = "plug:LongTermDebtCurrentMaturitiesExcludingConvertibleDebt", role = "debt-current", label = "Long-Term Debt, Current Maturities Excluding Convertible Debt" },
+    { concept = "plug:LongTermDebtNonCurrentExcludingConvertibleNotes", role = "debt-noncurrent", label = "Long-term Debt Non Current, Excluding Convertible Notes" },
+    { concept = "plug:FinanceObligationCurrent", role = "lease-current", label = "Finance Obligation, Current" },
+    { concept = "plug:FinanceObligationNonCurrent", role = "lease-noncurrent", label = "Finance Obligation, Non-Current" },
+]
+
+[[company]]
+ticker = "KSS"
+cik = 885639
+reviewed = "2026-10-23: 10-Q for the quarter to 1 Aug 2026, accession 0001193125-26-381893"
+lines = [
+    { concept = "kss:FinanceLeaseLiabilityAndFinancingObligationCurrent", role = "lease-current", label = "Finance Lease Liability And Financing Obligation Current" },
+    { concept = "kss:FinanceLeaseLiabilityAndFinancingObligationNoncurrent", role = "lease-noncurrent", label = "Finance Lease Liability And Financing Obligation Noncurrent" },
+]

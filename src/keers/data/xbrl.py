@@ -134,10 +134,10 @@ def parse_instance(body: bytes) -> tuple[list[InstanceFact], set[str]]:
                 continue
             prefix = prefixes.get(ns) or ns
             ext.add(prefix)
-        start, end, dims = contexts[ctx]
+        start, end, ctx_dims = contexts[ctx]
         unit = units.get(el.get("unitRef", ""), "")
         key = (prefix, name, ctx, unit)
-        out.setdefault(key, InstanceFact(prefix, name, unit, start, end, value, dims, ctx))
+        out.setdefault(key, InstanceFact(prefix, name, unit, start, end, value, ctx_dims, ctx))
     return list(out.values()), ext
 
 

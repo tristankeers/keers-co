@@ -46,7 +46,7 @@ from keers.portfolio.ledger import Ledger
 from keers.risk.limits import Limits
 from keers.strategies import distress
 from keers.valuation import kci_v1_defaults as V1
-from keers.valuation import kci_v2_defaults as V2
+from keers.valuation import kci_v3_defaults as V3
 
 from . import sources
 from .directory import (
@@ -676,15 +676,15 @@ class Workbench:
         with self.store() as st:
             co = st.company(sym)
             if co is None:
-                return {"symbol": sym, "ran": False, "calcVersion": V2.CALC_VERSION,
+                return {"symbol": sym, "ran": False, "calcVersion": V3.CALC_VERSION,
                         "blockedBy": ["no SEC filings in the store for this listing; the engine needs filed accounts"]}  # fmt: skip
             snap = S.build(st, sym, self.today())
         if snap.blocked:
-            return {"symbol": sym, "ran": False, "calcVersion": V2.CALC_VERSION, "blockedBy": snap.blocked_by,
+            return {"symbol": sym, "ran": False, "calcVersion": V3.CALC_VERSION, "blockedBy": snap.blocked_by,
                     "asOf": snap.as_of.isoformat()}  # fmt: skip
         deal = S.to_kci_deal(snap)
         edits = edits or {}
-        lbo_default, dcf_default = V2.default_lbo(deal), V2.default_dcf(deal)
+        lbo_default, dcf_default = V3.default_lbo(deal), V3.default_dcf(deal)
         custom: dict[str, Any] = {}
         v2_deal = dict(deal)
         if edits.get("lbo"):
@@ -693,7 +693,8 @@ class Workbench:
         if edits.get("dcf"):
             v2_deal["dcf"] = apply_overrides(dcf_default, edits["dcf"], DCF_EDITABLE)
             custom["dcf"] = sorted(edits["dcf"])
-        v2 = V2.analyse(v2_deal)
+        # The current calculation version (kci-v3). The response keeps the key "v2" that the page reads.
+        v2 = V3.analyse(v2_deal)
         v1 = V1.analyse(deal)
         shares = _known(snap.values.get("shares"))
         price = _known(snap.values.get("price"))
@@ -858,7 +859,7 @@ COMPARE_ROWS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 
 
 def compare(v1: Mapping[str, Any], v2: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """kci-v1 against kci-v2 on the same live inputs. The difference is v2 − v1 where both are numbers."""
+    """kci-v1 against the current version on the same live inputs. The difference is current − v1 where both are numbers."""
     rows = []
     for title, unit, path in COMPARE_ROWS:
         a, b = _get(v1, *path), _get(v2, *path)

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from keers.valuation import kci_v1_defaults, kci_v2_defaults
+from keers.valuation import kci_v1_defaults, kci_v2_defaults, kci_v3_defaults
 
 from . import fundamentals as F
 from .beta import beta
@@ -233,12 +233,16 @@ def to_kci_deal(snap: Snapshot) -> dict[str, Any]:
     }
 
 
-ENGINES = {"kci-v1": kci_v1_defaults.analyse, "kci-v2": kci_v2_defaults.analyse}
-DEFAULT_CALC_VERSION = "kci-v2"
+ENGINES = {
+    "kci-v1": kci_v1_defaults.analyse,
+    "kci-v2": kci_v2_defaults.analyse,
+    "kci-v3": kci_v3_defaults.analyse,
+}
+DEFAULT_CALC_VERSION = "kci-v3"
 
 
 def analyse(snap: Snapshot, calc_version: str = DEFAULT_CALC_VERSION) -> dict[str, Any]:
-    """Run a calculation version (default ``kci-v2``) on a live snapshot, unless the snapshot is blocked."""
+    """Run a calculation version (default ``kci-v3``) on a live snapshot, unless the snapshot is blocked."""
     if snap.blocked:
         return {
             "ticker": snap.ticker,

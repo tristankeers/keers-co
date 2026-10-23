@@ -8,7 +8,6 @@ BYND
 AMC
 KSS
 CHTR
-WBD
 AAL
 NCLH
 PTON
@@ -16,3 +15,5 @@ CCL
 SIRI
 ADBE
 INTU
+# WBD (Warner Bros. Discovery) removed 23 Oct 2026: it filed Forms 15 on 16 Oct 2026 (ending SEC reporting) and is no
+# longer in SEC's ticker map, so there are no new filings to screen.

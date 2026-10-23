@@ -29,7 +29,7 @@ from typing import Any
 
 from keers.data import fundamentals as F
 from keers.data import snapshot
-from keers.data.models import Value
+from keers.data.models import Value, missing
 from keers.data.store import Store
 
 SCREEN_VERSION = "distress-v1"
@@ -240,20 +240,28 @@ def _liabilities(fu: F.Fundamentals, at: date) -> Value:
 def _debt_due(fu: F.Fundamentals, at: date) -> Value:
     sched = fu.balance(F.DEBT_DUE_12M, "debt maturing within twelve months", at)
     if sched.known:
-        return sched
+        return sched  # a maturity schedule covers every borrowing, company-specific lines included
+    own, problem = fu.company_lines(at, ("debt-current",))
+    if problem:
+        return missing("USDm", f"debt due within a year: {problem}")
     cur = fu.balance(F.DEBT_CURRENT_ALL, "current debt", at)
-    if cur.known:
-        return cur
     cur_dl = fu.balance(F.DEBT_AND_LEASES_CURRENT, "current debt and finance leases", at)
-    if cur_dl.known:
-        return cur_dl
-    parts = [fu.balance(F.DEBT_CURRENT, "current long-term debt", at),
-             fu.balance(F.ST_BORROWINGS, "short-term borrowings", at)]  # fmt: skip
-    if not parts[1].known:  # short-term borrowings, where filed, already include drawn credit lines
-        parts.append(fu.balance(F.LINES_OF_CREDIT_CURRENT, "current credit facility borrowings", at))
-    known = [p for p in parts if p.known]
+    if cur.known or cur_dl.known:
+        base = [cur if cur.known else cur_dl]
+    else:
+        base = [fu.balance(F.DEBT_CURRENT, "current long-term debt", at),
+                fu.balance(F.ST_BORROWINGS, "short-term borrowings", at)]  # fmt: skip
+        if not base[1].known:  # short-term borrowings, where filed, already include drawn credit lines
+            base.append(fu.balance(F.LINES_OF_CREDIT_CURRENT, "current credit facility borrowings", at))
+        base.append(fu.balance(F.CONVERTIBLE_CURRENT, "current convertible notes", at))
+    known = [p for p in base if p.known]
     if known:
+        known += own
+        if len(known) == 1:
+            return known[0]
         return F._sum(known, " + ".join(F._name(p) for p in known))
+    if own:
+        return F._sum(own, " + ".join(F._name(p) for p in own))
     if not fu.ever_filed(F.DEBT_CONCEPTS):
         return Value(
             0.0, sched.kind, "USDm", "no debt ever filed", at, (), ("no debt ever filed; taken as zero",)

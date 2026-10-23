@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from . import lines as L
 from .models import Fact, Kind, Value, missing
 from .store import Store
 
@@ -44,6 +45,9 @@ NET_INTEREST = ("us-gaap:InterestIncomeExpenseNonoperatingNet", "us-gaap:Interes
 PRETAX_INCOME = (
     "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
     "us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+    # Standard label "Income (Loss), Including Portion Attributable to Noncontrolling Interest, before Tax";
+    # Xerox files its pre-tax result here (H1 2026: -42m pre-tax, 50m tax, -92m net).
+    "us-gaap:IncomeLossIncludingPortionAttributableToNoncontrollingInterest",
 )
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
 SBC = ("us-gaap:ShareBasedCompensation",)
@@ -351,9 +355,56 @@ class Fundamentals:
                 )
             if inst and (latest is None or inst[-1].end > latest[0]):
                 latest = (inst[-1].end, c)
+        blank = self.blank(candidates, at, unit)
+        if blank is not None:
+            return blank
         if latest is None:
             return missing(unit, f"{label}: not filed under {', '.join(candidates)}")
         return missing(unit, f"{label}: no balance at {at} (latest is {latest[1]} at {latest[0]})")
+
+    def blank(self, candidates: Sequence[str], at: date, unit: str = "USDm") -> Value | None:
+        """Zero, when the filing for ``at`` shows the line on its face balance sheet without a value (a dash).
+
+        Recorded only for companies in ``company_lines.toml``, from the filing's own XBRL (see ``lines``).
+        """
+        for c in candidates:
+            hits = [f for f in self.store.facts(self.cik, c, unit="USD", known_by=self.as_of, taxonomy=L.BLANK)
+                    if _close(f.end, at, 3)]  # fmt: skip
+            if hits:
+                f = hits[-1]
+                why = f"{c} is shown without a value on the face balance sheet of {f.form} {f.accn}; read as zero"
+                return Value(0.0, Kind.REPORTED, unit, f"{c}: blank on the face balance sheet", f.end,
+                             ({**f.cite(), "concept": c, "value": None},), (why,))  # fmt: skip
+        return None
+
+    def company_lines(self, at: date, roles: Sequence[str]) -> tuple[list[Value], str | None]:
+        """This company's own lines (``company_lines.toml``) in ``roles`` at ``at``.
+
+        Returns the values and, when a listed line has neither a value nor a blank at ``at``, why debt cannot be
+        complete.
+        """
+        cfg = L.config().get(self.cik)
+        if cfg is None:
+            return [], None
+        out: list[Value] = []
+        for line in cfg.lines:
+            if line.role not in roles:
+                continue
+            hits = [f for f in latest_known(self.store.facts(self.cik, line.name, unit="USD", known_by=self.as_of,
+                                                             taxonomy=line.prefix))
+                    if f.start is None and _close(f.end, at, 3)]  # fmt: skip
+            if hits:
+                f = hits[-1]
+                out.append(Value(f.value / MILLION, Kind.REPORTED, "USDm", f"{line.concept}: as reported ({line.role})",
+                                 f.end, (f.cite(),)))  # fmt: skip
+                continue
+            blank = self.blank((line.concept,), at)
+            if blank is not None:
+                out.append(blank)
+                continue
+            return out, (f"{line.concept} ({line.label}, a company-specific {line.role} line) has no value at {at}: "
+                         "the filing for that date has not been read")  # fmt: skip
+        return out, None
 
     def ever_filed(self, candidates: Sequence[str]) -> bool:
         return any(self._facts(c) for c in candidates)
@@ -410,8 +461,8 @@ class Fundamentals:
                     leases_inside = True
                 elif cur_all.known:
                     parts.append(cur_all)
-        has_base = nc.known or any(
-            "LongTermDebt" in _name(p_) or "DebtAndCapitalLease" in _name(p_) for p_ in parts
+        has_base = bool(nc.known and nc.value) or any(
+            ("LongTermDebt" in _name(p_) or "DebtAndCapitalLease" in _name(p_)) and p_.value for p_ in parts
         )
         for groups, lab in (
             (tuple((c,) for c in CONVERTIBLE_NONCURRENT), "convertible notes"),
@@ -437,9 +488,9 @@ class Fundamentals:
                 parts.append(loc)
         loc_cur = self.balance(LINES_OF_CREDIT_CURRENT, "current credit facility borrowings", at)
         if loc_cur.known and loc_cur.value:
-            if has_base or cur_all.known:
+            if cur_all.known or self.balance(ST_BORROWINGS, "short-term borrowings", at).known:
                 notes.append(f"current credit facility borrowings filed separately ({loc_cur.value:,.1f}m); taken "
-                             "as already inside current debt")  # fmt: skip
+                             "as already inside current debt or short-term borrowings")  # fmt: skip
             else:
                 parts.append(loc_cur)
         lease = self._first((FINANCE_LEASES, FINANCE_LEASES_SPLIT), "finance leases", at)
@@ -447,6 +498,13 @@ class Fundamentals:
             notes.append("finance leases are inside the debt line filed")
         elif lease.known and include_leases:
             parts.append(lease)
+        roles = ("debt-current", "debt-noncurrent") + (
+            ("lease-current", "lease-noncurrent") if include_leases and not leases_inside else ()
+        )
+        own, problem = self.company_lines(at, roles)
+        if problem:
+            return missing("USDm", f"debt: {problem}")
+        parts += own
         if not parts:
             if not self.ever_filed(DEBT_CONCEPTS):
                 return Value(0.0, Kind.DERIVED, "USDm", "no debt concept ever filed; taken as zero", at,

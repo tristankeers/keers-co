@@ -2,16 +2,17 @@
 
 A research platform for three investment strategies: distressed and special situations, durable-moat compounders, and systematic quant. Research only. Paper portfolios only. No live trading.
 
-**Status: Phase 1 in progress (engine ported; live data layer running; calculation version kci-v2 fixes the audit's default assumptions).** Nothing here makes investment decisions yet. This repository currently holds:
+**Status: Phase 1 in progress (engine ported; live data layer running; calculation versions kci-v2 and kci-v3 fix the audit's findings).** Nothing here makes investment decisions yet. This repository currently holds:
 
 - `legacy/kci/`: KCI's calculation engine and dataset, copied unchanged from KCI's published page ([tristankeers/kci](https://github.com/tristankeers/kci), commit `2232610`). KCI's original source code could not be recovered, so the published page is the source of record. See `legacy/kci/SOURCE.json`.
 - `tests/legacy/`: tests that lock in what that engine produces today (the 19 hand-worked checks, the Dropbox worked case and the default model for all 100 companies).
 - `src/keers/valuation/kci_v1.py` and `kci_v1_defaults.py`: the KCI engine and its default assumptions ported to Python as calculation version `kci-v1`. The port matches the frozen JavaScript on all 100 companies and on 3,864 randomised cases. It keeps KCI's known issues on purpose; fixes come as version 2.
 
-- `src/keers/valuation/kci_v2_defaults.py`: calculation version `kci-v2`. Same engine formulas, three default assumptions fixed: buyouts pay a 30% takeover premium on market equity and exit at the market multiple; the DCF uses each company's own beta (measured weekly against SPY over two years, Blume-adjusted) and the live 10-year Treasury yield, with the size premium only for smaller companies; capex fades from today's ratio to the D&A ratio by the final year. With no beta the DCF is not run. What changed on KCI's 100-company baseline is in `docs/calc/kci-v2-changes.md`. Live snapshots use `kci-v2` by default (`--calc-version kci-v1` for the old one).
+- `src/keers/valuation/kci_v2_defaults.py`: calculation version `kci-v2`. Same engine formulas, three default assumptions fixed: buyouts pay a 30% takeover premium on market equity and exit at the market multiple; the DCF uses each company's own beta (measured weekly against SPY over two years, Blume-adjusted) and the live 10-year Treasury yield, with the size premium only for smaller companies; capex fades from today's ratio to the D&A ratio by the final year. With no beta the DCF is not run. What changed on KCI's 100-company baseline is in `docs/calc/kci-v2-changes.md`. `--calc-version kci-v2` or `kci-v1` runs an older version.
+- `src/keers/valuation/kci_v3_defaults.py`: calculation version `kci-v3`, the default for live snapshots. It keeps kci-v2 and closes the rest of the audit: buyout interest is deductible only up to 30% of EBITDA each year, with the excess carried forward (US section 163(j)); the DCF weights debt by the company's own market capital structure instead of a fixed 30% (no debt figure means no DCF); a company priced above 25x EBITDA or with an EBITDA margin below 10% gets "Pass" as a buyout candidate unless it has a custom model; a default model can reach "Further Research" at most, never "Proceed"; a negative DCF enterprise value gives no value per share; and an IRR whose cash flows change sign more than once carries a warning. What changed is in `docs/calc/kci-v3-changes.md`.
 - `src/keers/strategies/distress.py`: Strategy A's first step, a distress screen on live data. Five checks per company (interest cover, net debt / EBITDA, debt due within a year against cash, Altman Z, fall from the 52-week high), each with its thresholds and a sentence saying why, plus the Baa credit spread as market backdrop. A check with missing data is `unknown` and never counts as clear. Run `python scripts/distress_screen.py [TICKER ...]` (or the screen step in `live-smoke.yml`); the default test list is `config/universe/distress-test.txt`.
 - `src/keers/universe/`: the global company universe. Listed companies on the US exchanges and 41 others, from SEC, Nasdaq Trader and OpenFIGI, with each listing's currency, Yahoo symbol and fundamentals coverage marked as confirmed or assumed. `python -m keers.universe search "toyota"`. Non-US companies have prices, charts and headlines but no fundamentals yet. See `docs/universe.md` for the sources, the thin spots and the plan.
-- `src/keers/data/`: the live data layer. It pulls SEC filings (XBRL company facts), daily share prices (Yahoo Finance first, Tiingo as fallback), intraday bars, quotes and headlines (Yahoo), and Treasury and credit rates (FRED). SEC EDGAR stays the source of truth for financial statements. **Yahoo Finance is unofficial and for personal use only; it must be replaced by a licensed feed before any commercial or regulated use.** See `docs/data-sources.md`. Every number is stored with the filing, date and response hash it came from, and is read as of a date, so a back-dated run sees only what had been filed by then. Snapshots with missing or stale figures are blocked and never reach the valuation engine.
+- `src/keers/data/`: the live data layer. It pulls SEC filings (XBRL company facts, plus the filing's own XBRL for a short reviewed list of companies whose debt is filed under their own concepts; see `src/keers/data/company_lines.toml`), daily share prices (Yahoo Finance first, Tiingo as fallback), intraday bars, quotes and headlines (Yahoo), and Treasury and credit rates (FRED). SEC EDGAR stays the source of truth for financial statements. **Yahoo Finance is unofficial and for personal use only; it must be replaced by a licensed feed before any commercial or regulated use.** See `docs/data-sources.md`. Every number is stored with the filing, date and response hash it came from, and is read as of a date, so a back-dated run sees only what had been filed by then. Snapshots with missing or stale figures are blocked and never reach the valuation engine.
 
 KCI itself is a separate project and is never modified from here.
 
@@ -22,7 +23,7 @@ SEC requires every client to identify itself, so set `SEC_USER_AGENT` to your na
 ```bash
 export SEC_USER_AGENT="Your Name you@example.com"
 python -m keers.data refresh DBX ADBE            # or: --universe config/universe/kci100.txt
-python -m keers.data snapshot DBX --analyse      # snapshot as of today, then kci-v2 if not blocked
+python -m keers.data snapshot DBX --analyse      # snapshot as of today, then kci-v3 if not blocked
 python -m keers.data snapshot DBX --as-of 2026-10-15
 python -m keers.data status
 python -m keers.data quote DBX ADBE              # latest price with freshness warnings (Yahoo)
@@ -38,7 +39,7 @@ How figures are built: trailing twelve months = latest fiscal year + current yea
 
 A local web interface over everything above: company search (any listing; US SEC filers get the full view),
 a profile with every figure labelled reported, derived, market, assumption or estimate and traced to its filing
-or source, the kci-v2 DCF and buyout with editable inputs and a side-by-side kci-v1 comparison, the distress
+or source, the kci-v3 DCF and buyout with editable inputs and a side-by-side kci-v1 comparison, the distress
 screen with its reasons, daily and intraday charts drawn from our own stored bars, and headlines.
 
 ```bash
@@ -81,7 +82,7 @@ The audit (22 Oct 2026) found problems in KCI's default assumptions. They are fr
 
 - Default buyouts are priced at the market price with no takeover premium. This yields "Proceed" for EQT, Expand Energy and Gen Digital. *Fixed in kci-v2.*
 - The default DCF keeps today's capex ratio forever and uses the same beta and a 2% size premium for every company. It values the median company at about 55% of market value, and some (Oracle, Meta, Alphabet) negative. *Fixed in kci-v2.*
-- Interest is fully tax-deductible regardless of leverage (no US section 163(j) cap).
+- Interest is fully tax-deductible regardless of leverage (no US section 163(j) cap). *Fixed in kci-v3, along with the fixed 30% DCF debt weight and default models reaching "Proceed".*
 - Figures are a one-off snapshot, and "verified" labels reflect AI-assisted checks.
 
 Decision records are in `docs/adr/`.
