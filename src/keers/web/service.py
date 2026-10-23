@@ -793,6 +793,29 @@ class Workbench:
             except TradeError as e:
                 raise InputError(str(e)) from e
 
+    # research agents --------------------------------------------------------------------------------------------
+    def research(
+        self, symbol: str, strategy: str, portfolio_id: Any = None, execute: bool = False
+    ) -> dict[str, Any]:
+        """Run the analyst, bear reviewer and memo writer (``keers.agents``). A proposed trade goes through the
+        paper desk and the risk limits like any other; the agents cannot place one any other way."""
+        from keers.agents import committee
+        from keers.agents.llm import from_env
+
+        pid = None
+        if portfolio_id not in (None, ""):
+            try:
+                pid = int(portfolio_id)
+            except (TypeError, ValueError) as e:
+                raise InputError("portfolio must be a number") from e
+        llm, why = from_env()
+        try:
+            r = committee.run(self, symbol, strategy, llm, why, pid, bool(execute),
+                              out_dir=Path(self.db_path).resolve().parent / "agent-runs")  # fmt: skip
+        except committee.RunError as e:
+            raise InputError(str(e)) from e
+        return r.as_dict()
+
 
 PAPER_NOTICE = (
     "Paper trading only: no broker is connected and no real order is ever sent. Fills are simulated at the latest "
