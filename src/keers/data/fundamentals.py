@@ -925,7 +925,7 @@ class Fundamentals:
         or after ``lo`` that has both. Used only when EPS is precise enough (``MAX_EPS_ROUNDING``)."""
         best: tuple[date, Fact, Fact] | None = None
         for c in EPS_BASIC:
-            num = {
+            num: dict[tuple[date | None, date], Fact] = {
                 (f.start, f.end): f
                 for f in latest_known(self._facts(EPS_NUMERATOR[c]))
                 if f.start is not None
