@@ -114,7 +114,9 @@ def decide(
     if not sheet.valuation_ran:
         reasons.append("the valuation did not run")
     if strategy == "C":
-        reasons.append("strategy C trades come from systematic signals, which are not built yet")
+        reasons.append(
+            "strategy C trades come from its systematic signals (keers.strategies.quant), not from a single-company case"
+        )
     if case["stance"] == "no_trade":
         reasons.append("the analyst found no case")
     if strategy == "B" and case["stance"] == "short":

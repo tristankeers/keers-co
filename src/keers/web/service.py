@@ -866,6 +866,54 @@ class Workbench:
             raise InputError(str(e)) from e
         return r.as_dict()
 
+    # strategy C signals (keers.strategies.quant) -----------------------------------------------------------------
+    def _quant_tickers(self, st: Store, tickers: Any) -> list[str]:
+        if tickers:
+            return sorted({str(t).strip().upper() for t in tickers if str(t).strip()})
+        rows = st.db.execute("SELECT DISTINCT ticker FROM companies ORDER BY ticker").fetchall()
+        return [r[0] for r in rows]
+
+    def quant_signals(self, tickers: Any = None) -> dict[str, Any]:
+        """Strategy C's ranking and target book from the stored prices, as of today. Reads only; fetches nothing."""
+        from keers.strategies.quant import MODEL_VERSION, model
+        from keers.strategies.quant.pit import PointInTime
+        from keers.strategies.quant.signals import SIGNALS_VERSION
+
+        cfg = model.Config()
+        with self.store() as st:
+            syms = self._quant_tickers(st, tickers)
+            rows = model.rank(PointInTime(st, self.today()), syms, cfg)
+        return {"asOf": self.today().isoformat(), "model": MODEL_VERSION, "signalsVersion": SIGNALS_VERSION,
+                "config": cfg.as_dict(), "rows": [r.as_dict() for r in rows], "targets": model.targets(rows),
+                "notice": "Signals use stored prices only; refresh them first (python -m keers.strategies.quant fetch)."}  # fmt: skip
+
+    def quant_rebalance(self, pid: int, execute: bool, tickers: Any = None) -> dict[str, Any]:
+        """Move strategy C's holdings towards the target book. Every ticket goes through ``paper_trade`` (the desk
+        and the risk limits); a blocked ticket is recorded as rejected and the rest carry on."""
+        from keers.strategies.quant import MODEL_VERSION, model, rebalance
+
+        if execute and not model.APPROVED_FOR_PAPER:
+            raise InputError(
+                f"strategy C ({MODEL_VERSION}) is not approved for paper trading yet: its backtest has not beaten "
+                "both SPY and the equal-weight book. Preview only."
+            )
+        sig = self.quant_signals(tickers)
+        view = self.portfolio(pid)
+        tickets, problems = rebalance.plan(
+            sig["targets"], view["positions"], note=f"{MODEL_VERSION} rebalance"
+        )
+        results = []
+        for t in tickets:
+            try:
+                r = self.paper_trade(pid, t, execute)
+                results.append({"ticket": t, "filled": r.get("filled"), "approved": r["risk"]["approved"],
+                                "quantity": r["quantity"], "breaches": r["risk"]["breaches"]})  # fmt: skip
+            except InputError as e:
+                results.append({"ticket": t, "filled": False, "approved": False, "error": str(e)})
+        return {"asOf": sig["asOf"], "model": MODEL_VERSION, "executed": execute, "targets": sig["targets"],
+                "results": results, "problems": problems,
+                "notice": PAPER_NOTICE + (" Previews are checked one by one, not in sequence." if not execute else "")}  # fmt: skip
+
 
 PAPER_NOTICE = (
     "Paper trading only: no broker is connected and no real order is ever sent. Fills are simulated at the latest "

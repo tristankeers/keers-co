@@ -145,6 +145,15 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
         return wb.research(sym(symbol), str(body.get("strategy") or ""), body.get("portfolio"),
                            bool(body.get("execute")))  # fmt: skip
 
+    # strategy C signals: rebalance tickets also go through the paper desk and keers.risk ----------------------
+    @app.post("/api/strategies/c/signals")
+    def quant_signals(body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.quant_signals(body.get("tickers"))
+
+    @app.post("/api/portfolios/{pid}/strategies/c/rebalance")
+    def quant_rebalance(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.quant_rebalance(pid, bool(body.get("execute")), body.get("tickers"))
+
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/", include_in_schema=False)

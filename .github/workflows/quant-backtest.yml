@@ -1,0 +1,55 @@
+name: Quant backtest
+
+# Fetches live SEC filings and ten years of Yahoo prices for the KCI list, then runs strategy C's signals and
+# point-in-time backtest. Runs on pull requests that touch the quant code, and by hand. Needs SEC_USER_AGENT.
+
+on:
+  pull_request:
+    paths: ["src/keers/strategies/quant/**", ".github/workflows/quant-backtest.yml"]
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Backtest start date"
+        required: false
+        default: "2017-01-01"
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      START: ${{ inputs.start || '2017-01-01' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret"
+            exit 1
+          fi
+      - run: pip install -e .
+      - name: Fetch filings and prices
+        # Failures are listed in the output; the backtest runs on whatever was fetched.
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite fetch --universe config/universe/kci100.txt --years 10 || true
+      - name: Signals today
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite signals --universe config/universe/kci100.txt > quant-out-signals.json && python -c "import json; d=json.load(open('quant-out-signals.json')); print(json.dumps(d['targets'], indent=2))"
+      - name: Backtest v2 (momentum, value, quality; inverse-volatility sizing)
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --preset v2 --out quant-out/backtest-v2.json
+      - name: Backtest v1 (kept for comparison)
+        if: always()
+        run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --preset v1 --out quant-out/backtest-v1.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quant-backtest
+          path: |
+            quant-out/*.json
+            quant-out-signals.json

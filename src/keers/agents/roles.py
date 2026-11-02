@@ -289,7 +289,7 @@ def rules_analyst(sheet: FactSheet, strategy: str) -> dict[str, Any]:
     if sheet.blocked_by:
         thesis = "No case: the figures are blocked by data problems, so nothing can be relied on."
     elif strategy == "C":
-        thesis = "No case: strategy C trades come from systematic signals, and none have been built yet."
+        thesis = "No case: strategy C trades come from its systematic signals (keers.strategies.quant), not from one company."
     elif strategy == "B":
         if vs is None or score is None:
             thesis = "No case: the valuation did not produce a DCF value or a score."
