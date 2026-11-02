@@ -28,6 +28,13 @@ def db(tmp_path: Path) -> Path:
     return demo.build(tmp_path / "keers.sqlite")
 
 
+@pytest.fixture(autouse=True)
+def long_bar(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Under kci-v3 the demo company's DCF upside is 14.97%, just under the 15% compounder bar. These tests are
+    # about the run's plumbing (desk, risk, memo), so the bar is lowered to keep a long case to run through it.
+    monkeypatch.setattr(roles, "B_MIN_UPSIDE", 0.10)
+
+
 @pytest.fixture
 def wb(db: Path) -> Workbench:
     return Workbench(str(db), today=lambda: demo.AS_OF)
@@ -82,8 +89,8 @@ def test_fact_sheet_reads_the_engines_with_sources(wb: Workbench) -> None:
     assert s.facts["price"].value == 51.63 and s.facts["price"].label == "market"
     assert "sec.gov/Archives" in (s.facts["revenue"].link or "")
     assert s.facts["dcf.vsPrice"].label == "derived" and s.facts["distress.status"].value == "no flags"
-    assert "kci-v2" in s.facts["lbo.base.irr"].source
-    assert "{dcf.vsPrice} | DCF value per share against the last close | 29.4%" in s.table()
+    assert "kci-v3" in s.facts["lbo.base.irr"].source
+    assert "{dcf.vsPrice} | DCF value per share against the last close | 15.0%" in s.table()
 
 
 def test_guard_rejects_typed_numbers_and_unknown_keys(wb: Workbench) -> None:
@@ -158,7 +165,7 @@ def test_model_reply_is_used_and_conviction_sets_size_in_code(wb: Workbench) -> 
     r = go(wb, "B", llm)
     assert r.analyst and r.analyst.source == "model fake-model"
     assert r.decision["weight"] == committee.SIZING["high"]
-    assert "$66.83 [" in r.memo and "Widgets at a discount" in r.memo
+    assert "$59.36 [" in r.memo and "Widgets at a discount" in r.memo
     assert "{trade.weight}" in llm.calls[2][1]  # the writer sees the size as a fact key, not a number
 
 

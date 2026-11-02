@@ -16,17 +16,17 @@ from datetime import date, timedelta
 from keers.data.http import Fetcher
 from keers.data.market import TIINGO_URL
 from keers.data.refresh import user_agent
-from keers.data.sec import FACTS_URL, SEC, concept_inventory
+from keers.data.sec import FACTS_URL, SEC, SUBMISSIONS_URL, concept_inventory
 from keers.data.store import Store
 
-PATTERN = (r"(Interest|Cash|Debt|Borrow|Notes|Loan|Credit|Revolv|OperatingIncome|CostsAndExpenses|Revenues$|"
+PATTERN = (r"(Interest|BeforeIncomeTax|IncomeLoss|Cash|Debt|Borrow|Notes|Loan|Credit|Revolv|OperatingIncome|CostsAndExpenses|Revenues$|"
            r"Liabilities|Assets$|AssetsCurrent|RetainedEarnings|StockholdersEquity)")  # fmt: skip
 SINCE = date(2025, 1, 1)
 
 
 def main() -> int:
     tickers = [t.upper() for t in sys.argv[1:]]
-    if not all(re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}", t) for t in tickers):
+    if not all(re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,9}|CIK\d{1,10}", t) for t in tickers):
         print("bad tickers")
         return 2
     f = Fetcher(user_agent())
@@ -35,6 +35,15 @@ def main() -> int:
     token = (os.environ.get("TIINGO_TOKEN") or "").strip()
     for t in tickers:
         print(f"\n===== {t}")
+        if t.startswith("CIK"):
+            subs = json.loads(f.get(SUBMISSIONS_URL.format(cik=int(t[3:]))).body)
+            recent = subs.get("filings", {}).get("recent", {})
+            last = list(zip(recent.get("form", [])[:8], recent.get("filingDate", [])[:8], strict=False))
+            print(
+                f"name {subs.get('name')}; tickers {subs.get('tickers')}; exchanges {subs.get('exchanges')}; "
+                f"former names {[x.get('name') for x in subs.get('formerNames', [])]}; latest filings {last}"
+            )
+            continue
         if t not in tmap:
             near = sorted(k for k, (_, name) in tmap.items() if t[:2] in k and len(k) <= 5)[:20]
             print(f"not in SEC ticker map; tickers starting {t[:2]}: {near}")

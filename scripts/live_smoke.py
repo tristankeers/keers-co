@@ -22,9 +22,13 @@ from keers.data.sec import FACTS_URL, concept_inventory
 from keers.data.store import Store
 from keers.valuation import kci_v1_defaults as V1
 from keers.valuation import kci_v2_defaults as V2
+from keers.valuation import kci_v3_defaults as V3
 
 AS_OF = date(2026, 10, 15)
-TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY"]
+TICKERS = ["DBX", "ADBE", "CRM", "INTU", "WDAY", "OPEN"]
+# Debt filed as lines of credit used to block these two; they must now reach the valuation.
+MUST_VALUE = {"DBX", "OPEN"}
+BETA_CHECKED = {"DBX", "ADBE", "CRM", "INTU", "WDAY"}
 DIAG_PATTERN = r"^(LongTermDebt|DebtCurrent|ShortTermBorrowings|CommercialPaper|Convertible(Debt|Notes)|SecuredDebt|.*TermLoan|LineOfCredit$|InterestExpense|Depreciation|AmortizationOfIntangibleAssets|AdjustmentForAmortization|CashCashEquivalentsAndShortTermInvestments|EntityCommonStockSharesOutstanding|WeightedAverageNumberOfDilutedSharesOutstanding|Interest|ProceedsFrom.*(Debt|Loan|Borrow|Credit)|Liabilities$|.*Loan|DebtInstrument(Carrying|Face))"
 # (ticker, field, KCI figure, tolerance). Pinned to AS_OF, so later filings cannot move them.
 # Dropbox's revenue and EBITDA were built by KCI from filings. The others come from KCI's third-party source;
@@ -103,14 +107,19 @@ def main() -> int:
             )
             ok = ok and good
         b = snap.values.get("beta")
-        good = b is not None and b.known and BETA_RANGE[0] <= (b.value or 0) <= BETA_RANGE[1]
-        print(
-            f"CHECK {t} beta: {b.value if b else None} ({b.method if b else 'not computed'}) -> {'PASS' if good else 'FAIL'}"
-        )
-        ok = ok and good
+        if t in BETA_CHECKED:
+            good = b is not None and b.known and BETA_RANGE[0] <= (b.value or 0) <= BETA_RANGE[1]
+            print(
+                f"CHECK {t} beta: {b.value if b else None} ({b.method if b else 'not computed'}) -> {'PASS' if good else 'FAIL'}"
+            )
+            ok = ok and good
+        if t in MUST_VALUE:
+            good = not snap.blocked
+            print(f"CHECK {t} not blocked: {snap.blocked_by or 'clear'} -> {'PASS' if good else 'FAIL'}")
+            ok = ok and good
         if not snap.blocked:
             deal = snapshot.to_kci_deal(snap)
-            for name, mod in (("kci-v1", V1), ("kci-v2", V2)):
+            for name, mod in (("kci-v1", V1), ("kci-v2", V2), ("kci-v3", V3)):
                 a = mod.analyse(deal)
                 base = a["scenarios"]["base"]["result"]
                 dcf = a["dcf"]

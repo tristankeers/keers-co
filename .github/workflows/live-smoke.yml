@@ -39,6 +39,12 @@ jobs:
           DIAGNOSE: ${{ inputs.diagnose }}
         # shellcheck disable=SC2086
         run: python scripts/concept_diag.py $DIAGNOSE
+      - name: Filing instance diagnostics
+        if: inputs.diagnose != ''
+        env:
+          DIAGNOSE: ${{ inputs.diagnose }}
+        # shellcheck disable=SC2086
+        run: python scripts/instance_diag.py $DIAGNOSE
       - name: Smoke test
         run: python scripts/live_smoke.py
       - name: Yahoo quotes, bars and headlines

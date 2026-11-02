@@ -40,6 +40,9 @@ BASE = "https://filings.xbrl.org"
 FILINGS_BY_ENTITY = BASE + "/api/entities/{lei}/filings?page%5Bsize%5D=100"
 FILINGS_FILTERED = BASE + "/api/filings?filter={flt}&include=entity&page%5Bsize%5D=100"
 MAX_PAGES = 5
+ENTITIES = BASE + "/api/entities?page%5Bsize%5D=200"
+# The filer list is about 7,500 entities; this bounds the walk if the site's paging misbehaves.
+MAX_ENTITY_PAGES = 200
 FORM = "ESEF"
 
 PLAIN_DIMENSIONS = {"concept", "entity", "period", "unit", "language", "noteId"}
@@ -269,6 +272,19 @@ def parse_xbrl_json(
     return facts, rep
 
 
+def parse_entities(doc: Any) -> list[tuple[str, str]]:
+    """JSON:API list of entities -> ``(lei, name)``. Entries without a valid LEI or a name are left out."""
+    if not isinstance(doc, dict) or not isinstance(doc.get("data"), list):
+        raise ParseError("filings.xbrl.org: not a JSON:API list")
+    out = []
+    for d in doc["data"]:
+        a = (d or {}).get("attributes") or {} if isinstance(d, dict) else {}
+        lei, name = str(a.get("identifier") or "").upper(), str(a.get("name") or "").strip()
+        if is_lei(lei) and name:
+            out.append((lei, name))
+    return out
+
+
 class Esef:
     """Finds an LEI's reports on filings.xbrl.org and stores their facts. Raw responses are stored by hash."""
 
@@ -285,6 +301,19 @@ class Esef:
         for _ in range(MAX_PAGES):
             doc = _json(self._get(url))
             out += parse_filings(doc, lei)
+            nxt = (doc.get("links") or {}).get("next")
+            if not nxt or not doc.get("data"):
+                break
+            url = _abs(nxt)
+        return out
+
+    def entities(self) -> list[tuple[str, str]]:
+        """Every filer on filings.xbrl.org as ``(lei, name)``, walking the pages."""
+        out: list[tuple[str, str]] = []
+        url = ENTITIES
+        for _ in range(MAX_ENTITY_PAGES):
+            doc = _json(self._get(url))
+            out += parse_entities(doc)
             nxt = (doc.get("links") or {}).get("next")
             if not nxt or not doc.get("data"):
                 break

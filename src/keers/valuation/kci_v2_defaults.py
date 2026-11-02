@@ -176,12 +176,25 @@ def default_dcf(d: Mapping[str, Any]) -> Json:
 
 def analyse(deal: Mapping[str, Any], settings: Mapping[str, Any] | None = None) -> Json:
     """v1's analysis with v2's defaults. Custom models saved on the deal are used as they are."""
+    return analyse_with(deal, settings, default_lbo, default_scenarios, default_dcf, CALC_VERSION, CHANGES)
+
+
+def analyse_with(
+    deal: Mapping[str, Any],
+    settings: Mapping[str, Any] | None,
+    lbo_defaults: Any,
+    scenario_defaults: Any,
+    dcf_defaults: Any,
+    calc_version: str,
+    changes: Sequence[str],
+) -> Json:
+    """The analysis step with a version's default builders; later versions reuse it with their own."""
     settings = settings or {"scoring": K.DEFAULT_SCORING, "criteria": K.DEFAULT_CRITERIA}
-    lbo_in = fit_years(deal.get("lbo") or default_lbo(deal))
+    lbo_in = fit_years(deal.get("lbo") or lbo_defaults(deal))
     lbo = K.run_lbo(lbo_in)
-    sc_in = deal.get("scenarios") or default_scenarios(lbo_in)
+    sc_in = deal.get("scenarios") or scenario_defaults(lbo_in)
     drift = (
-        scenario_base_drift(deal["scenarios"]["base"], default_scenarios(lbo_in)["base"])
+        scenario_base_drift(deal["scenarios"]["base"], scenario_defaults(lbo_in)["base"])
         if deal.get("scenarios")
         else []
     )
@@ -190,7 +203,7 @@ def analyse(deal: Mapping[str, Any], settings: Mapping[str, Any] | None = None) 
         inp = fit_years(K.apply_scenario(lbo_in, sc_in[k]))
         scenarios[k] = {"inputs": sc_in[k], "model": inp, "result": K.run_lbo(inp)}
     score = K.score_target(deal, settings["scoring"])
-    dcf_in = fit_dcf(deal.get("dcf") or default_dcf(deal))
+    dcf_in = fit_dcf(deal.get("dcf") or dcf_defaults(deal))
     w = dcf_wacc(dcf_in)
     dcf = (
         K.run_dcf({**dcf_in, "wacc": w["value"]})
@@ -228,10 +241,10 @@ def analyse(deal: Mapping[str, Any], settings: Mapping[str, Any] | None = None) 
         "dcf": dcf,
         "comps": comps,
         "rec": rec,
-        "calcVersion": CALC_VERSION,
+        "calcVersion": calc_version,
         "engineVersion": ENGINE_VERSION,
         "customModel": {"lbo": bool(deal.get("lbo")), "dcf": bool(deal.get("dcf"))},
-        "changes": list(CHANGES),
+        "changes": list(changes),
     }
 
 

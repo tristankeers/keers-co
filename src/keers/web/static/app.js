@@ -292,7 +292,7 @@ async function homeView() {
   fill(view, 
     h("div", { class: "home-hero" },
       h("h1", {}, "Research workbench"),
-      h("p", {}, "Search any listed company. US SEC filers get the full view: filed fundamentals, the kci-v2 valuation with its kci-v1 comparison, and the distress screen. Other listings show price, chart and news until a fundamentals source exists for their market."),
+      h("p", {}, "Search any listed company. US SEC filers get the full view: filed fundamentals, the kci-v3 valuation with its kci-v1 comparison, and the distress screen. Other listings show price, chart and news until a fundamentals source exists for their market."),
     ),
     h("div", { class: "grid cols-2" },
       h("section", { class: "panel" },
@@ -778,7 +778,7 @@ function inputsTable(kind, fields, model, defaults) {
     return h("tr", {}, h("td", {}, title), h("td", { class: "n" }, cell), h("td", { class: "muted" }, unit === "pct" ? "%" : unit === "USDm" ? "USD m" : "x"),
       h("td", {}, edited ? h("span", { class: "chip custom" }, "your input") : chip("assumption")), h("td", { class: "n mono muted" }, defText));
   });
-  return h("table", { class: "inputs" }, h("thead", {}, h("tr", {}, h("th", {}, "Input"), h("th", { class: "n" }, "Value"), h("th", {}, "Unit"), h("th", {}, "Label"), h("th", { class: "n" }, "kci-v2 default"))), h("tbody", {}, rows));
+  return h("table", { class: "inputs" }, h("thead", {}, h("tr", {}, h("th", {}, "Input"), h("th", { class: "n" }, "Value"), h("th", {}, "Unit"), h("th", {}, "Label"), h("th", { class: "n" }, "kci-v3 default"))), h("tbody", {}, rows));
 }
 
 function kpi(title, value, sub, ...labels) {
@@ -787,7 +787,7 @@ function kpi(title, value, sub, ...labels) {
 function cmpVal(v, unit) { if (unit === "text") return v ?? "—"; if (unit === "pct") return fpct(v, 1); if (unit === "x") return fx(v, 2); if (unit === "score") return fnum(v, 0); return fnum(v, 0); }
 
 async function valuationTab(c, body, edits = null) {
-  fill(body, h("div", { class: "loading" }, "Running kci-v2 and kci-v1…"));
+  fill(body, h("div", { class: "loading" }, "Running kci-v3 and kci-v1…"));
   if (!edits) EDITS = { lbo: {}, dcf: {} };
   const path = `/api/companies/${encodeURIComponent(c.symbol)}/valuation`;
   const v = edits ? await api(path, { method: "POST", body: JSON.stringify(edits) }) : await api(path);
@@ -817,12 +817,12 @@ async function valuationTab(c, body, edits = null) {
 
   // comparison
   const cmp = h("section", { class: "panel" },
-    h("div", { class: "ph" }, h("h2", {}, "kci-v1 against kci-v2, same live inputs"), h("span", { class: "faint" }, custom ? "v2 column uses your inputs" : "")),
+    h("div", { class: "ph" }, h("h2", {}, "kci-v1 against " + v.calcVersion + ", same live inputs"), h("span", { class: "faint" }, custom ? v.calcVersion + " column uses your inputs" : "")),
     h("div", { class: "pb flush scroll-x" }, h("table", {},
-      h("thead", {}, h("tr", {}, h("th", {}, "Output"), h("th", { class: "n" }, "kci-v1"), h("th", { class: "n" }, "kci-v2"), h("th", { class: "n" }, "Change"))),
+      h("thead", {}, h("tr", {}, h("th", {}, "Output"), h("th", { class: "n" }, "kci-v1"), h("th", { class: "n" }, v.calcVersion), h("th", { class: "n" }, "Change"))),
       h("tbody", {}, v.comparison.map((r) => h("tr", {}, h("td", {}, r.title), h("td", { class: "n" }, cmpVal(r.v1, r.unit)), h("td", { class: "n" }, cmpVal(r.v2, r.unit)),
         h("td", { class: `n ${isNum(r.change) ? (r.change < 0 ? "neg" : r.change > 0 ? "pos" : "") : ""}` }, isNum(r.change) ? signed(r.unit === "pct" ? `${fnum(r.change * 100, 1)}pp` : cmpVal(r.change, r.unit), r.change) : "")))))),
-    h("div", { class: "pb" }, h("div", { class: "eyebrow" }, "What kci-v2 changes"), h("ul", {}, v.changes.map((x) => h("li", {}, x)))));
+    h("div", { class: "pb" }, h("div", { class: "eyebrow" }, "What " + v.calcVersion + " changes"), h("ul", {}, v.changes.map((x) => h("li", {}, x)))));
 
   // DCF
   const dcfRows = dcf.ok ? dcf.rows : [];

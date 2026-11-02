@@ -161,10 +161,10 @@ def test_live_snapshot_runs_kci_v1() -> None:
     assert out["analysis"]["lbo"]["ok"] in (True, False)
 
 
-def test_live_snapshot_defaults_to_kci_v2_and_passes_live_rates() -> None:
+def test_live_snapshot_defaults_to_kci_v3_and_passes_live_rates() -> None:
     out = snapshot.analyse(snapshot.build(with_market(load()), "EXW", date(2025, 11, 10)))
     a = out["analysis"]
-    assert out["ran"] is True and a["calcVersion"] == "kci-v2" and a["engineVersion"] == "kci-v1"
+    assert out["ran"] is True and a["calcVersion"] == "kci-v3" and a["engineVersion"] == "kci-v1"
     assert out["deal"]["riskFree"] == pytest.approx(0.041)  # FRED's 4.1% as a decimal
     # No benchmark prices in the store, so no beta, so the DCF refuses rather than using a house beta.
     assert out["deal"]["beta"] is None
