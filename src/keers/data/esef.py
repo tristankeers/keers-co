@@ -141,9 +141,14 @@ def _start_date(s: str) -> date:
 
 
 def _unit(u: str | None) -> str | None:
-    """'iso4217:EUR' -> 'EUR', 'xbrli:shares' -> 'shares'. Ratios such as EUR/shares are not read (None)."""
-    if not u or "/" in u or "*" in u:
+    """'iso4217:EUR' -> 'EUR', 'xbrli:shares' -> 'shares', 'iso4217:EUR/xbrli:shares' -> 'EUR/shares' (per-share
+    amounts, as SEC companyfacts writes them). Other ratios and products are not read (None)."""
+    if not u or "*" in u:
         return None
+    if "/" in u:
+        num, _, den = u.partition("/")
+        cur = _unit(num)
+        return f"{cur}/shares" if cur and cur != "shares" and _unit(den) == "shares" else None
     local = u.split(":", 1)[-1]
     if local == "shares":
         return "shares"

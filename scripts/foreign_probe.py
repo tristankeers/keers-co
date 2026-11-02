@@ -57,7 +57,7 @@ def shape(fetcher: Fetcher) -> dict[str, Any]:
 # Lines that were missing in the first live check; the probe lists every concept a company filed that looks like one.
 DIAG = re.compile(r"(?i)(depreciation|amorti[sz]|purchase.*(property|intangible)|capitalexpend|operating(profit|income)|"
                   r"profitlossfromoperating|borrowing|loan|notespayable|bond|leaseliabilit|weightedaverage|"
-                  r"numberofshares|sharesoutstanding|financecost|interestexpense)")  # fmt: skip
+                  r"numberofshares|sharesoutstanding|earnings(loss)?pershare|financecost|interestexpense)")  # fmt: skip
 
 
 def concept_diag(store: Store, cik: int) -> dict[str, Any]:
@@ -73,7 +73,10 @@ def concept_diag(store: Store, cik: int) -> dict[str, Any]:
         (like,),
     ).fetchone()
     if row is None:
-        return {"error": f"no stored report matching {like}"}
+        stored = store.filings(cik, forms=())
+        return {"error": f"no stored report matching {like}",
+                "filingsListed": [(f.accn, f.report_date, f.primary_document) for f in stored[-5:]],
+                "note": "filings.xbrl.org lists a report only when it has an xBRL-JSON (json_url) and a period end"}  # fmt: skip
     try:
         doc = json.loads(row[1])
     except ValueError:
