@@ -36,6 +36,21 @@ problem: the calmest fifth trailed the most volatile fifth by 2.6% a month. v2 w
 factor research before it was run, not tuned on this backtest; `--preset v1` still runs the old model for
 comparison.
 
+## Results so far (live run 39923030866, 23 Oct 2026, KCI 100 list, Feb 2017 to Oct 2026, after costs)
+
+| | CAGR | Sharpe | Max drawdown |
+|---|---|---|---|
+| v2 book | 21.5% | 0.84 | 34% |
+| v1 book | 13.6% | 0.57 | 33% |
+| SPY | 15.1% | 0.72 | 34% |
+| Equal-weight book (v2's ranked names) | 23.4% | 0.93 | 37% |
+
+v2 beats SPY but not the equal-weight book, so the gate stays closed. Per signal (top fifth minus bottom fifth, a
+month): momentum +1.3% (t 1.4), value −0.4% (t −0.5), quality −0.7% (t −1.2), low volatility −2.6% (t −2.8). None
+shows a reliable edge on these 100 names, and most of v2's lead over SPY comes from the list itself (the equal-weight
+book does better still), which survivorship bias flatters. Tuning the signals further on the same 100 names would
+mostly fit noise; the next useful test is a wider universe that includes delisted companies.
+
 ## Paper-trading gate
 
 `model.APPROVED_FOR_PAPER` is `False`. While it is, the rebalance endpoint previews tickets but refuses to execute
