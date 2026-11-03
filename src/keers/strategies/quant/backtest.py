@@ -10,6 +10,9 @@ Comparisons: SPY held throughout, and an equal-weight book of every company that
 (same timing and costs), which isolates what the ranking adds. Per signal: the monthly return of the top fifth
 minus the bottom fifth, and the rank correlation between the signal and the next month's return (the IC).
 
+The verdict is ``gate.py``'s: beating both benchmarks is not enough; the Deflated Sharpe Ratio, which raises the
+bar for every model tried (``config/research/trials.json``), must reach 95%.
+
 Known biases, reported with every run: the universe is today's list of tickers, so companies that were delisted
 are missing (survivorship bias, which flatters results); prices are Yahoo's adjusted closes.
 """
@@ -25,6 +28,7 @@ from typing import Any
 from keers.data.store import Store
 from keers.portfolio.fills import BPS, CostModel
 
+from . import gate
 from .model import SIGNALS, Config, Row, rank
 from .pit import PointInTime
 from .signals import SIGNALS_VERSION
@@ -227,6 +231,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             if ic is not None:
                 ics[n].append(ic)
 
+    # Is the result skill or luck? Deflated Sharpe against every model tried (see gate.py).
+    research = gate.evaluate(curve, ew_curve, rf, cfg.as_dict())
+
     spy = [(d, panel[benchmark][d]) for d, _ in curve if d in panel[benchmark]]
     if missing_after:
         warnings.append(
@@ -260,8 +267,11 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             }
             for n in SIGNALS
         },  # fmt: skip
-        "verdict": verdict(strat, ew_stats, spy_stats),
+        "verdict": gate.verdict(verdict(strat, ew_stats, spy_stats), research),
         "months": months,
         "curve": [(d.isoformat(), v) for d, v in curve],
         "warnings": warnings,
+        "research": research,
+        "equalWeightCurve": [(d.isoformat(), v) for d, v in ew_curve],
+        "riskFreeDaily": rf,
     }

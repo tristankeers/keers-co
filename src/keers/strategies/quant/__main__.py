@@ -86,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(res, indent=2))
-    summary = {k: v for k, v in res.items() if k not in ("curve", "months")}
+    long_keys = ("curve", "months", "equalWeightCurve", "riskFreeDaily")
+    summary = {k: v for k, v in res.items() if k not in long_keys}
     print(json.dumps(summary, indent=2))
     return 0 if res.get("ran") else 1
 

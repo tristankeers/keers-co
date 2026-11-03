@@ -12,6 +12,7 @@ Paper trading only. Strategy C's trades come from rules in code, never from a mo
 | Ranking and target book | `keers.strategies.quant.model` | `quant-c-v2` (v1 kept as a preset) |
 | Monthly backtest | `keers.strategies.quant.backtest` | `backtest-v1` |
 | Rebalance tickets | `keers.strategies.quant.rebalance` | |
+| Paper-trading gate and overfitting statistics | `keers.strategies.quant.gate`, `keers.research` | `gate-v2`, `research-stats-v1` |
 
 **Signals.** Momentum 12-1 is the return from 252 to 21 sessions ago (the latest month is skipped because short-term
 returns tend to reverse). Low volatility is the annualised standard deviation of the last 252 daily log returns; the
@@ -54,8 +55,10 @@ mostly fit noise; the next useful test is a wider universe that includes deliste
 ## Paper-trading gate
 
 `model.APPROVED_FOR_PAPER` is `False`. While it is, the rebalance endpoint previews tickets but refuses to execute
-them. It should only be set to `True` in a reviewed change, after a backtest of the current model beats both SPY and
-the equal-weight book on CAGR and Sharpe (the backtest reports this as `verdict`).
+them. It should only be set to `True` in a reviewed change, after a backtest of the current model passes `gate-v2`
+(reported as `verdict`): it beats both SPY and the equal-weight book on CAGR and Sharpe, and its Deflated Sharpe
+Ratio, counting every model in the trial register, is at least 0.95. The backtest's `research` section has the
+statistics. See `docs/research-protocol.md`.
 
 ## No look-ahead
 
