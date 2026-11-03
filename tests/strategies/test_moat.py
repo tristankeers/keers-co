@@ -158,6 +158,8 @@ def test_financials_are_not_graded(store: Store) -> None:
     store.db.execute("UPDATE companies SET sic='6022'")
     r = moat.screen(store, fx.TICKER, demo.AS_OF)
     assert r["status"] == "not applicable" and r["checks"] == []
+    # Even with stale accounts, a bank is "not applicable", not "blocked".
+    assert moat.screen(store, fx.TICKER, date(2026, 6, 1))["status"] == "not applicable"
 
 
 def test_run_sorts_best_first(store: Store) -> None:
@@ -201,3 +203,40 @@ def test_backtest_uses_point_in_time_members(store: Store) -> None:
     assert held["2025-03-31"] == [] and held["2025-09-30"] == [fx.TICKER]
     assert next(q for q in res["quarters"] if q["signalDay"] == "2025-03-31")["screened"] == 0
     assert res["warnings"][0].startswith("universe: index members")
+
+
+# share splits and filing errors -------------------------------------------------------------------------------
+def _with_split(store: Store) -> None:
+    """A 2-for-1 split in 2023: FY2022 and earlier counts as first filed; the FY2024 10-K restates FY2023 and the
+    FY2022 comparative at twice the count, and FY2024 is filed post-split."""
+    from keers.data.sec import parse_company_facts
+
+    rows = [("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2022-01-01", "2022-12-31",
+             52.4 * 2 * fx.M, *fx.K24),  # FY2022 restated in the FY2024 10-K
+            ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2023-01-01", "2023-12-31",
+             52.0 * 2 * fx.M, *fx.K24),
+            ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2024-01-01", "2024-12-31",
+             51.6 * 2 * fx.M, *fx.K24)]  # fmt: skip
+    store.db.execute("DELETE FROM facts WHERE concept='WeightedAverageNumberOfDilutedSharesOutstanding' AND "
+                     "accn=? AND end>='2023-01-01'", (fx.K24[0],))  # fmt: skip
+    store.put_facts(parse_company_facts(fx.company_facts(rows), "sha-split"))
+
+
+def test_a_split_does_not_read_as_dilution(store: Store) -> None:
+    _with_split(store)
+    fu = F.Fundamentals(store, fx.CIK, demo.AS_OF)
+    ((before, after, ratio),) = fu.share_splits()
+    assert ratio == pytest.approx(2.0) and before.isoformat() == "2023-02-14" and after == date(2025, 2, 14)
+    r = moat.screen(store, fx.TICKER, demo.AS_OF)
+    d = next(c for c in r["checks"] if c["name"] == "dilution")
+    assert d["level"] == "pass" and d["value"] < 0  # 108.0m to 103.2m on one basis: buybacks, not dilution
+    assert any("split-adjusted x2" in n for n in r["dataWarnings"])
+
+
+def test_a_share_count_scaling_error_is_left_out(store: Store) -> None:
+    store.db.execute("UPDATE facts SET value=716 WHERE concept='WeightedAverageNumberOfDilutedSharesOutstanding' "
+                     "AND start='2024-01-01' AND end='2024-12-31'")  # fmt: skip
+    r = moat.screen(store, fx.TICKER, demo.AS_OF)
+    d = next(c for c in r["checks"] if c["name"] == "dilution")
+    assert d["level"] == "pass" and "53.6m" not in d["reason"] and "to 52.0m" in d["reason"]
+    assert any("left out" in n for n in r["dataWarnings"])

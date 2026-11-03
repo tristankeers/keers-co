@@ -68,6 +68,7 @@ CONVERSION_PASS, CONVERSION_WATCH = 0.70, 0.40  # total FCF / total NOPAT
 LEVERAGE_PASS, LEVERAGE_WATCH = 2.0, 3.0  # net debt / EBITDA (lower is better)
 DILUTION_PASS, DILUTION_WATCH = 0.01, 0.03  # diluted share count CAGR (lower is better)
 
+SHARE_OUTLIER = 20.0  # a year's share count this many times off the others' median is a filing error
 MAX_EFFECTIVE_TAX = 0.50
 STATUTORY_US_BEFORE_2018, STATUTORY_US, STATUTORY_IFRS = 0.35, 0.21, 0.25
 US_RATE_CHANGE = date(2018, 1, 1)
@@ -223,8 +224,45 @@ def year_figures(fu: F.Fundamentals, end: date, prior_end: date | None) -> Year:
     return y
 
 
+def split_adjust(years: Sequence[Year], splits: Sequence[tuple[date, date, float]]) -> None:
+    """Put every year's diluted share count on today's share basis.
+
+    A count filed before a split, and never restated, is multiplied by the split ratio. Then a count more than
+    ``SHARE_OUTLIER`` times away from the median of the others (a scaling error in the filing) is dropped, with a
+    note, rather than allowed to swing the dilution check.
+    """
+    for y in years:
+        src = y.inputs.get("dilutedShares")
+        if y.diluted_shares is None or src is None or not src.sources:
+            continue
+        filed = date.fromisoformat(str(src.sources[0]["filed"])[:10])
+        factor = 1.0
+        for before, _after, ratio in splits:
+            if filed <= before:
+                factor *= ratio
+        if factor != 1.0:
+            y.diluted_shares *= factor
+            y.notes.append(
+                f"diluted shares for fiscal {y.end.year} split-adjusted x{factor:g} (filed before a split)"
+            )
+    known = [y for y in years if y.diluted_shares is not None]
+    if len(known) < 3:
+        return
+    drop = []
+    for y in known:
+        others = [o.diluted_shares for o in known if o is not y and o.diluted_shares is not None]
+        med = statistics.median(others)
+        assert y.diluted_shares is not None  # noqa: S101
+        if med > 0 and not 1 / SHARE_OUTLIER <= y.diluted_shares / med <= SHARE_OUTLIER:
+            drop.append(y)
+    for y in drop:
+        y.notes.append(f"diluted shares for fiscal {y.end.year} ({y.diluted_shares:,.3f}m) are far from the other "
+                       "years' and were left out")  # fmt: skip
+        y.diluted_shares = None
+
+
 def history(fu: F.Fundamentals, as_of: date, window: int = WINDOW_YEARS) -> list[Year]:
-    """The last ``window`` fiscal years known by ``as_of``, oldest first."""
+    """The last ``window`` fiscal years known by ``as_of``, oldest first, share counts split-adjusted."""
     ends = [e for e in fu.fiscal_year_ends() if e <= as_of]
     keep = ends[-window:]
     out = []
@@ -232,6 +270,7 @@ def history(fu: F.Fundamentals, as_of: date, window: int = WINDOW_YEARS) -> list
         i = ends.index(e)
         prior = ends[i - 1] if i > 0 and 350 <= (e - ends[i - 1]).days <= 380 else None
         out.append(year_figures(fu, e, prior))
+    split_adjust(out, fu.share_splits())
     return out
 
 
@@ -400,14 +439,14 @@ def screen(store: Store, ticker: str, as_of: date, detail: bool = True) -> dict[
         "ticker": snap.ticker, "name": snap.name, "asOf": as_of.isoformat(), "screenVersion": SCREEN_VERSION,
         "currency": snap.currency, "accounts": {"source": snap.source, "cadence": snap.cadence},
     }  # fmt: skip
-    if stale or "revenue" not in v or not v["revenue"].known:
-        return base | {"status": "blocked", "blockedBy": stale or snap.blocked_by, "checks": [], "years": []}
     co = store.company(ticker) or {}
-    base["sic"] = co.get("sic")
-    if is_financial(co.get("sic")):
-        return base | {"status": "not applicable", "checks": [], "years": [],
+    if is_financial(co.get("sic")):  # before staleness: a bank is never graded, however fresh its accounts
+        return base | {"sic": co.get("sic"), "status": "not applicable", "checks": [], "years": [],
                        "reason": f"financial company (SIC {co.get('sic')}): operating income and invested capital "
                                  "do not measure a bank's or insurer's returns"}  # fmt: skip
+    if stale or "revenue" not in v or not v["revenue"].known:
+        return base | {"status": "blocked", "blockedBy": stale or snap.blocked_by, "checks": [], "years": []}
+    base["sic"] = co.get("sic")
     fu = F.Fundamentals(store, snap.cik, as_of)
     years = history(fu, as_of)
     base["years"] = [y.as_dict(detail) for y in years]

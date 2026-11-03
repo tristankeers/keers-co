@@ -270,6 +270,7 @@ SHARES_MAX_AGE_DAYS = 200
 # - annual (ESEF reports, 20-F and 40-F filers): a year plus four months, plus two weeks
 CADENCE_MAX_DAYS = {"quarterly": 135, "half-yearly": 320, "annual": 500}
 
+SPLIT_MIN = 1.25  # a restated share count this many times the original (or its inverse) is read as a split
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
 
@@ -511,6 +512,35 @@ class Fundamentals:
                 return self._value(Period(f.value, f.end, "fiscal year as reported", Kind.REPORTED, (f,)), c,
                                    unit, scale, "")  # fmt: skip
         return missing(unit, f"{label}: no fiscal year to {end} filed under {', '.join(candidates)}")
+
+    def share_splits(self, candidates: Sequence[str] = SHARES_DILUTED) -> list[tuple[date, date, float]]:
+        """Stock splits seen in the filings: (last filing before, first filing after, ratio new / old).
+
+        A split shows when a later filing restates a share count already filed for the same period by a large
+        ratio (at least 1.25, or at most 0.8). Several periods restated for one split are merged into the narrowest
+        window. Only filings known by the as-of date count.
+        """
+        events: list[tuple[date, date, float]] = []
+        for c in candidates:
+            by_period: dict[tuple[date | None, date], list[Fact]] = {}
+            for f in self._facts(c):
+                by_period.setdefault((f.start, f.end), []).append(f)
+            for versions in by_period.values():
+                versions.sort(key=lambda f: (f.filed, f.accn))
+                for a, b in zip(versions, versions[1:], strict=False):
+                    if a.value > 0 and b.value > 0 and b.filed > a.filed:
+                        r = b.value / a.value
+                        if r >= SPLIT_MIN or r <= 1 / SPLIT_MIN:
+                            events.append((a.filed, b.filed, r))
+        merged: list[tuple[date, date, float]] = []
+        for lo, hi, r in sorted(events):
+            for i, (mlo, mhi, mr) in enumerate(merged):
+                if abs(r / mr - 1) <= 0.05 and lo < mhi and mlo < hi:
+                    merged[i] = (max(lo, mlo), min(hi, mhi), mr)
+                    break
+            else:
+                merged.append((lo, hi, r))
+        return sorted(merged, key=lambda e: e[1])
 
     def own(self) -> O.OwnLines | None:
         """This company's reviewed own lines (``own_lines.toml``), if it is listed."""

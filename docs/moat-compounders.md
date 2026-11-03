@@ -84,6 +84,13 @@ those companies' facts again once (`refetch-accounts`).
 
 The backtest is evidence, not a gate: Strategy B trades come from the research committee, one company at a time.
 
+## Share counts
+
+Diluted share counts are put on today's basis before the dilution check. A stock split shows in the filings as a
+later filing restating a count already filed for the same period by a large ratio (at least 1.25x); counts filed
+before the split and never restated are multiplied by that ratio, with a note. A count more than 20 times away from
+the other years' median (a scaling error in the filing) is left out, with a note.
+
 ## Known limits
 
 - US GAAP and IFRS standard concepts only. A company that files cash from operations or tax under its own
