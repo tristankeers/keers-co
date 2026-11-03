@@ -25,77 +25,93 @@ class ParseError(ValueError):
     """The page did not have the tables we expect. Raised rather than guessing."""
 
 
+class _State:
+    def __init__(self, tid: str) -> None:
+        self.tid = tid
+        self.row: list[tuple[str, str]] | None = None
+        self.cell: list[str] | None = None
+        self.kind = ""
+        self.span = 1
+        self.pending: dict[int, tuple[int, tuple[str, str]]] = {}  # col -> (rows left, cell)
+
+
 class _Tables(HTMLParser):
-    """Collects the text of every cell of every top-level table, expanding ``rowspan``. A table is keyed by its
-    ``id``, or ``table-<n>`` when it has none."""
+    """Collects the text of every cell of every table (nested ones too, each on its own), expanding ``rowspan``.
+    A table is keyed by its ``id``, or ``table-<n>`` when it has none. Text inside ``style`` and ``script`` is
+    skipped."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.tables: dict[str, list[list[tuple[str, str]]]] = {}
-        self._stack: list[str | None] = []  # table ids (None for tables without one)
-        self._row: list[tuple[str, str]] | None = None
-        self._cell: list[str] | None = None
-        self._kind = ""
-        self._span = 1
-        self._pending: dict[str, dict[int, tuple[int, tuple[str, str]]]] = {}  # col -> (rows left, cell)
+        self._stack: list[_State] = []
+        self._skip = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         a = dict(attrs)
-        if tag == "table":
-            if self._stack:  # a table inside a table cell: keep reading the outer one
-                self._stack.append(None)
-                return
-            tid = str(a.get("id") or f"table-{len(self.tables)}")
-            self._stack.append(tid)
-            self.tables.setdefault(tid, [])
-        elif not self._stack or self._stack[-1] is None:
+        if tag in ("style", "script"):
+            self._skip += 1
             return
-        elif tag == "tr":
-            self._row = []
-        elif tag in ("td", "th") and self._row is not None:
-            self._cell, self._kind = [], tag
+        if tag == "table":
+            tid = str(a.get("id") or f"table-{len(self.tables)}")
+            while tid in self.tables:
+                tid += "+"
+            self.tables[tid] = []
+            self._stack.append(_State(tid))
+            return
+        if not self._stack:
+            return
+        st = self._stack[-1]
+        if tag == "tr":
+            st.row = []
+        elif tag in ("td", "th") and st.row is not None:
+            st.cell, st.kind = [], tag
             try:
-                self._span = max(1, int(a.get("rowspan") or 1))
+                st.span = max(1, int(a.get("rowspan") or 1))
             except ValueError:
-                self._span = 1
-        elif tag == "br" and self._cell is not None:
-            self._cell.append(" ")
+                st.span = 1
+        elif tag == "br" and st.cell is not None:
+            st.cell.append(" ")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == "table" and self._stack:
+        if tag in ("style", "script"):
+            self._skip = max(0, self._skip - 1)
+            return
+        if not self._stack:
+            return
+        if tag == "table":
             self._stack.pop()
             return
-        if not self._stack or self._stack[-1] is None:
-            return
-        tid = str(self._stack[-1])
-        if tag in ("td", "th") and self._cell is not None and self._row is not None:
-            pend = self._pending.setdefault(tid, {})
-            while len(self._row) in pend:
-                self._take(pend, len(self._row))
-            text = " ".join("".join(self._cell).split())
-            cell = (self._kind, text)
-            if self._span > 1:
-                pend[len(self._row)] = (self._span - 1, cell)
-            self._row.append(cell)
-            self._cell = None
-        elif tag == "tr" and self._row is not None:
-            pend = self._pending.setdefault(tid, {})
-            while len(self._row) in pend:
-                self._take(pend, len(self._row))
-            if self._row:
-                self.tables[tid].append(self._row)
-            self._row = None
+        st = self._stack[-1]
+        if tag in ("td", "th") and st.cell is not None and st.row is not None:
+            while len(st.row) in st.pending:
+                self._take(st, len(st.row))
+            cell = (st.kind, " ".join("".join(st.cell).split()))
+            if st.span > 1:
+                st.pending[len(st.row)] = (st.span - 1, cell)
+            st.row.append(cell)
+            st.cell = None
+        elif tag == "tr" and st.row is not None:
+            while len(st.row) in st.pending:
+                self._take(st, len(st.row))
+            if st.row:
+                self.tables[st.tid].append(st.row)
+            st.row = None
 
-    def _take(self, pend: dict[int, tuple[int, tuple[str, str]]], col: int) -> None:
-        left, cell = pend.pop(col)
-        assert self._row is not None  # noqa: S101
-        self._row.append(cell)
+    @staticmethod
+    def _take(st: _State, col: int) -> None:
+        left, cell = st.pending.pop(col)
+        assert st.row is not None  # noqa: S101
+        st.row.append(cell)
         if left > 1:
-            pend[col] = (left - 1, cell)
+            st.pending[col] = (left - 1, cell)
 
     def handle_data(self, data: str) -> None:
-        if self._cell is not None:
-            self._cell.append(data)
+        if self._skip:
+            return
+        for st in reversed(self._stack):  # text of a nested table also counts towards the cell around it
+            if st.cell is not None:
+                st.cell.append(data)
+                break
 
 
 _TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
@@ -217,7 +233,7 @@ def parse(html: str, as_of: date, sha256: str = "") -> Membership:
         (t for t in p.tables.values() if t and "added" in header(t) and "removed" in header(t)), None
     )
     if not cons or not chg:
-        found = {k: header(v)[:80] for k, v in p.tables.items()}
+        found = {k: f"{len(v)} rows: {header(v)[:60]}" for k, v in p.tables.items()}
         raise ParseError(f"expected a constituents table and a changes table; found {found}")
     head = [c[1].lower() for c in cons[0]]
     try:

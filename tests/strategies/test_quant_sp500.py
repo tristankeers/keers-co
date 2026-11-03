@@ -60,9 +60,16 @@ def test_parse_refuses_a_page_without_the_tables() -> None:
         history.parse("<html><table id='other'></table></html>", date(2026, 1, 1))
 
 
-def test_tables_without_ids_are_found_by_header_and_nested_tables_ignored() -> None:
+def test_tables_without_ids_are_found_by_header_even_when_nested() -> None:
     html = page(FILLER, FILLER_CHANGES).replace("id='constituents'", "class='x'")
     html = html.replace("<td>X</td>", "<td><table><tr><td>inner</td></tr></table>X</td>", 1)
+    html = html.replace("<th>GICS Sector</th>", "<th>GICS Sector<style>.a{b:c}</style></th>")
+    i = html.index("<table class='wikitable'>")  # the changes table wrapped inside another table
+    html = (
+        html[:i]
+        + "<table><tr><td>"
+        + html[i:].replace("</table></html>", "</table></td></tr></table></html>")
+    )
     m = history.parse(html, date(2026, 1, 1))
     assert len(m.current) == 460 and len(m.changes) == 100
 
