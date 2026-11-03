@@ -52,6 +52,50 @@ shows a reliable edge on these 100 names, and most of v2's lead over SPY comes f
 book does better still), which survivorship bias flatters. Tuning the signals further on the same 100 names would
 mostly fit noise; the next useful test is a wider universe that includes delisted companies.
 
+## Wider universe: the S&P 500 as it stood each month
+
+`python3 -m keers.strategies.quant fetch-sp500 --start 2017-01-01` rebuilds S&P 500 membership from Wikipedia's
+constituents table and its dated change log (`history.py`), then fetches filings and prices for every company in
+the index during the window, including ones that were later taken over, went bust or were demoted (`wide.py`).
+`backtest --membership data/sp500-membership.json --benchmarks RSP` then ranks, each month, only the companies in the
+index on the signal date. RSP (the equal-weight S&P 500 ETF) is a real-world benchmark next to SPY.
+
+How companies that left are handled, all free sources:
+
+- Accounts: the SEC ticker map lists only today's tickers, so a departed company's CIK comes from the map when the
+  ticker still belongs to the same company, else from SEC's CIK name list (exact match after removing punctuation
+  and legal suffixes). No match, or several, means no accounts; the company can still be ranked on price signals.
+- Prices: Yahoo, then Tiingo (which keeps many delisted tickers). If an old ticker now belongs to a different
+  company, its prices would be wrong, so the company is left out and reported. Tickers that two index companies
+  used at different times are left out too.
+- A held company that stops trading keeps its last value until the next rebalance, when it is sold at that value.
+  For a bankruptcy that is a little optimistic.
+
+What is still not perfect, and reported with every run: Wikipedia's change log is incomplete in places (the member
+count on each date is in `universeCoverage`), some departed companies have no free price history (the priced share is
+in `universeCoverage`), and every company's outcome is listed in `sp500-fetch.json`. The GitHub workflow **Quant
+backtest (S&P 500, point in time)** runs it; Tiingo's free limit makes the first fetch slow, so the store is cached
+and a later run continues where one stopped.
+
+### Result (live run 41550299164, 3 Nov 2026, Feb 2017 to Oct 2026, after costs)
+
+| Book | CAGR | Sharpe | Max drawdown |
+|---|---|---|---|
+| quant-c-v2 (momentum + value + quality, 1/vol sizing) | 13.3% | 0.57 | 36% |
+| quant-c-v1 (momentum + low-vol, equal weight) | 6.2% | 0.28 | 35% |
+| SPY | 14.8% | 0.71 | 34% |
+| RSP (equal-weight S&P 500 ETF) | 11.8% | 0.56 | 39% |
+| Equal-weight of ranked members (v2 run) | 12.7% | 0.62 | 37% |
+
+699 tickers were in the index at some point in the window. 591 got SEC accounts and 633 got prices. 58 were left
+out, mostly reused tickers. The priced share of members averaged 91% and never fell below 88%. Every signal's monthly
+top-minus-bottom spread is within noise (t-stats from -0.9 to +0.3). The KCI 100 result (v2 at 21.5%) did not hold
+once delisted names and the full index were included, so the paper gate stays closed.
+
+The live Wikipedia page no longer carries the change log. It is read from the newest past revision that has it
+(revision 1368675864, 10 Aug 2026). Since that revision, 8 names that joined are dated by "Date added". 8 names that
+left have unknown dates, so they are kept as members until today.
+
 ## Paper-trading gate
 
 Paper trading of strategy C is off until an approval for the exact model configuration is recorded in
@@ -87,8 +131,8 @@ Paper trades go through the workbench: `POST /api/strategies/c/signals` shows th
 
 ## Known limits
 
-- Survivorship bias: the universe is today's ticker list, so companies that were delisted are missing. This flatters
-  backtest results; every run says so.
+- Survivorship bias: the KCI 100 universe is today's ticker list, so companies that were delisted are missing, which
+  flatters its results (every run says so). The S&P 500 run above mostly removes this.
 - Backtest costs default to costs-v1 (flat slippage plus commission on turnover) so results stay comparable with
   the registered trials. `--costs v2` prices each name's half spread, square-root impact and per-share commission for
   a fund of `--fund-nav` (default 10 million), from its volume and volatility as of the signal day; the Quant

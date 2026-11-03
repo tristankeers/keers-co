@@ -24,7 +24,7 @@ from keers.data.sec import SEC, ParseError
 from keers.data.store import Store
 from keers.portfolio.fills import CostModel
 
-from . import backtest, model
+from . import backtest, history, model, wide
 from .pit import PointInTime
 
 
@@ -32,6 +32,12 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m keers.strategies.quant")
     ap.add_argument("--db", default=os.environ.get("KEERS_DB", DEFAULT_DB))
     sub = ap.add_subparsers(dest="cmd", required=True)
+    w = sub.add_parser("fetch-sp500", help="S&P 500 membership history (Wikipedia) plus filings and prices for "
+                       "every company in the index during the window, including ones that later left")  # fmt: skip
+    w.add_argument("--start", type=date.fromisoformat, required=True)
+    w.add_argument("--membership", default="data/sp500-membership.json", help="where to save the membership")
+    w.add_argument("--report", default="quant-out/sp500-fetch.json")
+    w.add_argument("--max-minutes", type=float, default=300.0)
     for name in ("fetch", "signals", "backtest"):
         p = sub.add_parser(name)
         p.add_argument("tickers", nargs="*")
@@ -54,11 +60,20 @@ def main(argv: list[str] | None = None) -> int:
                 "--fund-nav", type=float, default=backtest.FUND_NAV, help="fund size costs-v2 prices for"
             )
             p.add_argument("--out", help="write the full result as JSON here")
+            p.add_argument("--membership", help="membership file from fetch-sp500: rank index members only")
+            p.add_argument("--benchmarks", nargs="*", default=[], help="extra benchmark tickers, e.g. RSP")
     a = ap.parse_args(argv)
+    store = Store(a.db, keep_bodies=False)  # hashes and URLs are kept; bodies would run to gigabytes
+    if a.cmd == "fetch-sp500":
+        return fetch_sp500(store, a.start, a.membership, a.report, a.max_minutes)
+    membership = None
+    if a.cmd == "backtest" and a.membership:
+        membership = history.Membership.from_dict(json.loads(Path(a.membership).read_text()))
     tickers = [t.upper() for t in a.tickers] + (read_universe(a.universe) if a.universe else [])
+    if membership is not None and not tickers:
+        tickers = sorted(membership.ever(a.start, a.end) - membership.reused())
     if not tickers:
-        ap.error("give tickers or --universe")
-    store = Store(a.db)
+        ap.error("give tickers, --universe or --membership")
 
     if a.cmd == "fetch":
         fetcher = Fetcher(user_agent())
@@ -88,14 +103,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     res = backtest.run(
-        store,
-        tickers,
-        a.start,
-        a.end,
-        replace(model.Config.preset(a.preset), n_long=a.n_long),
-        CostModel.named(a.costs),
-        fund_nav=a.fund_nav,
-    )
+        store, tickers, a.start, a.end, replace(model.Config.preset(a.preset), n_long=a.n_long),
+        CostModel.named(a.costs), fund_nav=a.fund_nav, members=membership.members if membership else None,
+        extra_benchmarks=[b.upper() for b in a.benchmarks],
+    )  # fmt: skip
+    if membership is not None:
+        res["warnings"] += membership.warnings
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(res, indent=2))
@@ -103,6 +116,67 @@ def main(argv: list[str] | None = None) -> int:
     summary = {k: v for k, v in res.items() if k not in long_keys}
     print(json.dumps(summary, indent=2))
     return 0 if res.get("ran") else 1
+
+
+def fetch_sp500(store: Store, start: date, membership_path: str, report_path: str, max_minutes: float) -> int:
+    fetcher = Fetcher(user_agent())
+    token = (os.environ.get("TIINGO_TOKEN") or "").strip() or None
+    market = Market(fetcher, store, token, price_sources(os.environ.get("KEERS_PRICE_SOURCES")))
+    resp = fetcher.get(history.WIKI_URL)
+    store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
+    live = resp.body.decode("utf-8")
+    try:
+        if history.has_changes(live):
+            m = history.parse(live, date.today(), resp.sha256)
+        else:
+            m = _from_revision(fetcher, store, live, resp.sha256)
+    except history.ParseError:
+        Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(report_path).with_name("sp500-page.html").write_bytes(resp.body)  # for diagnosis
+        raise
+    Path(membership_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(membership_path).write_text(json.dumps(m.as_dict(), indent=1))
+    failed: dict[str, str] = {}
+    for b in (backtest.BENCHMARK, "RSP"):
+        try:
+            market.refresh_prices(b, start - timedelta(days=wide.HISTORY_DAYS))
+        except (FetchError, ParseError) as e:
+            failed[b] = str(e)
+    try:
+        market.refresh_rates()
+    except (FetchError, ParseError) as e:
+        failed["_rates"] = str(e)
+    rep = wide.fetch(store, fetcher, market, m, start, date.today(), max_minutes)
+    rep["benchmarksFailed"] = failed
+    rep["membership"] = {"changes": len(m.changes), "current": len(m.current), "reused": sorted(m.reused()),
+                         "warnings": m.warnings}  # fmt: skip
+    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(report_path).write_text(json.dumps(rep, indent=1))
+    print(
+        json.dumps(
+            {"counts": rep["counts"], "membership": rep["membership"], "benchmarksFailed": failed}, indent=2
+        )
+    )
+    return 0
+
+
+def _from_revision(fetcher: Fetcher, store: Store, live: str, live_sha: str) -> history.Membership:
+    """The live page has no changes table: read it from the newest past revision that has one."""
+    resp = fetcher.get(history.REVISIONS_URL)
+    store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
+    tried: list[str] = []
+    for rev in history.candidates(json.loads(resp.body)):
+        r = fetcher.get(history.revision_url(rev["revid"]))
+        store.put_raw(r.url, r.body, r.sha256, r.retrieved_at, r.content_type)
+        html = r.body.decode("utf-8")
+        if not history.has_changes(html):
+            tried.append(f"{rev['revid']} ({rev.get('timestamp')}): no changes table")
+            continue
+        day = date.fromisoformat(str(rev["timestamp"])[:10])
+        old = history.parse(html, day, r.sha256)
+        print(f"changes table read from revision {rev['revid']} of {day}", file=sys.stderr)
+        return history.merge(old, rev, live, date.today(), live_sha)
+    raise history.ParseError(f"no recent revision has a changes table; tried {tried}")
 
 
 if __name__ == "__main__":

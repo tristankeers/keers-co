@@ -1,0 +1,364 @@
+"""Who was in the S&P 500 on a given day, rebuilt from Wikipedia's list of the index and its changes (free).
+
+The page had two tables: today's constituents, and dated changes (ticker added, ticker removed). The live page
+has since dropped the changes table, so the log is read from the newest past revision that still has it, and the
+gap since that revision is rebuilt from today's list (see ``merge``). Walking the
+changes backwards from today's list gives the membership on any past date, including companies that were later
+taken over, went bust or were demoted. That is what removes most of the survivorship bias from a backtest.
+
+Limits, reported with every result: Wikipedia's change log is maintained by volunteers and is incomplete in
+places, so the rebuilt index does not always have exactly 500 names (the count on each date is reported); and a
+ticker that two companies have used at different times is ambiguous, so such tickers are flagged.
+"""
+
+from __future__ import annotations
+
+import bisect
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from html.parser import HTMLParser
+from typing import Any
+
+WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+
+
+class ParseError(ValueError):
+    """The page did not have the tables we expect. Raised rather than guessing."""
+
+
+class _State:
+    def __init__(self, tid: str) -> None:
+        self.tid = tid
+        self.row: list[tuple[str, str]] | None = None
+        self.cell: list[str] | None = None
+        self.kind = ""
+        self.span = 1
+        self.pending: dict[int, tuple[int, tuple[str, str]]] = {}  # col -> (rows left, cell)
+
+
+class _Tables(HTMLParser):
+    """Collects the text of every cell of every table (nested ones too, each on its own), expanding ``rowspan``.
+    A table is keyed by its ``id``, or ``table-<n>`` when it has none. Text inside ``style`` and ``script`` is
+    skipped."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tables: dict[str, list[list[tuple[str, str]]]] = {}
+        self._stack: list[_State] = []
+        self._skip = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = dict(attrs)
+        if tag in ("style", "script"):
+            self._skip += 1
+            return
+        if tag == "table":
+            tid = str(a.get("id") or f"table-{len(self.tables)}")
+            while tid in self.tables:
+                tid += "+"
+            self.tables[tid] = []
+            self._stack.append(_State(tid))
+            return
+        if not self._stack:
+            return
+        st = self._stack[-1]
+        if tag == "tr":
+            st.row = []
+        elif tag in ("td", "th") and st.row is not None:
+            st.cell, st.kind = [], tag
+            try:
+                st.span = max(1, int(a.get("rowspan") or 1))
+            except ValueError:
+                st.span = 1
+        elif tag == "br" and st.cell is not None:
+            st.cell.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in ("style", "script"):
+            self._skip = max(0, self._skip - 1)
+            return
+        if not self._stack:
+            return
+        if tag == "table":
+            self._stack.pop()
+            return
+        st = self._stack[-1]
+        if tag in ("td", "th") and st.cell is not None and st.row is not None:
+            while len(st.row) in st.pending:
+                self._take(st, len(st.row))
+            cell = (st.kind, " ".join("".join(st.cell).split()))
+            if st.span > 1:
+                st.pending[len(st.row)] = (st.span - 1, cell)
+            st.row.append(cell)
+            st.cell = None
+        elif tag == "tr" and st.row is not None:
+            while len(st.row) in st.pending:
+                self._take(st, len(st.row))
+            if st.row:
+                self.tables[st.tid].append(st.row)
+            st.row = None
+
+    @staticmethod
+    def _take(st: _State, col: int) -> None:
+        left, cell = st.pending.pop(col)
+        assert st.row is not None  # noqa: S101
+        st.row.append(cell)
+        if left > 1:
+            st.pending[col] = (left - 1, cell)
+
+    def handle_data(self, data: str) -> None:
+        if self._skip:
+            return
+        for st in reversed(self._stack):  # text of a nested table also counts towards the cell around it
+            if st.cell is not None:
+                st.cell.append(data)
+                break
+
+
+_TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def _ticker(s: str) -> str | None:
+    t = s.strip().upper()
+    return t if _TICKER.match(t) else None
+
+
+def _date(s: str) -> date | None:
+    s = re.sub(r"\[[^\]]*\]", "", s).strip()  # footnote marks
+    for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d", "%d %B %Y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+@dataclass
+class Membership:
+    """Index membership over time. ``spells`` maps a ticker to its (start, end, name) periods in the index."""
+
+    as_of: date
+    current: dict[str, str]  # ticker -> name, today
+    ciks: dict[str, int]  # ticker -> CIK, for today's members (from the constituents table)
+    changes: list[dict[str, Any]]
+    source_sha256: str = ""
+    warnings: list[str] = field(default_factory=list)
+    _days: list[date] = field(default_factory=list, repr=False)
+    _sets: list[frozenset[str]] = field(default_factory=list, repr=False)
+
+    def __post_init__(self) -> None:
+        self._rebuild()
+
+    def _rebuild(self) -> None:
+        state = set(self.current)
+        days: list[date] = []
+        sets: list[frozenset[str]] = []
+        # Newest first: the set in force from each change date until the next one.
+        for ch in sorted(self.changes, key=lambda c: c["date"], reverse=True):
+            days.append(ch["date"])
+            sets.append(frozenset(state))
+            if ch.get("added"):
+                state.discard(ch["added"])
+            if ch.get("removed"):
+                state.add(ch["removed"])
+        self._before_all = frozenset(state)
+        self._days = list(reversed(days))
+        self._sets = list(reversed(sets))
+
+    def members(self, d: date) -> frozenset[str]:
+        i = bisect.bisect_right(self._days, d) - 1
+        return self._sets[i] if i >= 0 else self._before_all
+
+    def ever(self, start: date, end: date) -> set[str]:
+        out = set(self.members(start))
+        for d, s in zip(self._days, self._sets, strict=True):
+            if start <= d <= end:
+                out |= s
+        return out
+
+    def names(self) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for ch in self.changes:
+            if ch.get("removed") and ch.get("removedName"):
+                out.setdefault(ch["removed"], ch["removedName"])
+        out.update(self.current)
+        return out
+
+    def reused(self) -> set[str]:
+        """Tickers that left and came back under a different company name (ambiguous, so flagged)."""
+        seen: dict[str, set[str]] = {}
+        for ch in self.changes:
+            for k in ("added", "removed"):
+                if ch.get(k) and ch.get(k + "Name"):
+                    seen.setdefault(ch[k], set()).add(_norm(ch[k + "Name"]))
+        for t, n in self.current.items():
+            seen.setdefault(t, set()).add(_norm(n))
+        return {t for t, ns in seen.items() if len(ns) > 1}
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"asOf": self.as_of.isoformat(), "current": self.current, "ciks": self.ciks,
+                "changes": [{**c, "date": c["date"].isoformat()} for c in self.changes],
+                "sourceSha256": self.source_sha256, "warnings": self.warnings}  # fmt: skip
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> Membership:
+        return cls(date.fromisoformat(d["asOf"]), dict(d["current"]), {k: int(v) for k, v in d["ciks"].items()},
+                   [{**c, "date": date.fromisoformat(c["date"])} for c in d["changes"]], d.get("sourceSha256", ""),
+                   list(d.get("warnings", [])))  # fmt: skip
+
+
+_SUFFIX = re.compile(
+    r"\b(INCORPORATED|INC|CORPORATION|CORP|COMPANY|CO|LTD|LIMITED|PLC|HOLDINGS|HOLDING|THE|LLC|LP|NV|SA|AG|DEL|NEW)\b"
+)
+
+
+def _norm(name: str) -> str:
+    """A company name reduced for matching: upper case, no punctuation, no legal suffixes."""
+    n = name.upper().replace("&", " AND ")
+    n = re.sub(r"[^A-Z0-9 ]", " ", n)
+    n = _SUFFIX.sub(" ", n)
+    return " ".join(n.split())
+
+
+REVISIONS_URL = (
+    "https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=List_of_S%26P_500_companies"
+    "&rvlimit=500&rvprop=ids|timestamp|size|comment&format=json&formatversion=2"
+)
+
+
+def revision_url(revid: int) -> str:
+    return f"https://en.wikipedia.org/w/index.php?title=List_of_S%26P_500_companies&oldid={int(revid)}"
+
+
+def _header(rows: list[list[tuple[str, str]]]) -> str:
+    return " ".join(c[1].lower() for r in rows[:2] for c in r if c[0] == "th")
+
+
+@dataclass
+class _Page:
+    current: dict[str, str]
+    ciks: dict[str, int]
+    added_on: dict[str, date]  # ticker -> "Date added" from the constituents table
+    changes: list[dict[str, Any]] | None  # None when the page has no changes table
+    skipped: int
+    found: dict[str, str]
+
+
+def _read(html: str) -> _Page:
+    p = _Tables()
+    p.feed(html)
+    found = {k: f"{len(v)} rows: {_header(v)[:60]}" for k, v in p.tables.items()}
+    cons = p.tables.get("constituents") or next(
+        (t for t in p.tables.values() if t and "symbol" in _header(t) and "security" in _header(t)), None
+    )
+    chg = p.tables.get("changes") or next(
+        (t for t in p.tables.values() if t and "added" in _header(t) and "removed" in _header(t)), None
+    )
+    if not cons:
+        raise ParseError(f"expected a constituents table; found {found}")
+    head = [c[1].lower() for c in cons[0]]
+    try:
+        i_sym, i_name = head.index("symbol"), head.index("security")
+    except ValueError as e:
+        raise ParseError(f"constituents header not recognised: {head}") from e
+    i_cik = head.index("cik") if "cik" in head else None
+    i_add = head.index("date added") if "date added" in head else None
+    current: dict[str, str] = {}
+    ciks: dict[str, int] = {}
+    added_on: dict[str, date] = {}
+    for row in cons[1:]:
+        if len(row) <= max(i_sym, i_name):
+            continue
+        t = _ticker(row[i_sym][1])
+        if t is None:
+            continue
+        current[t] = row[i_name][1]
+        if i_cik is not None and i_cik < len(row) and row[i_cik][1].strip().isdigit():
+            ciks[t] = int(row[i_cik][1].strip())
+        if i_add is not None and i_add < len(row):
+            d = _date(row[i_add][1].split("(")[0])
+            if d is not None:
+                added_on[t] = d
+    if chg is None:
+        return _Page(current, ciks, added_on, None, 0, found)
+    changes: list[dict[str, Any]] = []
+    skipped = 0
+    for row in chg:
+        cells = [c[1] for c in row]
+        if any(k == "th" for k, _ in row) or len(cells) < 5:
+            continue
+        d = _date(cells[0])
+        if d is None:
+            skipped += 1
+            continue
+        added, removed = _ticker(cells[1]), _ticker(cells[3])
+        if not added and not removed:
+            skipped += 1
+            continue
+        changes.append({"date": d, "added": added, "addedName": cells[2] if added else None,
+                        "removed": removed, "removedName": cells[4] if removed else None})  # fmt: skip
+    return _Page(current, ciks, added_on, changes, skipped, found)
+
+
+def has_changes(html: str) -> bool:
+    """True when the page carries a changes table (older revisions do; the live page no longer does)."""
+    try:
+        return _read(html).changes is not None
+    except ParseError:
+        return False
+
+
+def parse(html: str, as_of: date, sha256: str = "") -> Membership:
+    pg = _read(html)
+    if pg.changes is None:
+        raise ParseError(f"expected a constituents table and a changes table; found {pg.found}")
+    if len(pg.current) < 450 or len(pg.changes) < 100:
+        raise ParseError(f"too few rows: {len(pg.current)} constituents, {len(pg.changes)} changes")
+    warn = [f"{pg.skipped} change rows could not be read and were left out"] if pg.skipped else []
+    return Membership(as_of, pg.current, pg.ciks, pg.changes, sha256, warn)
+
+
+def candidates(api_json: dict[str, Any], tries: int = 8) -> list[dict[str, Any]]:
+    """Past revisions worth trying for the changes table, newest first: the changes table is most of the page,
+    so revisions much smaller than the largest one listed are skipped."""
+    pages = api_json.get("query", {}).get("pages") or []
+    revs = (pages[0].get("revisions") if pages else None) or []
+    if not revs:
+        raise ParseError("revision list was empty")
+    top = max(int(r.get("size") or 0) for r in revs)
+    big = [r for r in revs if int(r.get("size") or 0) >= 0.7 * top]
+    return big[:tries]
+
+
+def merge(
+    old: Membership, old_rev: dict[str, Any], live_html: str, as_of: date, sha256: str = ""
+) -> Membership:
+    """Join the change log of a past revision (``old``) with today's constituents list. Changes after that
+    revision are not in any log, so they are rebuilt: a name on today's list but not the old one joins on its
+    "Date added" (or the revision date if that is missing or earlier); a name on the old list but not today's
+    is kept in the index until today, because its leaving date is unknown. Both are reported as warnings."""
+    pg = _read(live_html)
+    if len(pg.current) < 450:
+        raise ParseError(f"too few rows: {len(pg.current)} constituents on the live page")
+    rev_day = date.fromisoformat(str(old_rev["timestamp"])[:10])
+    joined = sorted(set(pg.current) - set(old.current))
+    left = sorted(set(old.current) - set(pg.current))
+    changes = list(old.changes)
+    for t in joined:
+        d = pg.added_on.get(t)
+        changes.append({"date": d if d and d > rev_day else rev_day, "added": t, "addedName": pg.current[t],
+                        "removed": None, "removedName": None})  # fmt: skip
+    for t in left:
+        changes.append({"date": as_of, "added": None, "addedName": None, "removed": t,
+                        "removedName": old.current[t]})  # fmt: skip
+    warn = list(old.warnings) + [
+        f"the live page has no changes table; the log comes from revision {old_rev.get('revid')} of "
+        f"{rev_day.isoformat()}",
+    ]
+    if joined:
+        warn.append(f"{len(joined)} joined since that revision, dated by 'Date added': {', '.join(joined)}")
+    if left:
+        warn.append(f"{len(left)} left since that revision on unknown dates, kept as members until "
+                    f"{as_of.isoformat()}: {', '.join(left)}")  # fmt: skip
+    return Membership(as_of, pg.current, {**old.ciks, **pg.ciks}, changes, sha256, warn)

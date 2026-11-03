@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
 from dataclasses import replace
@@ -110,7 +111,15 @@ def test_backtest_trades_the_session_after_the_signal(store: Store) -> None:
     }
     r = res["research"]
     assert not r["registered"] and "not in the trial register" in r["warnings"][0]  # n_long=5 is a new trial
-    assert r["sharpeTest"]["trials"] == 3 and r["sharpeTest"]["observations"] == len(res["curve"]) - 1
+    registered = len(
+        json.loads((Path(__file__).parents[2] / "config/research/trials.json").read_text())["strategies"][
+            "C"
+        ]["trials"]
+    )
+    assert (
+        r["sharpeTest"]["trials"] == registered + 1
+        and r["sharpeTest"]["observations"] == len(res["curve"]) - 1
+    )
     assert r["holdoutDaysExcluded"] == 0  # these fictional prices end before the holdout starts
     v = res["verdict"]
     assert v["passes"] == (v["beatsSpy"] and v["beatsEqualWeight"] and v["dsrPasses"])

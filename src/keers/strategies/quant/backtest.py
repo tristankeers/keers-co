@@ -172,20 +172,28 @@ def _t(xs: list[float]) -> float | None:
 
 def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Config | None = None,
         costs: CostModel | None = None, benchmark: str = BENCHMARK,
-        fund_nav: float = FUND_NAV) -> dict[str, Any]:  # fmt: skip
+        fund_nav: float = FUND_NAV, members: Callable[[date], frozenset[str]] | None = None,
+        extra_benchmarks: Sequence[str] = ()) -> dict[str, Any]:  # fmt: skip
+    """With ``members``, each month ranks only the tickers in the index on the signal date (point-in-time
+    universe); without it, every ticker every month (today's list, with survivorship bias)."""
     cfg, costs = cfg or Config(), costs or CostModel()
     cost_rate = (costs.slippage_bps + costs.commission_bps) * BPS
     tickers = sorted({t.upper() for t in tickers} - {benchmark})
     bench = [(d, a) for d, a in store.adjusted_closes(benchmark, start - timedelta(days=10), end) if a]
     sessions = [d for d, _ in bench if d >= start]
     rebal = month_ends(sessions)
-    warnings = ["survivorship bias: the universe is today's ticker list, so delisted companies are missing"]
+    warnings = (
+        ["universe: index members on each signal date (point in time), including companies that later left"]
+        if members
+        else ["survivorship bias: the universe is today's ticker list, so delisted companies are missing"]
+    )
     if len(rebal) < 2:
         return {"ran": False, "reason": f"fewer than two month ends between {start} and {end} in {benchmark} prices",
                 "warnings": warnings}  # fmt: skip
     # The P&L panel. Signals never see it: they read only through PointInTime.
     panel: dict[str, dict[date, float]] = {
-        t: {d: a for d, a in store.adjusted_closes(t, start, end) if a} for t in [*tickers, benchmark]
+        t: {d: a for d, a in store.adjusted_closes(t, start, end) if a}
+        for t in [*tickers, benchmark, *extra_benchmarks]
     }
     pdays = {t: sorted(s) for t, s in panel.items()}
     nxt = {d: sessions[i + 1] for i, d in enumerate(sessions[:-1])}
@@ -197,8 +205,14 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
     ics: dict[str, list[float]] = {n: [] for n in SIGNALS}
     exec_set = {e: s for s, e in execs}
     plan: dict[date, list[Row]] = {}
+    coverage: dict[date, dict[str, int]] = {}
     for sig_day, ex_day in execs:
-        plan[ex_day] = rank(PointInTime(store, sig_day), tickers, cfg)
+        ranked = tickers if members is None else sorted(members(sig_day) & set(tickers))
+        plan[ex_day] = rank(PointInTime(store, sig_day), ranked, cfg)
+        if members is not None:
+            m = members(sig_day)
+            coverage[ex_day] = {"members": len(m), "withPrice": sum(1 for t in m if panel.get(t, {}) and
+                                min(panel[t]) <= sig_day + timedelta(days=5))}  # fmt: skip
 
     # costs-v2: each name's cost depends on its volume and volatility as of the signal day, and on the order's size.
     rates: dict[date, float | Callable[[str, float], float]] = {}
@@ -244,7 +258,7 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             r_ = store.last_rate("DGS3MO", exec_set[d])
             rf_now = (r_.value / 100 / 252) if r_ is not None else 0.0
             months.append({"signalDay": exec_set[d].isoformat(), "tradeDay": d.isoformat(), "ranked": len(ranked),
-                           "held": sorted(w), "turnover": book.turnover[-1]})  # fmt: skip
+                           "held": sorted(w), "turnover": book.turnover[-1], **coverage.get(d, {})})  # fmt: skip
             started = True
         if started:
             curve.append((d, book.value()))
@@ -288,6 +302,14 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         f"{fund_nav:,.0f} fund; borrow and taxes ignored"
     )
     strat, ew_stats, spy_stats = stats(curve, rf), stats(ew_curve, rf), stats(spy, rf)
+    extra = {b: stats([(d, panel[b][d]) for d, _ in curve if d in panel[b]], rf) for b in extra_benchmarks}
+    cov = [m for m in months if "members" in m]
+    universe_report = None
+    if cov:
+        universe_report = {"membersMin": min(m["members"] for m in cov), "membersMax": max(m["members"] for m in cov),
+                           "pricedShareMin": min(m["withPrice"] / m["members"] for m in cov if m["members"]),
+                           "pricedShareMean": statistics.fmean(m["withPrice"] / m["members"] for m in cov if m["members"]),
+                           "rankedMean": statistics.fmean(m["ranked"] for m in cov)}  # fmt: skip
     return {
         "ran": True,
         "version": BACKTEST_VERSION,
@@ -297,9 +319,11 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         "costs": costs.as_dict(),
         "universe": len(tickers),
         "benchmark": benchmark,
-        "strategy": stats(curve, rf),
-        "equalWeight": stats(ew_curve, rf),
-        "spy": stats(spy, rf),
+        "strategy": strat,
+        "equalWeight": ew_stats,
+        "spy": spy_stats,
+        "benchmarks": extra,
+        "universeCoverage": universe_report,
         "averageTurnover": statistics.fmean(book.turnover) if book.turnover else None,
         "signals": {
             n: {

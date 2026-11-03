@@ -1,0 +1,77 @@
+name: Quant backtest (S&P 500, point in time)
+
+# Rebuilds S&P 500 membership from Wikipedia's change log, fetches filings and prices for every company in the
+# index since START (including ones that later left), and backtests strategy C on the index as it stood each month.
+# Tiingo's free plan allows ~50 requests an hour, so delisted companies are fetched slowly; the store is cached
+# between runs, so a run that stops at its time budget is continued by the next one. Needs SEC_USER_AGENT;
+# TIINGO_TOKEN is needed for delisted companies (Yahoo has no history for most of them).
+
+on:
+  pull_request:
+    paths: ["src/keers/strategies/quant/**", ".github/workflows/quant-sp500.yml"]
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Backtest start date"
+        required: false
+        default: "2017-01-01"
+      fetch_minutes:
+        description: "Time budget for fetching, in minutes"
+        required: false
+        default: "240"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quant-sp500-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      START: ${{ inputs.start || '2017-01-01' }}
+      FETCH_MINUTES: ${{ inputs.fetch_minutes || '240' }}
+      DB: /home/runner/quant-store/sp500.sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret"
+            exit 1
+          fi
+          mkdir -p /home/runner/quant-store
+      - run: pip install -e .
+      - name: Restore the store from earlier runs
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/quant-store
+          key: quant-sp500-${{ github.run_id }}
+          restore-keys: quant-sp500-
+      - name: Fetch membership, filings and prices
+        run: python -m keers.strategies.quant --db "$DB" fetch-sp500 --start "$START" --membership quant-out/sp500-membership.json --report quant-out/sp500-fetch.json --max-minutes "$FETCH_MINUTES"
+      - name: Save the store for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/quant-store
+          key: quant-sp500-${{ github.run_id }}
+      - name: Backtest v2 on the point-in-time index
+        run: python -m keers.strategies.quant --db "$DB" backtest --start "$START" --membership quant-out/sp500-membership.json --benchmarks RSP --preset v2 --out quant-out/sp500-backtest-v2.json
+      - name: Backtest v1 on the point-in-time index
+        run: python -m keers.strategies.quant --db "$DB" backtest --start "$START" --membership quant-out/sp500-membership.json --benchmarks RSP --preset v1 --out quant-out/sp500-backtest-v1.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quant-sp500
+          path: |
+            quant-out/*.json
+            quant-out/*.html
