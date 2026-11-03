@@ -53,3 +53,18 @@ approval in review.
 
 Passing the gate does not turn on paper trading. That takes the person's approval of that exact configuration,
 recorded in the trial register (`approvedForPaper`, by configuration hash) in a reviewed change.
+
+## First results (live run 41553563835, 3 November 2026, KCI 100 list, Feb 2017 to Oct 2026, costs-v1)
+
+| | quant-c-v2 |
+|---|---|
+| Annual Sharpe | 0.81 (bootstrap 95% range 0.30 to 1.39) |
+| PSR (true Sharpe above zero) | 0.993 |
+| DSR (above the best of 2 trials by luck, bar 0.10) | 0.985, passes the 0.95 bar |
+| Information ratio against the equal-weight book | −0.17 (PSR 0.29) |
+| PBO across v1 and v2 | 0.15 (v2 was best in-sample in 93% of splits) |
+| Verdict | fails: beats SPY but not the equal-weight book |
+
+Read: the book's Sharpe is very unlikely to be luck, and v2 is reliably better than v1. But holding the whole list
+equally did better, so the ranking itself has not shown skill; the list's survivorship bias explains much of the
+result. The gate stays closed. The next test is the point-in-time S&P 500 universe (PR #22).
