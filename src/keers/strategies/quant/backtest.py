@@ -207,8 +207,8 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
     plan: dict[date, list[Row]] = {}
     coverage: dict[date, dict[str, int]] = {}
     for sig_day, ex_day in execs:
-        names = tickers if members is None else sorted(members(sig_day) & set(tickers))
-        plan[ex_day] = rank(PointInTime(store, sig_day), names, cfg)
+        ranked = tickers if members is None else sorted(members(sig_day) & set(tickers))
+        plan[ex_day] = rank(PointInTime(store, sig_day), ranked, cfg)
         if members is not None:
             m = members(sig_day)
             coverage[ex_day] = {"members": len(m), "withPrice": sum(1 for t in m if panel.get(t, {}) and
