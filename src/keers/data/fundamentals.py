@@ -514,50 +514,33 @@ class Fundamentals:
                                    unit, scale, "")  # fmt: skip
         return missing(unit, f"{label}: no fiscal year to {end} filed under {', '.join(candidates)}")
 
-    def share_splits(self, candidates: Sequence[str] = SHARES_DILUTED) -> list[tuple[date, date, float]]:
-        """Stock splits seen in the filings: (last filing before, first filing after, ratio new / old).
+    def split_factor(self, accn: str, candidates: Sequence[str] = SHARES_DILUTED) -> float:
+        """How many of today's shares one share counted in filing ``accn`` has become, through stock splits.
 
-        A split shows when a later filing restates a share count already filed for the same period by a large
-        ratio (at least 1.25, or at most 0.8). Several periods restated for one split are merged into the narrowest
-        window. Only filings known by the as-of date count.
+        Measured, not looked up: each period that filing reports is compared with the newest later filing of the
+        same period. A ratio of at least ``SPLIT_MIN`` (or its inverse) is a split; a smaller one is an ordinary
+        restatement and counts as none; one beyond ``SPLIT_MAX`` is a units slip in a filing and is ignored. The
+        walk then carries on from that later filing, so splits after it are found too, and each split is counted
+        once however many periods show it. Only filings known by the as-of date count.
         """
-        events: list[tuple[date, date, float]] = []
-        for c in candidates:
-            by_period: dict[tuple[date | None, date], list[Fact]] = {}
-            for f in self._facts(c):
-                by_period.setdefault((f.start, f.end), []).append(f)
-            for versions in by_period.values():
-                versions.sort(key=lambda f: (f.filed, f.accn))
-                for a, b in zip(versions, versions[1:], strict=False):
-                    if a.value > 0 and b.value > 0 and b.filed > a.filed:
-                        r = b.value / a.value
-                        if r >= SPLIT_MIN or r <= 1 / SPLIT_MIN:
-                            events.append((a.filed, b.filed, r))
-        events = [
-            e for e in events if 1 / SPLIT_MAX <= e[2] <= SPLIT_MAX
-        ]  # a millions-for-units slip is no split
-        merged: list[tuple[date, date, float]] = []
-        for lo, hi, r in sorted(events):
-            for i, (mlo, mhi, mr) in enumerate(merged):
-                if abs(r / mr - 1) <= 0.05 and lo < mhi and mlo < hi:
-                    merged[i] = (max(lo, mlo), min(hi, mhi), mr)
-                    break
-            else:
-                merged.append((lo, hi, r))
-        # A period restated across two splits shows both at once (4x for two 2-for-1 splits). Narrow windows are
-        # kept first; a wide one whose ratio is the product of the splits inside it adds nothing.
-        kept: list[tuple[date, date, float]] = []
-        for lo, hi, r in sorted(merged, key=lambda e: (e[1] - e[0]).days):
-            inside = [k for k in kept if lo <= k[0] and k[1] <= hi]
-            rest = r
-            for k in inside:
-                rest /= k[2]
-            if abs(rest - 1) <= 0.05:
-                continue
-            if rest >= SPLIT_MIN or rest <= 1 / SPLIT_MIN:
-                kept.append((lo, hi, rest))
-        merged = kept
-        return sorted(merged, key=lambda e: e[1])
+        facts = [f for c in candidates for f in self._facts(c)]
+        factor, seen = 1.0, set()
+        while accn not in seen:
+            seen.add(accn)
+            mine = {(f.start, f.end): f for f in facts if f.accn == accn}
+            if not mine:
+                break
+            filed = max(f.filed for f in mine.values())
+            later = [(g, mine[(g.start, g.end)]) for g in facts
+                     if (g.start, g.end) in mine and g.filed > filed and g.value > 0 and mine[(g.start, g.end)].value > 0]  # fmt: skip
+            if not later:
+                break
+            g, f = max(later, key=lambda x: (x[0].filed, x[0].accn))
+            r = g.value / f.value
+            if (r >= SPLIT_MIN or r <= 1 / SPLIT_MIN) and 1 / SPLIT_MAX <= r <= SPLIT_MAX:
+                factor *= r
+            accn = g.accn
+        return factor
 
     def own(self) -> O.OwnLines | None:
         """This company's reviewed own lines (``own_lines.toml``), if it is listed."""

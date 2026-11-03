@@ -42,7 +42,7 @@ research, not a verdict.
 from __future__ import annotations
 
 import statistics
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -225,10 +225,11 @@ def year_figures(fu: F.Fundamentals, end: date, prior_end: date | None) -> Year:
     return y
 
 
-def split_adjust(years: Sequence[Year], splits: Sequence[tuple[date, date, float]]) -> None:
+def split_adjust(years: Sequence[Year], factor_for: Callable[[str], float]) -> None:
     """Put every year's diluted share count on today's share basis.
 
-    A count filed before a split, and never restated, is multiplied by the split ratio. A count under 10,000
+    A count filed before a split, and never restated, is multiplied by the split ratio measured from later
+    filings (``Fundamentals.split_factor``). A count under 10,000
     shares (a filing that gave millions as units) is left out, with a note. Then a count more than
     ``SHARE_OUTLIER`` times away from the median of the others (a scaling error in the filing) is dropped, with a
     note, rather than allowed to swing the dilution check.
@@ -237,11 +238,7 @@ def split_adjust(years: Sequence[Year], splits: Sequence[tuple[date, date, float
         src = y.inputs.get("dilutedShares")
         if y.diluted_shares is None or src is None or not src.sources:
             continue
-        filed = date.fromisoformat(str(src.sources[0]["filed"])[:10])
-        factor = 1.0
-        for before, _after, ratio in splits:
-            if filed <= before:
-                factor *= ratio
+        factor = factor_for(str(src.sources[0]["accn"]))
         if factor != 1.0:
             y.diluted_shares *= factor
             y.notes.append(
@@ -277,7 +274,7 @@ def history(fu: F.Fundamentals, as_of: date, window: int = WINDOW_YEARS) -> list
         i = ends.index(e)
         prior = ends[i - 1] if i > 0 and 350 <= (e - ends[i - 1]).days <= 380 else None
         out.append(year_figures(fu, e, prior))
-    split_adjust(out, fu.share_splits())
+    split_adjust(out, fu.split_factor)
     return out
 
 

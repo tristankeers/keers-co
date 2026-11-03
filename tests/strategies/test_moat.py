@@ -217,6 +217,10 @@ def _with_split(store: Store) -> None:
              52.0 * 2 * fx.M, *fx.K24),
             ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", "2024-01-01", "2024-12-31",
              51.6 * 2 * fx.M, *fx.K24)]  # fmt: skip
+    # each 10-K also carries the prior year as a comparative, as real ones do
+    rows += [("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", f"{y - 1}-01-01",
+              f"{y - 1}-12-31", (54.0 - 0.4 * (y - 1 - 2018)) * fx.M, f"0000000001-{(y + 1) % 100:02d}-100{y % 10}",
+              "10-K", f"{y + 1}-02-14") for y in range(2019, 2023)]  # fmt: skip
     store.db.execute("DELETE FROM facts WHERE concept='WeightedAverageNumberOfDilutedSharesOutstanding' AND "
                      "accn=? AND end>='2023-01-01'", (fx.K24[0],))  # fmt: skip
     store.put_facts(parse_company_facts(fx.company_facts(rows), "sha-split"))
@@ -225,8 +229,8 @@ def _with_split(store: Store) -> None:
 def test_a_split_does_not_read_as_dilution(store: Store) -> None:
     _with_split(store)
     fu = F.Fundamentals(store, fx.CIK, demo.AS_OF)
-    ((before, after, ratio),) = fu.share_splits()
-    assert ratio == pytest.approx(2.0) and before.isoformat() == "2023-02-14" and after == date(2025, 2, 14)
+    assert fu.split_factor("0000000001-23-1002") == pytest.approx(2.0)
+    assert fu.split_factor(fx.K24[0]) == 1.0
     r = moat.screen(store, fx.TICKER, demo.AS_OF)
     d = next(c for c in r["checks"] if c["name"] == "dilution")
     assert d["level"] == "pass" and d["value"] < 0  # 108.0m to 103.2m on one basis: buybacks, not dilution
@@ -251,13 +255,15 @@ def test_two_splits_are_counted_once_each_and_a_units_slip_is_no_split(store: St
     d = ("0000000001-23-2003", "10-Q", "2023-05-01")  # after split 2 (2-for-1)
     e = ("0000000001-23-2004", "10-Q", "2023-08-01")  # restates in millions by mistake
     rows = [("us-gaap", c, "shares", "2022-01-01", "2022-03-31", 50 * fx.M, *a),
+            ("us-gaap", c, "shares", "2021-01-01", "2021-03-31", 49 * fx.M, *a),
             ("us-gaap", c, "shares", "2022-01-01", "2022-03-31", 100 * fx.M, *b),
             ("us-gaap", c, "shares", "2022-04-01", "2022-06-30", 100 * fx.M, *b),
             ("us-gaap", c, "shares", "2022-04-01", "2022-06-30", 200 * fx.M, *d),
-            ("us-gaap", c, "shares", "2021-01-01", "2021-12-31", 50 * fx.M, *a),
-            ("us-gaap", c, "shares", "2021-01-01", "2021-12-31", 200 * fx.M, *d),  # both splits at once
+            ("us-gaap", c, "shares", "2021-01-01", "2021-03-31", 196 * fx.M, *d),  # both splits at once
             ("us-gaap", c, "shares", "2023-01-01", "2023-03-31", 200 * fx.M, *d),
             ("us-gaap", c, "shares", "2023-01-01", "2023-03-31", 200.0, *e)]  # fmt: skip
     store.put_facts(parse_company_facts(fx.company_facts(rows), "sha-splits"))
-    got = F.Fundamentals(store, fx.CIK, demo.AS_OF).share_splits()
-    assert [round(r, 6) for _, _, r in got] == [2.0, 2.0]
+    fu = F.Fundamentals(store, fx.CIK, demo.AS_OF)
+    assert fu.split_factor(a[0]) == pytest.approx(4.0)  # not 8 or 16
+    assert fu.split_factor(b[0]) == pytest.approx(2.0)
+    assert fu.split_factor(d[0]) == 1.0  # the units slip in the next filing is no split
