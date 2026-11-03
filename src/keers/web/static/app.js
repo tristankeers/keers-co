@@ -1083,7 +1083,9 @@ function limitsTable(l, c) {
     ["Net beta to SPY", `${fnum(l.min_beta, 2)} to ${fnum(l.max_beta, 2)}, from ${l.risk_days} sessions of returns (at least ${l.min_risk_days})`],
     ["Book volatility", `up to ${fpct(l.max_volatility, 0)} a year, today's positions over the same sessions`],
     ["Price age", `at most ${l.max_price_age_days} business days; a stale quote blocks`], ["Currency", `${l.base_currency} only (no FX yet)`],
-    ["Fill costs", `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
+    ["Fill costs", c.model === "impact"
+      ? `${fnum(c.half_spread_bps, 0)} bp half spread + ${fnum(c.impact_coefficient, 1)} × daily volatility × √(shares / ADV) impact (${fnum(c.fallback_impact_bps, 0)} bp if unknown) + ${fnum(c.commission_per_share, 3)} a share commission (min ${fnum(c.min_commission, 2)}, max ${fpct(c.max_commission_pct, 0)} of value), ${c.version}`
+      : `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
   ];
   return h("table", {}, h("tbody", {}, rows.map(([a, b]) => h("tr", {}, h("td", {}, a), h("td", { class: "muted" }, b)))));
 }
@@ -1130,7 +1132,7 @@ function renderTicket(box, d, list, pid) {
         h("tr", {}, h("td", {}, "Shares"), h("td", { class: "n" }, signed(fnum(r.quantity, 0), r.quantity)), h("td", { class: "muted" }, `position ${fnum(r.positionBefore, 0)} → ${fnum(r.positionAfter, 0)}`)),
         h("tr", {}, h("td", {}, "Price used"), h("td", { class: "n" }, isNum(m.price) ? fnum(m.price, 2) : "—"), h("td", { class: "muted" }, `${m.source}${m.at ? ` · ${m.at}` : ""}${m.currency ? ` · ${m.currency}` : ""}`)),
         (m.warnings || []).length ? h("tr", {}, h("td", {}, "Price notes"), h("td", { colspan: 2, class: "muted" }, m.warnings.join(" · "))) : null,
-        h("tr", {}, h("td", {}, "Simulated fill"), h("td", { class: "n" }, f ? fnum(f.price, 4) : "—"), h("td", { class: "muted" }, f ? `${fnum(f.slippage_bps, 0)} bp slippage` : "no price to fill at")),
+        h("tr", {}, h("td", {}, "Simulated fill"), h("td", { class: "n" }, f ? fnum(f.price, 4) : "—"), h("td", { class: "muted" }, f ? `${fnum(f.slippage_bps, 1)} bp price move${f.basis ? ` (${f.basis})` : ""}` : "no price to fill at")),
         h("tr", {}, h("td", {}, "Notional + commission"), h("td", { class: "n" }, f ? money(f.notional, 2) : "—"), h("td", { class: "muted" }, f ? `commission ${fnum(f.commission, 2)}` : "")),
         h("tr", {}, h("td", {}, "Average daily volume"), h("td", { class: "n" }, isNum(m.advShares) ? fnum(m.advShares, 0) : "unknown"), h("td", { class: "muted" }, `${m.advSessions} sessions`)),
         h("tr", {}, h("td", {}, "Sector"), h("td", { class: "n" }, r.sector || "unknown"), h("td", { class: "muted" }, r.sectorBasis ? `from: ${r.sectorBasis}` : "enter one above")),

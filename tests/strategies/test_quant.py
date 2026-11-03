@@ -120,6 +120,22 @@ def test_backtest_trades_the_session_after_the_signal(store: Store) -> None:
     assert free["strategy"]["totalReturn"] > res["strategy"]["totalReturn"]  # costs are charged
 
 
+def test_backtest_costs_v2_scales_with_fund_size(store: Store) -> None:
+    v2 = backtest.CostModel.v2()
+    small = backtest.run(store, TICKERS, date(2021, 2, 1), END, replace(V1, n_long=5), v2, fund_nav=1e6)
+    big = backtest.run(store, TICKERS, date(2021, 2, 1), END, replace(V1, n_long=5), v2, fund_nav=1e10)
+    assert (
+        small["costs"]["version"] == "costs-v2"
+        and small["fundNav"] == 1e6
+        and "impact" in small["warnings"][-1]
+    )
+    # Same trades; a fund 10,000 times larger moves prices more against itself.
+    assert big["strategy"]["totalReturn"] < small["strategy"]["totalReturn"]
+    pit = PointInTime(store, date(2022, 6, 30))
+    adv, sigma, px = backtest.cost_inputs(pit, "T05")
+    assert adv == pytest.approx(1_000_000.0) and 0 < sigma < 0.05 and px > 0
+
+
 def test_backtest_is_deterministic(store: Store) -> None:
     a = backtest.run(store, TICKERS, date(2021, 2, 1), END, V1)
     b = backtest.run(store, TICKERS, date(2021, 2, 1), END, V1)

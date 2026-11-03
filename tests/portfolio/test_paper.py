@@ -58,7 +58,7 @@ def setup(tmp_path: Path) -> tuple[Desk, Prices, int]:
     pid = led.create_portfolio("Test", 1_000_000).id
     px = Prices()
     clock = {"today": TODAY}
-    desk = Desk(led, px.mark, px.closes, lambda: clock["today"])
+    desk = Desk(led, px.mark, px.closes, lambda: clock["today"], costs=CostModel())  # v1: round numbers below
     desk.clock = clock  # type: ignore[attr-defined]
     return desk, px, pid
 
@@ -258,3 +258,33 @@ def test_schema_1_ledger_is_migrated_and_chained(tmp_path: Path) -> None:
     led = Ledger(path)
     assert led.verify()["ok"] and led.verify()["orders"] == 1
     assert led.db.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "2"
+
+
+def test_costs_v2_by_hand() -> None:
+    c = CostModel.v2()
+    # 10,000 shares against 1,000,000 a day, 2% daily volatility: impact 1.0 × 0.02 × √0.01 = 20 bp, plus 5 bp.
+    f = simulate(10_000, 50.0, c, adv=1_000_000, sigma=0.02)
+    assert f.price == pytest.approx(50 * 1.0025) and f.slippage_bps == pytest.approx(25)
+    assert f.commission == pytest.approx(50.0) and "square-root" in f.basis  # 10,000 × 0.005
+    small = simulate(-100, 50.0, c, adv=1_000_000, sigma=0.02)
+    assert small.price < 50 and small.slippage_bps == pytest.approx(7) and small.commission == 1.0  # minimum
+    assert simulate(1, 0.5, c, 1e6, 0.02).commission == pytest.approx(
+        0.005, rel=1e-2
+    )  # capped at 1% of value
+    unknown = simulate(100, 50.0, c)
+    assert unknown.slippage_bps == pytest.approx(30) and "unknown" in unknown.basis
+    with pytest.raises(ValueError):
+        CostModel(model="other")
+
+
+def test_desk_uses_costs_v2_by_default(tmp_path: Path) -> None:
+    led = Ledger(tmp_path / "paper.sqlite")
+    pid = led.create_portfolio("V2", 1_000_000).id
+    px = Prices()
+    desk = Desk(led, px.mark, px.closes, lambda: TODAY)
+    out = desk.execute(pid, req(shares=500))
+    assert (
+        out["filled"] and out["fill"]["cost_version"] == "costs-v2" and "square-root" in out["fill"]["basis"]
+    )
+    o = led.orders(pid)[0]
+    assert o.cost_version == "costs-v2" and 5 < o.slippage_bps < 10  # 500 of 2,000,000 a day is a small order

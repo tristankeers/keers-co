@@ -89,6 +89,9 @@ Paper trades go through the workbench: `POST /api/strategies/c/signals` shows th
 
 - Survivorship bias: the universe is today's ticker list, so companies that were delisted are missing. This flatters
   backtest results; every run says so.
-- Backtest costs are costs-v1 slippage plus commission on turnover; the minimum commission, borrow and tax are ignored.
+- Backtest costs default to costs-v1 (flat slippage plus commission on turnover) so results stay comparable with
+  the registered trials. `--costs v2` prices each name's half spread, square-root impact and per-share commission for
+  a fund of `--fund-nav` (default 10 million), from its volume and volatility as of the signal day; the Quant
+  backtest workflow runs v2 both ways. Borrow and tax are ignored.
 - No shorts and no UI panel yet. Fundamentals are SEC filers only in the backtest universe.
 - Yahoo data is personal use only; it must be replaced before any commercial use.

@@ -62,6 +62,20 @@ class TradeRequest:
                    note=" ".join(str(d.get("note") or "").split())[:200])  # fmt: skip
 
 
+VOL_SESSIONS = 60  # daily volatility for the impact estimate: the last three months or so
+
+
+def daily_volatility(returns: dict[date, float] | None) -> float | None:
+    """Standard deviation of the last ``VOL_SESSIONS`` daily returns; None with fewer than 20."""
+    if not returns:
+        return None
+    xs = [returns[d] for d in sorted(returns)[-VOL_SESSIONS:]]
+    if len(xs) < 20:
+        return None
+    m = sum(xs) / len(xs)
+    return float(math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1)))
+
+
 MarkFn = Callable[[str], MarketMark]
 ClosesFn = Callable[[str, date, date], list[tuple[date, float]]]
 
@@ -74,7 +88,7 @@ class Desk:
         self.closes = closes
         self.today = today
         self.limits = limits or Limits()
-        self.costs = costs or CostModel()
+        self.costs = costs or CostModel.v2()
 
     # state ------------------------------------------------------------------------------------------------------
     def _portfolio(self, pid: int) -> Portfolio:
@@ -190,7 +204,7 @@ class Desk:
                     raise TradeError(
                         f"{req.symbol}: no price, so a size by weight or amount cannot be worked out"
                     )
-                ref = m.price * (1 + self.costs.slippage_bps * 1e-4 * (1 if req.side == "buy" else -1))
+                ref = m.price * (1 + self.costs.sizing_bps() * 1e-4 * (1 if req.side == "buy" else -1))
                 if req.amount is not None:
                     target = req.amount
                 else:
@@ -219,7 +233,8 @@ class Desk:
             sector, basis = held.sector, held.sector_basis or "position"
         else:
             sector, basis = m.sector, m.sector_basis
-        fill = simulate(qty, m.price, self.costs) if m.price is not None and m.price > 0 else None
+        fill = (simulate(qty, m.price, self.costs, m.adv_shares, daily_volatility(st["returns"].get(req.symbol)))
+                if m.price is not None and m.price > 0 else None)  # fmt: skip
         trade = R.Trade(req.symbol, req.strategy, sector, qty, fill.price if fill else 0.0,
                         fill.commission if fill else 0.0, self._risk_mark(st, req.symbol))  # fmt: skip
         report = R.check_trade(self._book(st), trade, self.limits, self.today())
@@ -258,7 +273,7 @@ class Desk:
             sector=plan["sector"], sector_basis=plan["sectorBasis"] or "none", quantity=plan["quantity"],
             reference_price=m.price, price_source=m.source, price_at=m.at, price_sha256=m.raw_sha256,
             fill_price=f.price if approved else None, commission=f.commission if approved else None,
-            slippage_bps=self.costs.slippage_bps, commission_bps=self.costs.commission_bps,
+            slippage_bps=f.slippage_bps if f else None, commission_bps=f.commission_bps if f else None,
             cost_version=self.costs.version, currency=m.currency, limits_version=self.limits.version,
             risk=report.as_dict(), reason=reason, note=req.note,
         )  # fmt: skip

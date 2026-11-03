@@ -8,8 +8,13 @@ Paper trading only. No broker is connected and no real order is ever sent.
    in shares, % of NAV or an amount. Sector is optional; if blank it comes from the listing record or the SEC
    SIC code (coarse, and shown as such).
 2. The desk (`keers.portfolio.desk`) fetches the latest Yahoo price (a quote, or the last daily close if that is
-   newer), works out the size in whole shares, and prices a simulated fill: the price moved against you by
-   10 basis points, plus a 5 basis point commission (minimum 1.00). These are `costs-v1`.
+   newer), works out the size in whole shares, and prices a simulated fill with `costs-v2`: the price moves
+   against you by half the bid-ask spread (5 basis points) plus market impact, 1.0 × the name's daily volatility
+   (last 60 sessions) × √(shares ÷ 20-day average daily volume), the square-root law (Almgren et al. 2005). The
+   commission is 0.005 a share, at least 1.00 and at most 1% of the trade's value (Interactive Brokers' fixed US
+   rate). With no volume or volatility the impact is taken as 25 basis points, and the fill says so. A big order in
+   a thin, jumpy name costs much more than a small one in a liquid name. Orders keep the cost version and the
+   actual basis points applied. `costs-v1` (a flat 10 basis points plus 5 of commission) is kept for comparison.
 3. The risk module (`keers.risk.checks`) gets the plain facts (cash, holdings, prices, volumes, sectors, NAV
    history and the proposed trade), recomputes the exposures itself, and returns one result per check.
 4. The trade fills only when every required check is present and passed. Otherwise it is recorded as rejected
