@@ -227,3 +227,22 @@ def test_interest_from_own_line_feeds_the_pre_tax_fallback_for_operating_income(
         st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, esef_filing(y), "s", own={own})[0])
     ebit = Fundamentals(st, cik, AS_OF).operating_income(at)
     assert ebit.value == pytest.approx(130) and any("own line" in w for w in ebit.warnings)
+
+
+def test_pre_tax_income_is_rebuilt_from_profit_and_tax_when_no_pre_tax_line_is_filed() -> None:
+    at = date(2025, 12, 31)
+    st = Store(":memory:")
+    cik = st.entity_id("lei", ff.LEI, ff.LEGAL_NAME, "GB", "test")
+    for y in (2024, 2025):
+        doc = ff.report(y)
+        for k, body in list(doc["facts"].items()):
+            if body["dimensions"]["concept"] == "ifrs-full:ProfitLossFromOperatingActivities":
+                del doc["facts"][k]
+        i = ff.YEARS.index(y)
+        doc["facts"]["pl"] = ff._fact("ProfitLoss", ff.duration(y), (86, 98, 106)[i] * ff.M - 20 * ff.M)
+        doc["facts"]["tax"] = ff._fact("IncomeTaxExpenseContinuingOperations", ff.duration(y), 20 * ff.M)
+        st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, esef_filing(y), "s")[0])
+    ebit = Fundamentals(st, cik, AS_OF).operating_income(at)
+    # profit 86 + tax 20 = pre-tax 106, plus finance costs 24
+    assert ebit.value == pytest.approx(130) and ebit.kind.name == "DERIVED"
+    assert any("rebuilt as profit + income tax" in w for w in ebit.warnings)

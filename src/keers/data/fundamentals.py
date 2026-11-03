@@ -99,6 +99,10 @@ PRETAX_INCOME = (
     "us-gaap:IncomeLossIncludingPortionAttributableToNoncontrollingInterest",
     "ifrs-full:ProfitLossBeforeTax",
 )
+# IFRS income statements without a pre-tax subtotal (TotalEnergies): pre-tax income is rebuilt as profit for the
+# year (all owners) plus income tax expense, both for the same period, and flagged as derived.
+PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
+INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
        "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
@@ -238,7 +242,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -837,6 +841,11 @@ class Fundamentals:
         if own is not None:
             return own
         pretax = self.flow(PRETAX_INCOME, "pre-tax income", at)
+        if not pretax.known and self.taxonomy == "ifrs-full":
+            profit, tax = self.flow(PROFIT_TOTAL, "profit", at), self.flow(INCOME_TAX, "income tax", at)
+            if profit.known and tax.known:
+                pretax = _sum([profit, tax], "profit + income tax expense (no pre-tax line filed)",
+                              ("no pre-tax line filed; pre-tax income rebuilt as profit + income tax expense",))  # fmt: skip
         interest = self.gross_interest(at)
         if pretax.known and interest.known:
             return _sum([pretax, interest], "pre-tax income + interest expense (no operating income filed)",
