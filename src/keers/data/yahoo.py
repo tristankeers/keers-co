@@ -43,7 +43,7 @@ _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 # Yahoo's exchange suffixes for the non-US markets in the global universe (keers.universe.exchanges).
 EXCHANGE_SUFFIXES = {".L", ".PA", ".AS", ".BR", ".LS", ".IR", ".MI", ".MC", ".SW", ".VI", ".ST", ".OL", ".CO",
-                     ".HE", ".WA", ".AT", ".IS", ".DE", ".TA", ".SR", ".JO", ".T", ".HK", ".SS", ".SZ", ".TW",
+                     ".HE", ".WA", ".AT", ".IS", ".DE", ".TA", ".SR", ".JO", ".T", ".HK", ".SS", ".SZ", ".TW", ".TWO",
                      ".KS", ".KQ", ".NS", ".SI", ".KL", ".BK", ".JK", ".PS", ".AX", ".NZ", ".TO", ".V", ".SA",
                      ".MX", ".SN"}  # fmt: skip
 
