@@ -288,3 +288,10 @@ def test_desk_uses_costs_v2_by_default(tmp_path: Path) -> None:
     )
     o = led.orders(pid)[0]
     assert o.cost_version == "costs-v2" and 5 < o.slippage_bps < 10  # 500 of 2,000,000 a day is a small order
+
+
+def test_hash_chain_survives_sqlite_storing_whole_numbers_as_reals(setup: tuple[Desk, Prices, int]) -> None:
+    desk, _px, pid = setup
+    assert desk.execute(pid, req(weight=0.02))["filled"]  # sized by weight: the share count is a Python int
+    assert desk.ledger.verify()["ok"]
+    assert desk.execute(pid, req(weight=0.01))["filled"]

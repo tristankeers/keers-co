@@ -76,8 +76,15 @@ CREATE TABLE IF NOT EXISTS controls (
 _CONTROL_COLS = ("portfolio_id", "created_at", "action", "reason")
 
 
+def _number(v: Any) -> Any:
+    # SQLite gives back a whole number stored in a REAL column as a float (2 -> 2.0) and one stored in an
+    # INTEGER column as an int, so every number is hashed as a float: written and read rows then hash alike.
+    return float(v) if isinstance(v, int) and not isinstance(v, bool) else v
+
+
 def row_hash(prev: str, values: dict[str, Any]) -> str:
-    raw = json.dumps({"prev": prev, **values}, sort_keys=True, separators=(",", ":"), default=str)
+    norm = {k: _number(v) for k, v in values.items()}
+    raw = json.dumps({"prev": prev, **norm}, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
