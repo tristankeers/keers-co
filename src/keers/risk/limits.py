@@ -1,6 +1,7 @@
 """The risk limits, as one versioned, validated set of numbers.
 
-The defaults below are ``risk-limits-v2`` (v1 plus the beta and volatility limits). They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
+The defaults below are ``risk-limits-v3``: v2 (v1 plus the beta and volatility limits) plus a smaller position cap
+for strategy A and a minimum share price for short sales. They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
 must give every limit: a file with a missing, extra or out-of-range key is refused, so a typo can never switch a
 limit off.
 """
@@ -24,13 +25,23 @@ def _default_strategy_caps() -> dict[str, float]:
     return {"A": 0.40, "B": 0.60, "C": 0.40}
 
 
+def _default_position_caps() -> dict[str, float]:
+    # Distressed names can gap on one filing or court ruling, so strategy A positions are kept smaller.
+    return {"A": 0.05, "B": 0.10, "C": 0.10}
+
+
 @dataclass(frozen=True)
 class Limits:
-    version: str = "risk-limits-v2"
+    version: str = "risk-limits-v3"
     # Concentration, as a share of net asset value (NAV). Long and short both count (absolute market value).
     max_position: float = 0.10  # one position
     max_sector: float = 0.25  # all positions in one sector
     max_strategy: dict[str, float] = field(default_factory=_default_strategy_caps)  # one strategy's sleeve
+    # One position, by strategy; the lower of this and max_position applies.
+    max_position_strategy: dict[str, float] = field(default_factory=_default_position_caps)
+    # Short sales: no new or bigger short below this share price (base currency). Cheap distressed shares are
+    # usually hard to borrow and can move by multiples. Borrow availability and fees are not modelled.
+    min_short_price: float = 5.0
     # Liquidity, as a share of the average daily volume (ADV) in shares.
     adv_days: int = 20  # sessions averaged
     min_adv_days: int = 10  # fewer sessions with volume than this: ADV is unknown
@@ -92,6 +103,13 @@ def validate(lim: Limits) -> list[str]:
         p.append(f"max_strategy must give a cap for each of {', '.join(STRATEGIES)}")
     elif not all(_share(v) for v in lim.max_strategy.values()):
         p.append("each max_strategy cap must be above 0 and at most 5")
+    if not isinstance(lim.max_position_strategy, dict) or set(lim.max_position_strategy) != set(STRATEGIES):
+        p.append(f"max_position_strategy must give a cap for each of {', '.join(STRATEGIES)}")
+    elif not all(_share(v) for v in lim.max_position_strategy.values()):
+        p.append("each max_position_strategy cap must be above 0 and at most 5")
+    if not (isinstance(lim.min_short_price, int | float) and not isinstance(lim.min_short_price, bool)
+            and 0 <= lim.min_short_price <= 1000):  # fmt: skip
+        p.append("min_short_price must be a number from 0 to 1000")
     if not _share(lim.max_volatility):
         p.append("max_volatility must be a number above 0 and at most 5")
     if not (isinstance(lim.max_beta, int | float) and isinstance(lim.min_beta, int | float)

@@ -70,6 +70,8 @@ def fmt_value(v: float | str | None, unit: str) -> str:
         return f"{v:,.0f} shares"
     if unit == "m shares":
         return f"{v:,.1f}m shares"
+    if unit == "months":
+        return f"{v:,.0f} months"
     if unit == "score":
         return f"{v:,.0f} out of 100"
     return f"{v:,.4g} {unit}".strip()
@@ -87,6 +89,7 @@ class FactSheet:
     warnings: list[str] = field(default_factory=list)
     distress_status: str | None = None
     valuation_ran: bool = False
+    a_analysis_ran: bool = False  # Strategy A's runway, funding gap and recovery value (a-analysis-v1)
 
     def add(self, f: Fact) -> None:
         self.facts[f.key] = f
@@ -110,6 +113,7 @@ class FactSheet:
     def as_dict(self) -> dict[str, Any]:
         return {"symbol": self.symbol, "name": self.name, "asOf": self.as_of, "blockedBy": self.blocked_by,
                 "warnings": self.warnings, "distressStatus": self.distress_status, "valuationRan": self.valuation_ran,
+                "aAnalysisRan": self.a_analysis_ran,
                 "facts": [f.as_dict() for f in self.facts.values()]}  # fmt: skip
 
     def sha256(self) -> str:
@@ -217,8 +221,69 @@ def _distress(sheet: FactSheet, d: Mapping[str, Any]) -> None:
                        str(chk.get("thresholds") or ""), f"{ver}: {chk.get('thresholds') or ''}"))  # fmt: skip
         sheet.add(Fact(k + ".reason", f"Distress check {chk['name']}: reason", str(chk.get("reason") or ""), "text",
                        "engine", ver, f"{ver} as of {d.get('asOf')}"))  # fmt: skip
+        if isinstance(chk.get("value"), int | float) and chk["name"] in CHECK_UNITS:
+            sheet.add(Fact(k + ".value", f"Distress check {chk['name']}: value", chk["value"],
+                           CHECK_UNITS[chk["name"]], "derived", ver, f"{ver} as of {d.get('asOf')}"))  # fmt: skip
     cr = d.get("credit") or {}
     if cr.get("reason"):
         sheet.add(Fact("credit.backdrop", "Credit market backdrop", str(cr["reason"]), "text", "market",
                        "Baa spread level and 3-month change", f"FRED BAA10Y on {cr.get('day')}"))  # fmt: skip
     sheet.warnings += [str(w) for w in d.get("dataWarnings") or []]
+    _strategy_a(sheet, d.get("strategyA") or {})
+
+
+# The distress checks' values: interest cover and leverage are multiples, debt due and the fall from the high are
+# shares, and the Altman Z-score is a plain number.
+CHECK_UNITS = {
+    "interestCover": "x",
+    "netLeverage": "x",
+    "debtDue": "ratio",
+    "altmanZ": "",
+    "drawdown": "ratio",
+}
+
+A_TITLES = {"runway": "Liquidity runway", "fundingGap": "Funding gap over the next year",
+            "recovery": "Recovery value at distressed multiples"}  # fmt: skip
+
+
+def _strategy_a(sheet: FactSheet, a: Mapping[str, Any]) -> None:
+    """Strategy A's analysis (``keers.strategies.distressed.analysis``) as facts under ``a.``."""
+    if not a.get("ran"):
+        if a:
+            sheet.warnings += [f"strategy A analysis did not run: {b}" for b in a.get("blockedBy") or []]
+        return
+    sheet.a_analysis_ran = True
+    ver = str(a.get("analysisVersion") or "a-analysis")
+    src = f"{ver} as of {a.get('asOf')}"
+    money, cur = str(a.get("money") or ""), str(a.get("currency") or "")
+
+    def add(key: str, title: str, value: Any, unit: str, label: str, method: str) -> None:
+        if value is not None:
+            sheet.add(Fact(key, title, value, unit, label, method, src))
+
+    for p in a.get("parts") or []:
+        n, title = p["name"], A_TITLES.get(p["name"], p["name"])
+        add(
+            f"a.{n}", f"{title}: level", str(p.get("level")), "text", "engine", str(p.get("thresholds") or "")
+        )
+        add(f"a.{n}.reason", f"{title}: reason", str(p.get("reason") or ""), "text", "engine", ver)
+        if n == "runway":
+            add("a.runway.months", "Months of cash at the current burn", p.get("value"), "months", "derived",
+                "(cash + short-term investments + undrawn credit lines) ÷ monthly free-cash-flow burn")  # fmt: skip
+            add("a.freeCashFlow", "Free cash flow (TTM)", p.get("freeCashFlow"), money, "derived",
+                "cash from operations − capital expenditure, TTM")  # fmt: skip
+        elif n == "fundingGap":
+            add("a.fundingGap.amount", "Cash to spare (negative: short) after the debt due within a year",
+                p.get("value"), money, "derived",
+                "cash + short-term investments + undrawn credit lines + free cash flow (TTM) − debt due within a year")  # fmt: skip
+        elif n == "recovery":
+            for case, c in (p.get("cases") or {}).items():
+                m = f"{case} case, EV / EBITDA of {c.get('multiple')}x (assumption)"
+                add(f"a.recovery.{case}.multiple", f"Recovery multiple, {case} case", c.get("multiple"), "x",
+                    "assumption", f"{ver}: generic distressed-sale EV / EBITDA, not company-specific")  # fmt: skip
+                add(f"a.recovery.{case}.perShare", f"Equity value per share, {case} case", c.get("perShare"), cur,
+                    "estimate", f"(EBITDA × multiple + cash − debt, not below zero) ÷ shares; {m}")  # fmt: skip
+                add(f"a.recovery.{case}.vsPrice", f"Equity value per share against the last close, {case} case",
+                    c.get("vsPrice"), "ratio", "estimate", f"value per share ÷ last close − 1; {m}")  # fmt: skip
+                add(f"a.recovery.{case}.debtCovered", f"Share of debt covered, {case} case", c.get("debtCovered"),
+                    "ratio", "estimate", f"(EBITDA × multiple + cash) ÷ debt, at most 100%; {m}")  # fmt: skip

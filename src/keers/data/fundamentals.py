@@ -104,6 +104,12 @@ PRETAX_INCOME = (
 PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
 INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
+# Cash from operations, for the Strategy A liquidity runway. The first line includes discontinued operations.
+OPERATING_CASH_FLOW = (
+    "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+    "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+)
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
        "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
 CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash", "ifrs-full:CashAndCashEquivalents")
@@ -242,7 +248,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + OPERATING_CASH_FLOW + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 

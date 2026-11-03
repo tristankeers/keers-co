@@ -20,14 +20,18 @@ from . import guard
 from .facts import FactSheet
 
 PROMPT_VERSION = "agents-v1"
-RULES_VERSION = "rules-v1"
+RULES_VERSION = "rules-v2"  # v2 changes strategy A only: it reads the runway and recovery values, not the DCF
 
 MANDATES = {
     "A": (
         "Strategy A, distressed and special situations: companies under financial stress, or facing an event "
         "(refinancing, restructuring, takeover), where the price may be wrong because others are forced or "
         "afraid. Long when the business and assets are worth more than the price even in a bad case; short "
-        "when the balance sheet is likely to fail and the price does not reflect it."
+        "when the balance sheet is likely to fail and the price does not reflect it. The facts under a. are "
+        "built for this mandate: the liquidity runway, the funding gap over the next year, and the value per "
+        "share and debt covered if the business were sold at stated distressed multiples (a low, mid and high "
+        "case). Debt is paid before equity. A DCF of a company in distress rests on a future it may not reach, "
+        "so weigh it less than the runway and the recovery values."
     ),
     "B": (
         "Strategy B, durable-moat compounders: high-quality businesses with lasting advantages, bought at a "
@@ -44,9 +48,10 @@ MANDATES = {
 B_MIN_UPSIDE = 0.15  # DCF value per share at least 15% above the last close
 B_HIGH_UPSIDE = 0.30
 B_MIN_SCORE = 55.0
-A_MIN_UPSIDE = 0.30
-A_MIN_DOWNSIDE_MOIC = 1.0
-A_SHORT_MIN_SEVERE = 2
+# Strategy A (rules-v2): runway, funding gap and recovery value (keers.strategies.distressed.analysis)
+A_MIN_UPSIDE = 0.30  # equity value per share at the mid multiple at least 30% above the last close
+A_SHORT_MIN_SEVERE = 2  # severe distress checks
+A_SHORT_MAX_MID = -0.50  # equity value per share at the mid multiple at least 50% below the last close
 TV_SHARE_WARN = 0.75
 
 STANCES = ("long", "short", "no_trade")
@@ -256,7 +261,7 @@ def problems(role: str, data: dict[str, Any], sheet: FactSheet) -> list[str]:
 
 
 # --------------------------------------------------------------------------------------------------------------
-# rules-v1: the stand-ins used without a model
+# rules-v2: the stand-ins used without a model (v1 for B and C; strategy A changed in v2)
 # --------------------------------------------------------------------------------------------------------------
 def _levels(sheet: FactSheet) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {"severe": [], "watch": [], "clear": [], "unknown": []}
@@ -276,7 +281,7 @@ def _all_known(sheet: FactSheet, text: str) -> bool:
 
 
 def rules_analyst(sheet: FactSheet, strategy: str) -> dict[str, Any]:
-    vs, score, dmoic = sheet.num("dcf.vsPrice"), sheet.num("score.total"), sheet.num("lbo.downside.moic")
+    vs, score = sheet.num("dcf.vsPrice"), sheet.num("score.total")
     lv = _levels(sheet)
     flagged = lv["severe"] + lv["watch"]
     stance, conviction, thesis = "no_trade", "low", ""
@@ -305,35 +310,60 @@ def rules_analyst(sheet: FactSheet, strategy: str) -> dict[str, Any]:
         point("Business quality score: {score.quality}; growth score: {score.growth}.", "score.quality",
               "score.growth")  # fmt: skip
     else:  # A
-        if (
-            vs is not None
-            and flagged
-            and vs >= A_MIN_UPSIDE
-            and dmoic is not None
-            and dmoic >= A_MIN_DOWNSIDE_MOIC
-        ):
-            stance = "long"
-            thesis = ("The distress screen flags stress, yet the DCF value sits well above the price "
-                      "({dcf.vsPrice}) and a buyer would get its money back even in the downside case "
-                      "({lbo.downside.moic}).")  # fmt: skip
-        elif len(lv["severe"]) >= A_SHORT_MIN_SEVERE and (vs is None or vs < 0):
-            stance = "short"
-            thesis = ("Several distress checks are severe and the DCF gives no support above the price, so the "
-                      "balance sheet may fail before the market prices it in.")  # fmt: skip
-        else:
-            thesis = ("No case under the distressed rules: they need stress with value coverage (long) or "
-                      "several severe flags without value support (short).")  # fmt: skip
+        stance, conviction, thesis = rules_a(sheet, lv)
         point("Distress screen result: {distress.status}.", "distress.status")
         for k in flagged[:3]:
             point(f"{{{k}.reason}}", k, k + ".reason")
-        point("DCF value against price: {dcf.vsPrice}; downside buyout MOIC: {lbo.downside.moic}.", "dcf.vsPrice",
-              "lbo.downside.moic")  # fmt: skip
+        point("Liquidity runway: {a.runway.reason}.", "a.runway", "a.runway.reason")
+        point("Funding gap over the next year: {a.fundingGap.reason}.", "a.fundingGap", "a.fundingGap.reason")
+        point("Recovery value: {a.recovery.reason}.", "a.recovery", "a.recovery.reason")
+        point("Equity value per share against the price: low case {a.recovery.low.vsPrice}, mid case "
+              "{a.recovery.mid.vsPrice}, high case {a.recovery.high.vsPrice}.", "a.recovery.low.vsPrice",
+              "a.recovery.mid.vsPrice", "a.recovery.high.vsPrice")  # fmt: skip
     # Keep only points whose facts are all known, so nothing reads "not available" by accident.
     points = [p for p in points if _all_known(sheet, p["claim"])]
     if stance != "no_trade" and not _all_known(sheet, thesis):
         stance, thesis = "no_trade", "No case: a figure the rule needs is missing."
     return {"stance": stance, "conviction": conviction, "thesis": thesis, "points": points, "risks": risks,
             "changeMyMind": "A change in the engine outputs or the distress screen on the next filing."}  # fmt: skip
+
+
+def rules_a(sheet: FactSheet, lv: dict[str, list[str]]) -> tuple[str, str, str]:
+    """Strategy A's rule-based call: (stance, conviction, thesis). Compares engine outputs with the thresholds."""
+    flagged = lv["severe"] + lv["watch"]
+    low, mid, high = (sheet.num(f"a.recovery.{c}.vsPrice") for c in ("low", "mid", "high"))
+    runway, gap = sheet.get("a.runway"), sheet.get("a.fundingGap")
+    if not sheet.a_analysis_ran:
+        return "no_trade", "low", "No case: the strategy A analysis (runway and recovery value) did not run."
+    if (flagged and mid is not None and mid >= A_MIN_UPSIDE and low is not None and low > -1
+            and runway in ("clear", "watch") and gap == "clear"):  # fmt: skip
+        conviction = "medium" if low >= 0 else "low"
+        return "long", conviction, (
+            "The distress screen flags stress ({distress.status}), yet at a distressed sale price the equity would "
+            "be worth more than the price in the mid case ({a.recovery.mid.vsPrice}) and something even in the low "
+            "case ({a.recovery.low.vsPrice}), and the company can meet the next year's debt "
+            "({a.fundingGap.reason}).")  # fmt: skip
+    no_earnings_value = sheet.get("a.recovery") == "unknown" and "not positive" in str(
+        sheet.get("a.recovery.reason") or ""
+    )
+    if (len(lv["severe"]) >= A_SHORT_MIN_SEVERE and (no_earnings_value or (mid is not None and mid <= A_SHORT_MAX_MID))
+            and (runway == "severe" or gap == "severe")):  # fmt: skip
+        conviction = "medium" if high is not None and high < 0 else "low"
+        value = ("EBITDA is not positive, so there are no earnings to support the equity ({a.recovery.reason})"
+                 if no_earnings_value or mid is None else
+                 "the equity would be worth far less than the price at a distressed sale ({a.recovery.mid.vsPrice})")  # fmt: skip
+        need = "{a.runway.reason}" if runway == "severe" else "{a.fundingGap.reason}"
+        return (
+            "short",
+            conviction,
+            (
+                f"Several distress checks are severe ({{distress.status}}), {value}, and money runs short soon: {need}."
+            ),
+        )
+    return "no_trade", "low", (
+        "No case under the distressed rules: a long needs stress with equity value above the price at a "
+        "distressed sale and the next year funded; a short needs several severe flags, little or no equity value "
+        "and money running short within a year.")  # fmt: skip
 
 
 def rules_bear(sheet: FactSheet, strategy: str, case: dict[str, Any]) -> dict[str, Any]:
@@ -360,6 +390,8 @@ def rules_bear(sheet: FactSheet, strategy: str, case: dict[str, Any]) -> dict[st
     for k in lv["unknown"]:
         missing.append(f"The distress check {sheet.facts[k].title.split(':')[0].removeprefix('Distress check ')} "
                        "could not run for lack of data.")  # fmt: skip
+    if strategy == "A":
+        _bear_a(sheet, case, add, missing)
     tv = sheet.num("dcf.tvShare")
     if case["stance"] == "long" and tv is not None and tv > TV_SHARE_WARN:
         add("Most of the DCF value is in the terminal value ({dcf.tvShare}), so it rests on the far future.",
@@ -379,6 +411,43 @@ def rules_bear(sheet: FactSheet, strategy: str, case: dict[str, Any]) -> dict[st
         verdict = "proceed"  # nothing to block; the objections are kept for the memo
     obj = [o for o in obj if _all_known(sheet, o["claim"])]
     return {"verdict": verdict, "objections": obj, "missing": missing[:5]}
+
+
+def _bear_a(sheet: FactSheet, case: dict[str, Any], add: Any, missing: list[str]) -> None:
+    """Strategy A objections from the runway, funding gap and recovery value."""
+    if not sheet.a_analysis_ran:
+        missing.append("The strategy A analysis (runway, funding gap, recovery value) did not run.")
+        return
+    for n, what in (
+        ("runway", "liquidity runway"),
+        ("fundingGap", "funding gap"),
+        ("recovery", "recovery value"),
+    ):
+        if sheet.get(f"a.{n}") == "unknown":
+            missing.append(f"The {what} could not be worked out for lack of data.")
+    if case["stance"] == "long":
+        if sheet.get("a.runway") == "watch":
+            add(
+                "The cash runs out within two years at the current burn: {a.runway.reason}.",
+                "major",
+                "a.runway",
+            )
+        low = sheet.num("a.recovery.low.vsPrice")
+        if low is not None and low < 0:
+            add("In the low case the equity is worth less than the price ({a.recovery.low.vsPrice}).", "minor",
+                "a.recovery.low.vsPrice")  # fmt: skip
+        add("The recovery value pays all debt ahead of equity at one generic multiple, with no restructuring costs "
+            "and no new shares; a real restructuring would leave the shareholders less.", "minor")  # fmt: skip
+    if case["stance"] == "short":
+        add("Borrowing the shares, and what that costs, is not modelled; in distressed names borrow is often "
+            "scarce and dear.", "minor")  # fmt: skip
+        if sheet.get("a.runway") == "clear":
+            add("The company is not burning cash ({a.runway.reason}), so it can wait for better terms.", "major",
+                "a.runway")  # fmt: skip
+        high = sheet.num("a.recovery.high.vsPrice")
+        if high is not None and high > 0:
+            add("At the high multiple the equity is worth more than the price ({a.recovery.high.vsPrice}), so a "
+                "buyer or a refinancing could squeeze a short.", "major", "a.recovery.high.vsPrice")  # fmt: skip
 
 
 def rules_writer(sheet: FactSheet, strategy: str, case: dict[str, Any], bear: dict[str, Any],

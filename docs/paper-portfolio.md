@@ -20,11 +20,16 @@ Paper trading only. No broker is connected and no real order is ever sent.
 4. The trade fills only when every required check is present and passed. Otherwise it is recorded as rejected
    with the reasons. Preview runs steps 2 and 3 without writing anything; placing the trade runs them again.
 
-## The checks (`risk-limits-v2`)
+## The checks (`risk-limits-v3`)
+
+`risk-limits-v3` (Strategy A pipeline) adds two rules to v2: a position cap per strategy (A 5%, B and C 10%; the
+lower of it and the 10% cap applies), and the `short_sale` check: no new or bigger short below $5 a share, and
+every short that passes is flagged because borrow availability and fees are not modelled. A limits file
+(`KEERS_RISK_LIMITS`) must now give `max_position_strategy` and `min_short_price` too.
 
 | Check | Limit |
 |---|---|
-| Position size | 10% of NAV |
+| Position size | 10% of NAV; strategy A 5% |
 | Sector concentration | 25% of NAV (gross) |
 | Strategy sleeve | A 40%, B 60%, C 40% of NAV (gross) |
 | Trade vs volume | 10% of 20-day average daily volume |
@@ -33,6 +38,7 @@ Paper trading only. No broker is connected and no real order is ever sent.
 | Net exposure | −30% to +100% of NAV |
 | No borrowing | cash may not go below zero |
 | Drawdown | warning at 10%; at 15% only trades that reduce exposure are allowed |
+| Short sale | no new or bigger short below $5 a share; others pass with a borrow warning |
 | Net beta to SPY | −0.30 to +1.20: each position's share of NAV times its beta, summed |
 | Book volatility | at most 25% a year: today's positions replayed over the last 252 sessions of daily returns |
 | Kill switch | while it is on, only trades that reduce exposure are allowed |

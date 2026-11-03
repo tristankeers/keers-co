@@ -755,10 +755,39 @@ async function distressTab(c, body) {
       h("div", { class: "pb flush scroll-x" }, h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Check"), h("th", {}, "Level"), h("th", { class: "n" }, "Value"), h("th", {}, "Why"), h("th", {}, "Thresholds"))),
         h("tbody", {}, rows)))));
+    if (r.strategyA) parts.push(strategyAPanel(r.strategyA));
     if ((r.dataWarnings || []).length) parts.push(h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, "Snapshot issues behind these checks"), h("ul", {}, r.dataWarnings.map((w) => h("li", {}, w)))));
   }
   parts.push(h("p", { class: "faint", style: "margin-top:12px" }, "A screen for research, not a verdict: it lists companies worth a closer look. Rules: two severe checks make a company distressed; one severe or two watch flags, stressed; any unknown check without a severe flag, incomplete."));
   fill(body, ...parts);
+}
+
+// Strategy A's runway, funding gap and recovery value (keers.strategies.distressed.analysis). Display only: every
+// figure here was worked out in Python.
+const A_NAMES = { runway: "Liquidity runway", fundingGap: "Funding gap, next 12 months", recovery: "Recovery value (mid case)" };
+function aValue(p, money) {
+  if (!isNum(p.value)) return "—";
+  if (p.name === "runway") return `${fnum(p.value, 0)} months`;
+  if (p.name === "recovery") return fpct(p.value, 0);
+  return `${fnum(p.value, 0)} ${money || ""}`.trim();
+}
+function strategyAPanel(a) {
+  if (!a.ran) {
+    return h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, "Strategy A analysis did not run. "), h("ul", {}, (a.blockedBy || []).map((b) => h("li", {}, b))));
+  }
+  const rows = (a.parts || []).map((p) => h("tr", {}, h("td", {}, A_NAMES[p.name] || p.name), h("td", {}, levelBadge(p.level)),
+    h("td", { class: "n" }, aValue(p, a.money)), h("td", {}, p.reason), h("td", { class: "muted" }, p.thresholds)));
+  const rec = (a.parts || []).find((p) => p.name === "recovery");
+  const cases = rec && rec.cases ? Object.entries(rec.cases) : [];
+  const caseTable = cases.length ? h("table", { style: "margin-top:12px" },
+    h("thead", {}, h("tr", {}, h("th", {}, "Case"), h("th", { class: "n" }, "EV / EBITDA"), h("th", { class: "n" }, "Debt covered"), h("th", { class: "n" }, "Equity per share"), h("th", { class: "n" }, "vs last close"))),
+    h("tbody", {}, cases.map(([k, c]) => h("tr", {}, h("td", {}, k), h("td", { class: "n" }, fx(c.multiple, 1)), h("td", { class: "n" }, fpct(c.debtCovered, 0)),
+      h("td", { class: "n" }, fnum(c.perShare, 2)), h("td", { class: "n" }, fpct(c.vsPrice, 0)))))) : null;
+  return h("section", { class: "panel", style: "margin-top:16px" },
+    h("div", { class: "ph" }, h("h2", {}, "Strategy A analysis"), h("span", { class: "faint" }, `${a.analysisVersion} · multiples are a generic distressed-sale assumption; debt is paid before equity, with no restructuring costs or new shares`)),
+    h("div", { class: "pb flush scroll-x" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", {}, "Measure"), h("th", {}, "Level"), h("th", { class: "n" }, "Value"), h("th", {}, "Why"), h("th", {}, "Thresholds"))),
+      h("tbody", {}, rows)), caseTable));
 }
 
 // --- valuation -----------------------------------------------------------------------------------------------
