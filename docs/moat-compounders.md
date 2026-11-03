@@ -92,6 +92,24 @@ before the split and never restated are multiplied by that ratio, with a note. A
 counts each split once. A restatement by more than 50x is a units slip, not a split. A count under 10,000 shares
 (millions filed as units) or more than 20 times away from the other years' median is left out, with a note.
 
+## Blocked companies
+
+A company is `blocked` when its latest accounts are stale or its core figures are missing; the screen never
+grades it on older data. `python -m keers.strategies.moat explain TICKER --as-of DATE` prints why, with every
+revenue fact known that day per concept and the periodic filings made. The backtest logs the reasons each quarter
+(`blocked` in each quarter of its JSON output). Two causes found on 3 November 2026, both now fixed in the data
+layer:
+
+- **SEC company facts lagging a filing.** Visa's 10-Q of 29 July 2026 was not in company facts on 3 November, so
+  its accounts ended in March and read as 217 days old. A 10-Q or 10-K filed after every stored fact, with no fact
+  from it, is now read from the filing's own XBRL instance (standard concepts without dimensions, dated the day it
+  was filed). If that read fails, the accounts stay as they were and still read as stale.
+- **Revenue moving to a new concept mid-year (ASC 606, 2018).** Most US filers tagged their 2018 10-Qs under
+  `RevenueFromContractWithCustomer...` while the 2017 fiscal year stayed under the old concept, so no one concept
+  gave a twelve-month figure until the next 10-K. The TTM may now take the fiscal year from one concept and the
+  year to date from the other, but only when both report the same value (within 0.1%, for rounding) for every period both carry
+  and share at least one. Otherwise revenue stays unknown and the company stays blocked.
+
 ## Known limits
 
 - US GAAP and IFRS standard concepts only. A company that files cash from operations or tax under its own

@@ -346,7 +346,7 @@ def ttm_at(facts: Sequence[Fact], end: date) -> Period | None:
     return None
 
 
-AGREE = 0.005  # two concepts "agree" on a period when their values differ by at most this share
+AGREE = 0.001  # two concepts "agree" on a period when their values differ by at most this share (rounding)
 
 
 def concepts_agree(a: Sequence[Fact], b: Sequence[Fact]) -> int | None:
