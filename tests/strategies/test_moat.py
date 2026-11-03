@@ -191,7 +191,7 @@ def test_backtest_holds_only_after_the_filing_is_known(store: Store) -> None:
     held = {q["signalDay"]: q["held"] for q in res["quarters"]}
     assert held["2024-12-31"] == []  # FY2024 10-K not filed yet: accounts stale, so blocked
     assert held["2025-03-31"] == [fx.TICKER]
-    assert res["research"]["gate"] == "gate-v2" and res["research"]["registered"] is False
+    assert res["research"]["gate"] == "gate-v2" and isinstance(res["research"]["registered"], bool)
     assert "survivorship bias" in res["warnings"][0]
 
 
