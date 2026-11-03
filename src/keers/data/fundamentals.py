@@ -346,6 +346,71 @@ def ttm_at(facts: Sequence[Fact], end: date) -> Period | None:
     return None
 
 
+AGREE = 0.005  # two concepts "agree" on a period when their values differ by at most this share
+
+
+def concepts_agree(a: Sequence[Fact], b: Sequence[Fact]) -> int | None:
+    """How many periods two concepts both report with the same value (within ``AGREE``); None if they share none
+    or disagree on any. Used before a TTM takes pieces from both."""
+    xa = {(f.start, f.end): f.value for f in latest_known(a) if f.start is not None}
+    xb = {(f.start, f.end): f.value for f in latest_known(b) if f.start is not None}
+    shared = xa.keys() & xb.keys()
+    if not shared:
+        return None
+    for k in shared:
+        if abs(xa[k] - xb[k]) > AGREE * max(abs(xa[k]), abs(xb[k]), 1.0):
+            return None
+    return len(shared)
+
+
+def ttm_across(by_concept: Sequence[tuple[str, Sequence[Fact]]], end: date) -> tuple[Period, str] | None:
+    """TTM to ``end`` from pieces filed under different concepts, when no one concept can give it.
+
+    Most US filers moved revenue to ``RevenueFromContractWithCustomer...`` with ASC 606 in 2018. Their 2018 10-Qs
+    carry the year to date under the new concept, while the prior fiscal year is filed only under the old one, so
+    neither concept alone gives a TTM until the next 10-K. Pieces are combined only when the concepts used report
+    the same value for every period both carry, and share at least one (so a gross and a net revenue line, or a
+    restated and an unrestated year, are never mixed). Returns the period and the concept of the latest piece.
+    """
+    tagged = [(c, f) for c, fs in by_concept for f in latest_known(fs) if f.start is not None]
+    facts_of = {c: fs for c, fs in by_concept}
+    annual = [(c, f) for c, f in tagged if f.days is not None and YEAR[0] <= f.days <= YEAR[1]]
+    for c_fy, fy in annual:
+        if _close(fy.end, end, 3):  # a fiscal year to ``end`` is filed: it is the TTM, whatever its concept
+            return Period(fy.value, fy.end, "fiscal year as reported", Kind.REPORTED, (fy,)), c_fy
+    for c_cur, cur in tagged:
+        if not _close(cur.end, end, 3) or cur.days is None or cur.days >= YEAR[0]:
+            continue
+        assert cur.start is not None  # noqa: S101 (durations only)
+        for c_fy, fy in annual:
+            if not _close(fy.end, cur.start - timedelta(days=1), 3) or fy.start is None:
+                continue
+            for c_prev, prev in tagged:
+                if not (prev.days is not None and abs(prev.days - cur.days) <= NEAR and prev.start is not None
+                        and _close(prev.end, cur.end - timedelta(days=365), NEAR)
+                        and _close(prev.start, fy.start, NEAR)):  # fmt: skip
+                    continue
+                used = {c_cur, c_fy, c_prev}
+                if len(used) == 1:
+                    continue  # one concept: ttm_at's job
+                names = sorted(used)
+                checks = [
+                    concepts_agree(facts_of[a], facts_of[b])
+                    for i, a in enumerate(names)
+                    for b in names[i + 1 :]
+                ]
+                if any(n is None for n in checks):
+                    continue
+                n = min(x for x in checks if x is not None)
+                value = fy.value + cur.value - prev.value
+                method = (f"TTM = fiscal year ({c_fy}) + current year-to-date ({c_cur}) − prior year-to-date "
+                          f"({c_prev})")  # fmt: skip
+                warn = (f"TTM built from {' and '.join(names)}: the company moved between these concepts; they report "
+                        f"the same value for the {n} period{'s' if n != 1 else ''} both carry",)  # fmt: skip
+                return Period(value, cur.end, method, Kind.DERIVED, (fy, cur, prev), warn), c_cur
+    return None
+
+
 def ttm_latest(facts: Sequence[Fact]) -> Period | None:
     durations = [f for f in latest_known(facts) if f.start is not None]
     if not durations:
@@ -475,6 +540,9 @@ class Fundamentals:
                 ends = [f.end for f in facts if f.start is not None]
                 if ends and (latest is None or max(ends) > latest[0]):
                     latest = (max(ends), c)
+            across = ttm_across([(c, self._facts(c)) for c in candidates], at) if latest is not None else None
+            if across is not None:
+                return self._value(across[0], across[1], self.money, MILLION, "")
             if latest is None:
                 return missing(self.money, f"{label}: not filed under {', '.join(candidates)}")
             return missing(self.money, f"{label}: no TTM to {at} (latest is {latest[1]} to {latest[0]})")
@@ -483,6 +551,12 @@ class Fundamentals:
             return missing(self.money, f"{label}: not filed under {', '.join(candidates)}")
         concept, facts = hit
         p = ttm_latest(facts)
+        newest = max(f.end for f in facts if f.start is not None)
+        if p is None or p.end < newest:
+            # The newest figures may sit under a concept the company only just moved to (ASC 606 in 2018).
+            across = ttm_across([(c, self._facts(c)) for c in candidates], newest)
+            if across is not None:
+                return self._value(across[0], across[1], self.money, MILLION, "")
         if p is None:
             annual = _annual([f for f in latest_known(facts) if f.start is not None])
             if annual:
