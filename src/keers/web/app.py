@@ -145,6 +145,10 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
         return wb.research(sym(symbol), str(body.get("strategy") or ""), body.get("portfolio"),
                            bool(body.get("execute")))  # fmt: skip
 
+    @app.get("/api/agents/scorecard")
+    def agent_scorecard(symbol: str | None = None) -> dict[str, Any]:
+        return wb.agent_scorecard(sym(symbol) if symbol else None)
+
     # strategy C signals: rebalance tickets also go through the paper desk and keers.risk ----------------------
     @app.post("/api/strategies/c/signals")
     def quant_signals(body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008

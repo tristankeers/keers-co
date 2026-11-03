@@ -866,6 +866,16 @@ class Workbench:
             raise InputError(str(e)) from e
         return r.as_dict()
 
+    def agent_scorecard(self, symbol: str | None = None) -> dict[str, Any]:
+        """How the agents' saved calls turned out against SPY (``keers.agents.scorecard``). Reads only."""
+        from keers.agents import scorecard
+
+        runs = scorecard.load_runs(Path(self.db_path).resolve().parent / "agent-runs")
+        out = scorecard.scorecard(runs, self.open_store().adjusted_closes, self.today())
+        if symbol:
+            out["calls"] = [c for c in out["calls"] if c["symbol"] == symbol]
+        return out
+
     # strategy C signals (keers.strategies.quant) -----------------------------------------------------------------
     def _quant_tickers(self, st: Store, tickers: Any) -> list[str]:
         if tickers:

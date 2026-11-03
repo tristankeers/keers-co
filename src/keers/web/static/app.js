@@ -687,7 +687,33 @@ async function researchTab(c, body) {
         h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, strat, port,
           h("button", { class: "btn primary", onclick: () => go(false) }, "Write memo"),
           h("button", { class: "btn", onclick: () => go(true), title: "Writes the memo and places the proposed trade on paper, if the risk limits allow it" }, "Write memo and place paper trade")))),
-    out);
+    out, trackRecord(c.symbol));
+}
+
+// How the agents' saved calls turned out against SPY (keers.agents.scorecard). Arithmetic in code only.
+function trackRecord(symbol) {
+  const box = h("section", { class: "panel", style: "margin-top:12px" },
+    h("div", { class: "ph" }, h("h2", {}, "Track record"), h("span", { class: "faint" }, "every saved call, graded against SPY at its horizon")),
+    h("div", { class: "pb" }, h("div", { class: "loading" }, "Loading…")));
+  api(`/api/agents/scorecard?symbol=${encodeURIComponent(symbol)}`).then((r) => {
+    const a = r.analyst, b = r.bear;
+    const row = (k, v) => h("tr", {}, h("th", {}, k), h("td", {}, v));
+    const calls = r.calls.length ? h("table", { style: "margin-top:10px" },
+      h("tr", {}, ["Called", "Strategy", "Stance", "Bear", "Status", "Through", "Excess vs SPY"].map((x) => h("th", {}, x))),
+      r.calls.map((x) => h("tr", {}, h("td", {}, x.called), h("td", {}, x.strategy), h("td", {}, `${x.stance}${x.conviction ? ` (${x.conviction})` : ""}`),
+        h("td", {}, x.bear || "—"), h("td", {}, x.status), h("td", {}, x.sessions ? x.through : "—"), h("td", {}, x.sessions ? fpct(x.excessReturn, 1) : "—"))))
+      : h("p", { class: "faint", style: "margin-top:10px" }, `No saved calls on ${symbol} yet.`);
+    fill(box.querySelector(".pb"),
+      h("table", {},
+        row("All calls (every company)", `${a.calls} · ${a.graded} graded · ${a.pending} pending`),
+        row("Hit rate (directional, graded)", a.directional ? `${fpct(a.hitRate, 0)} of ${a.directional}` : "—"),
+        row("Average excess return, signed by the call", fpct(a.meanSignedExcess, 1)),
+        row("IC (conviction vs excess return)", a.ic === null ? (a.icNote || "—") : `${a.ic.toFixed(2)} (t ${a.icT === null ? "—" : a.icT.toFixed(1)})`),
+        row("Bear: calls let through / objected to", `${b.letThrough} (${fpct(b.meanSignedExcessLetThrough, 1)}) / ${b.objected} (${fpct(b.meanSignedExcessObjected, 1)})`)),
+      h("p", { class: "faint", style: "margin-top:6px" }, `Horizons: A ${r.horizonSessions.A}, B ${r.horizonSessions.B} sessions. A call is pending until its horizon passes.`),
+      calls);
+  }).catch((e) => fill(box.querySelector(".pb"), h("p", { class: "err" }, e.message)));
+  return box;
 }
 
 // --- distress ------------------------------------------------------------------------------------------------
