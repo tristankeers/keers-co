@@ -26,7 +26,8 @@ decision, trade).
    or block.
 4. **Decision, in code** (`decide`). No trade if the data is blocked or stale, the valuation did not run, the
    strategy is C, the analyst found no case, a short is proposed under B (long only), or the bear blocked it.
-   Otherwise the size is set by `sizing-v1`: 1%, 2% or 3% of NAV for low, medium or high conviction.
+   Otherwise the size is set by `sizing-v2`: 1%, 2% or 3% of NAV for low, medium or high conviction, except a
+   strategy A short, which is always 1% (distressed shorts can gap up on a rescue, and borrow is not modelled).
 5. **Paper desk.** With a portfolio, the proposal goes to `Workbench.paper_trade`, which is the same path as the
    trade ticket: `Desk.preview` (nothing written) or, with `--execute`, `Desk.execute`, which runs every
    `keers.risk` check again and fills only if all pass. A rejected attempt is recorded as rejected. The agents
@@ -48,12 +49,17 @@ memo are for.
 
 ## With or without a model
 
-- **Without a key** (the default, free): each agent follows `rules-v1` in `roles.py`. B is long when the DCF
+- **Without a key** (the default, free): each agent follows `rules-v2` in `roles.py`. B is long when the DCF
   value is at least 15% above the price, the attractiveness score is at least 55 and the distress screen has no
-  flags (medium conviction from 30%). A is long when the screen flags stress but the DCF value is at least 30%
-  above the price and the downside buyout MOIC is at least 1.0x; short on two or more severe flags with no DCF
-  support. C never originates a trade. The rule-based bear lists stale or blocked data, distress flags, a
-  terminal value over 75% of the DCF value, and the buyout engine passing.
+  flags (medium conviction from 30%). A (changed in v2) reads the strategy A analysis instead of the DCF (see
+  [strategy-a.md](strategy-a.md)): long when the screen flags stress, the equity is worth at least 30% more than
+  the price at the mid recovery multiple and something at the low one, the runway is not severe and the next
+  year is funded (medium conviction when the low case also covers the price); short on two or more severe flags
+  with the equity worth at least 50% less than the price at the mid multiple (or no positive EBITDA) and money
+  running short within a year. A without its analysis never trades. C never originates a trade. The rule-based
+  bear lists stale or blocked data, distress flags, a terminal value over 75% of the DCF value, and the buyout
+  engine passing; for A it also flags a short runway, a low case below the price, unmodelled borrow on shorts,
+  and a short in a company that is not burning cash or whose high case is above the price.
 - **With Claude**: `pip install -e ".[agents]"` and set `ANTHROPIC_API_KEY`. This is a paid API (roughly a few
   cents to a few tens of cents per memo, three calls). `KEERS_AGENT_MODEL` (default `claude-opus-5-5`) and
   `KEERS_AGENT_EFFORT` (default `medium`) tune it; `KEERS_AGENTS_OFFLINE=1` turns it off. Replies are held to a
@@ -75,7 +81,7 @@ tab, `GET /api/agents/scorecard`) grades it against what the share price did nex
   return** (positive when calls are right on balance).
 - **IC**: rank correlation between signed conviction (short high −3 … long high +3) and excess return, with a
   t-stat, shown from 20 graded calls.
-- Split by who wrote the analyst's call (the model or `rules-v1`), for the committee's proposed trades only, and
+- Split by who wrote the analyst's call (the model or `rules-v1`/`rules-v2`), for the committee's proposed trades only, and
   for the bear: the average signed excess return of calls it let through and of calls it objected to. A useful
   bear objects to the worse ones.
 

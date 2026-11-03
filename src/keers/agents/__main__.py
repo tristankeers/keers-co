@@ -1,7 +1,7 @@
 """Command line: ``python -m keers.agents run DBX --strategy B [--portfolio 1 [--execute]]`` and
 ``python -m keers.agents scorecard`` (how the saved calls turned out).
 
-Without ``ANTHROPIC_API_KEY`` the agents use their stated rules (rules-v1) and the memo says so. The memo is
+Without ``ANTHROPIC_API_KEY`` the agents use their stated rules (rules-v2) and the memo says so. The memo is
 printed and saved, with the full record of the run, under ``agent-runs/`` next to the store.
 """
 

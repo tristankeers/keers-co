@@ -46,6 +46,7 @@ from keers.portfolio.desk import Desk, TradeError, TradeRequest
 from keers.portfolio.ledger import Ledger
 from keers.risk.limits import Limits
 from keers.strategies import distress
+from keers.strategies.distressed import analysis as a_analysis
 from keers.valuation import kci_v1_defaults as V1
 from keers.valuation import kci_v3_defaults as V3
 
@@ -706,7 +707,9 @@ class Workbench:
                         "credit": distress.credit_backdrop(st, as_of)}  # fmt: skip
             res = distress.screen(st, sym, as_of)
             res["credit"] = distress.credit_backdrop(st, as_of)
-        for c in res.get("checks", []):
+            if res.get("status") != "blocked":  # Strategy A's runway, funding gap and recovery value
+                res["strategyA"] = a_analysis.analyse(st, sym, as_of)
+        for c in [*res.get("checks", []), *(res.get("strategyA") or {}).get("parts", [])]:
             for k, inp in (c.get("inputs") or {}).items():
                 if isinstance(inp, dict) and "kind" in inp:
                     inp["label"] = inp.pop("kind")

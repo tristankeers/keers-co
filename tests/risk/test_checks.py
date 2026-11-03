@@ -51,6 +51,8 @@ def buy(qty: float, symbol: str = "AAA", strategy: str = "B", sector: str | None
 
 EMPTY = mkbook(1_000_000.0)
 LIM = Limits()
+# v2's single 10% position cap for every strategy, for tests written before strategy A got its own 5% cap.
+WIDE = Limits(max_position_strategy={"A": 0.10, "B": 0.10, "C": 0.10})
 
 
 def statuses(rep: R.Report) -> dict[str, str]:
@@ -109,17 +111,22 @@ def test_liquidity_share_of_adv() -> None:
 def test_sector_and_strategy_concentration_add_up_across_positions() -> None:
     hs = tuple(R.Holding(s, "A", "Energy", 900, mark()) for s in ("E1", "E2", "E3"))  # 3 × 9% of NAV
     book = mkbook(1_000_000.0 - 270_000.0, hs)
-    rep = R.check_trade(book, buy(900, "E4", "A", "Energy"), LIM, TODAY)
+    rep = R.check_trade(book, buy(900, "E4", "A", "Energy"), WIDE, TODAY)
     st = statuses(rep)
     assert st["concentration.sector"] == "fail"  # 36% > 25%
     assert st["position.size"] == "pass"
-    rep = R.check_trade(book, buy(900, "T1", "A", "Technology"), LIM, TODAY)
+    rep = R.check_trade(book, buy(900, "T1", "A", "Technology"), WIDE, TODAY)
     st = statuses(rep)
     assert (
         st["concentration.sector"] == "pass" and st["concentration.strategy"] == "pass"
     )  # A sleeve 36% ≤ 40%
     rep = R.check_trade(
-        book, buy(900, "T1", "A", "Technology"), Limits(max_strategy={"A": 0.30, "B": 0.6, "C": 0.4}), TODAY
+        book,
+        buy(900, "T1", "A", "Technology"),
+        Limits(
+            max_strategy={"A": 0.30, "B": 0.6, "C": 0.4}, max_position_strategy=WIDE.max_position_strategy
+        ),
+        TODAY,
     )
     assert statuses(rep)["concentration.strategy"] == "fail"
 
@@ -223,7 +230,7 @@ def test_beta_and_volatility_limits() -> None:
     b = mkbook(1_000_000.0 - 900_000.0, hs)
     m = R.market_risk(b, LIM)
     assert 0.8 < m.beta < 1.0 and 0.1 < m.volatility < 0.2 and m.sessions == LIM.risk_days
-    assert R.assess(b, LIM, TODAY).approved
+    assert R.assess(b, WIDE, TODAY).approved
     tight = Limits(max_beta=0.5, max_volatility=0.10)
     rep = R.check_trade(b, buy(100, symbol="M0", strategy="A", sector="S0"), tight, TODAY)
     assert statuses(rep)["exposure.beta"] == "fail" and statuses(rep)["volatility"] == "fail"
@@ -259,3 +266,41 @@ def test_kill_switch_blocks_new_risk_but_allows_cutting() -> None:
     assert rep.approved and statuses(rep)["kill_switch"] == "warn"
     assert statuses(R.assess(halted, LIM, TODAY))["kill_switch"] == "warn"
     assert statuses(R.check_trade(mkbook(950_000.0, (h,)), buy(10), LIM, TODAY))["kill_switch"] == "pass"
+
+
+# risk-limits-v3 ----------------------------------------------------------------------------------------------
+def test_strategy_a_positions_are_capped_at_five_percent() -> None:
+    a = statuses(R.check_trade(EMPTY, buy(700, strategy="A"), LIM, TODAY))  # about 7% of NAV
+    b = statuses(R.check_trade(EMPTY, buy(700, strategy="B"), LIM, TODAY))
+    assert a["position.size"] == "fail" and b["position.size"] == "pass"
+    assert statuses(R.check_trade(EMPTY, buy(450, strategy="A"), LIM, TODAY))["position.size"] == "pass"
+    # the lower of the two caps applies
+    tight = Limits(max_position=0.03)
+    assert statuses(R.check_trade(EMPTY, buy(450, strategy="A"), tight, TODAY))["position.size"] == "fail"
+    held = mkbook(1_000_000.0 - 70_000.0, (R.Holding("AAA", "A", "Technology", 700, mark()),))
+    assert any(c.name == "position.size" and c.status == "fail" for c in R.assess(held, LIM, TODAY).checks)
+
+
+def test_short_sales_below_the_minimum_price_are_refused_and_others_flagged() -> None:
+    cheap = R.check_trade(EMPTY, buy(-100, m=mark(price=3.0)), LIM, TODAY)
+    assert statuses(cheap)["short_sale"] == "fail" and not cheap.approved
+    short = R.check_trade(EMPTY, buy(-100), LIM, TODAY)
+    assert statuses(short)["short_sale"] == "warn" and short.approved
+    assert "borrow" in next(c.detail for c in short.checks if c.name == "short_sale")
+    assert statuses(R.check_trade(EMPTY, buy(100, m=mark(price=3.0)), LIM, TODAY))["short_sale"] == "pass"
+    # covering a short in a cheap share is never blocked by this check
+    held = mkbook(1_000_000.0 + 300.0, (R.Holding("AAA", "B", "Technology", -100, mark(price=3.0)),))
+    cover = R.check_trade(held, buy(100, m=mark(price=3.0)), LIM, TODAY)
+    assert statuses(cover)["short_sale"] == "pass"
+
+
+def test_v3_limits_file_must_give_the_new_keys() -> None:
+    d = LIM.as_dict()
+    assert d["version"] == "risk-limits-v3" and d["min_short_price"] == 5.0
+    d.pop("min_short_price")
+    with pytest.raises(ValueError, match="missing"):
+        Limits.from_dict(d)
+    with pytest.raises(ValueError, match="max_position_strategy"):
+        Limits(max_position_strategy={"A": 0.05})
+    with pytest.raises(ValueError, match="min_short_price"):
+        Limits(min_short_price=-1)

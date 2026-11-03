@@ -27,6 +27,9 @@ def rows() -> list[fx.Row]:
     for start, end, v, f in [("2024-01-01", "2024-12-31", 40, fx.K24), ("2024-01-01", "2024-09-30", 30, fx.Q3_25),
                              ("2025-01-01", "2025-09-30", 33, fx.Q3_25)]:  # fmt: skip
         out.append(fx._dur("InterestExpense", start, end, v, f))
+    for start, end, v, f in [("2024-01-01", "2024-12-31", 150, fx.K24), ("2024-01-01", "2024-09-30", 100, fx.Q3_25),
+                             ("2025-01-01", "2025-09-30", 120, fx.Q3_25)]:  # fmt: skip
+        out.append(fx._dur("NetCashProvidedByUsedInOperatingActivities", start, end, v, f))  # TTM 170
     return out
 
 
