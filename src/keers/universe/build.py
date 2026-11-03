@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from datetime import date
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -46,6 +47,11 @@ EXCLUDE_TYPES = {
     "Warrant",
     "Fund of Funds",
 }
+# Bloomberg placeholder lines for delisted or not-yet-traded shares (1091Z, 0924555D).
+PLACEHOLDER_TICKER = re.compile(r"^\d{4,}[A-Z]$")
+ETF_NAME = re.compile(r"\b(ETF|ETN|ETP)s?\b", re.I)
+# Nasdaq Trader turns away scripted requests that do not look like a browser.
+NASDAQ_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; keers-research/0.1)", "Accept": "text/plain,*/*"}
 NOT_SHARES = re.compile(
     r"\b(warrants?|units?|rights?|preferred|preference|depositary shares? (each )?representing|notes? due|"
     r"debentures?|subordinated|% ?(senior|fixed))\b",
@@ -72,8 +78,8 @@ class Builder:
             self.fetcher.min_interval["api.openfigi.com"] = 3.1
         self.today = today or date.today()
 
-    def _get(self, url: str) -> Response:
-        resp = self.fetcher.get(url)
+    def _get(self, url: str, headers: dict[str, str] | None = None) -> Response:
+        resp = self.fetcher.get(url, headers)
         self.store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
         return resp
 
@@ -127,7 +133,7 @@ class Builder:
         try:
             for url, parse in ((src.NASDAQ_LISTED_URL, src.parse_nasdaq_listed),
                                (src.OTHER_LISTED_URL, src.parse_other_listed)):  # fmt: skip
-                for venue in parse(self._get(url).body.decode("utf-8", "replace")):
+                for venue in parse(self._get(url, NASDAQ_HEADERS).body.decode("utf-8", "replace")):
                     venues.setdefault(venue.ticker, venue)
         except (FetchError, ParseError) as e:
             venues = {}
@@ -153,10 +159,13 @@ class Builder:
             if v is not None and (v.etf or v.test_issue):
                 skip("etf" if v.etf else "test issue")
                 continue
+            if v is None and ETF_NAME.search(r.name):
+                skip("etf (by name)")
+                continue
             if v is not None and NOT_SHARES.search(v.name):
                 skip("not ordinary shares (warrant, unit, right, preferred, note)")
                 continue
-            mic = v.mic if v is not None else SEC_EXCHANGE_MIC.get(r.exchange.lower(), "")
+            mic = (v.mic if v is not None else "") or SEC_EXCHANGE_MIC.get(r.exchange.lower(), "")
             if not mic:
                 skip("no exchange listing")
                 continue
@@ -188,17 +197,25 @@ class Builder:
         basis = "derived" if ex.symbol_confidence == "high" else "derived-unsure"
         for r, sha in rows:
             why = None
-            if r.exch_code and r.exch_code != ex.code:
+            code, _, label = r.exch_code.partition(" ")
+            label = label.strip().strip("()")
+            venue = next((v for v in ex.venues if v[0] == label), None)
+            lex = replace(ex, mic=venue[1], yahoo_suffix=venue[2], name=venue[3]) if venue else ex
+            t = local_ticker(r.ticker)
+            if code and code != ex.code:
                 why = f"answer for another exchange ({r.exch_code})"
             elif r.security_type in EXCLUDE_TYPES:
                 why = f"OpenFIGI type {r.security_type}"
-            elif not r.ticker.strip():
+            elif not t:
                 why = "no ticker"
+            elif PLACEHOLDER_TICKER.match(t):
+                why = "placeholder ticker (delisted or not yet traded)"
+            elif any(t.endswith(sfx) for sfx in ex.drop_suffixes):
+                why = "not an ordinary line (foreign board or NVDR)"
             if why:
                 info["excluded"][why] = info["excluded"].get(why, 0) + 1
                 continue
-            t = local_ticker(r.ticker)
-            key = f"{ex.mic}:{t}"
+            key = f"{lex.mic}:{t}"
             if key in out:
                 info["excluded"]["duplicate ticker"] = info["excluded"].get("duplicate ticker", 0) + 1
                 continue
@@ -208,8 +225,8 @@ class Builder:
                     f"Yahoo codes on {ex.name} differ from the exchange ticker; the symbol is a guess"
                 )
             out[key] = Listing(
-                key=key, symbol=yahoo_symbol(ex, r.ticker), local_ticker=t, name=r.name, exchange=ex.name,
-                mic=ex.mic, country=ex.country, currency=ex.currency, currency_basis="exchange-default",
+                key=key, symbol=yahoo_symbol(lex, r.ticker), local_ticker=t, name=r.name, exchange=lex.name,
+                mic=lex.mic, country=ex.country, currency=ex.currency, currency_basis="exchange-default",
                 security_type=r.security_type or r.security_type2, coverage=COVERAGE_PRICES, symbol_basis=basis,
                 segment=f"openfigi:{ex.code}", source="openfigi", as_of=self.today.isoformat(), raw_sha256=sha,
                 figi=r.figi, composite_figi=r.composite_figi or None, share_class_figi=r.share_class_figi or None,

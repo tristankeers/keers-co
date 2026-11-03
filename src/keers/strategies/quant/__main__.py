@@ -22,6 +22,7 @@ from keers.data.market import Market, price_sources
 from keers.data.refresh import DEFAULT_DB, read_universe, user_agent
 from keers.data.sec import SEC, ParseError
 from keers.data.store import Store
+from keers.portfolio.fills import CostModel
 
 from . import backtest, history, model, wide
 from .pit import PointInTime
@@ -51,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--n-long", type=int, default=model.Config.n_long)
             p.add_argument(
                 "--preset", choices=["v1", "v2"], default="v2", help="model version (v1 kept to compare)"
+            )
+            p.add_argument(
+                "--costs", choices=["v1", "v2"], default="v1", help="cost model (v2: spread and impact)"
+            )
+            p.add_argument(
+                "--fund-nav", type=float, default=backtest.FUND_NAV, help="fund size costs-v2 prices for"
             )
             p.add_argument("--out", help="write the full result as JSON here")
             p.add_argument("--membership", help="membership file from fetch-sp500: rank index members only")
@@ -97,14 +104,16 @@ def main(argv: list[str] | None = None) -> int:
 
     res = backtest.run(
         store, tickers, a.start, a.end, replace(model.Config.preset(a.preset), n_long=a.n_long),
-        members=membership.members if membership else None, extra_benchmarks=[b.upper() for b in a.benchmarks],
+        CostModel.named(a.costs), fund_nav=a.fund_nav, members=membership.members if membership else None,
+        extra_benchmarks=[b.upper() for b in a.benchmarks],
     )  # fmt: skip
     if membership is not None:
         res["warnings"] += membership.warnings
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_text(json.dumps(res, indent=2))
-    summary = {k: v for k, v in res.items() if k not in ("curve", "months")}
+    long_keys = ("curve", "months", "equalWeightCurve", "riskFreeDaily")
+    summary = {k: v for k, v in res.items() if k not in long_keys}
     print(json.dumps(summary, indent=2))
     return 0 if res.get("ran") else 1
 

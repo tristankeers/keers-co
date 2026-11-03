@@ -2,13 +2,17 @@
 
 Timing: on the last session of each month the signals are computed from a ``PointInTime`` view at that day's
 close. The book trades at the NEXT session's close, so a signal never earns the return of the day it was seen.
-Between rebalances the holdings drift with their prices. Turnover pays the paper desk's ``costs-v1`` slippage
-plus commission (the minimum commission is ignored). The book is shown as a stand-alone portfolio fully
+Between rebalances the holdings drift with their prices. Turnover pays ``costs-v1`` slippage plus commission (the
+minimum commission is ignored), or with ``costs-v2`` each name's half spread, square-root market impact and
+per-share commission for a fund of ``fund_nav`` (volume and volatility as of the signal day). The book is shown as a stand-alone portfolio fully
 invested in its names (the sleeve weights scaled to 100%).
 
 Comparisons: SPY held throughout, and an equal-weight book of every company that could be ranked that month
 (same timing and costs), which isolates what the ranking adds. Per signal: the monthly return of the top fifth
 minus the bottom fifth, and the rank correlation between the signal and the next month's return (the IC).
+
+The verdict is ``gate.py``'s: beating both benchmarks is not enough; the Deflated Sharpe Ratio, which raises the
+bar for every model tried (``config/research/trials.json``), must reach 95%.
 
 Known biases, reported with every run: the universe is today's list of tickers, so companies that were delisted
 are missing (survivorship bias, which flatters results); prices are Yahoo's adjusted closes.
@@ -23,8 +27,9 @@ from datetime import date, timedelta
 from typing import Any
 
 from keers.data.store import Store
-from keers.portfolio.fills import BPS, CostModel
+from keers.portfolio.fills import BPS, CostModel, cost_fraction
 
+from . import gate
 from .model import SIGNALS, Config, Row, rank
 from .pit import PointInTime
 from .signals import SIGNALS_VERSION
@@ -32,6 +37,19 @@ from .signals import SIGNALS_VERSION
 BACKTEST_VERSION = "backtest-v1"
 BENCHMARK = "SPY"
 WARMUP_DAYS = 420  # history the first signal needs before ``start``
+FUND_NAV = 10_000_000.0  # the paper fund size costs-v2 prices impact for: impact grows with the order's size
+
+
+def cost_inputs(pit: PointInTime, ticker: str) -> tuple[float | None, float | None, float | None]:
+    """(average daily volume in shares over 20 sessions, daily volatility over up to 60, last close) as of the
+    signal day, for costs-v2. Unknown values stay None and the cost model uses its stated fallback."""
+    rows = pit.volumes(ticker, 100)
+    if len(rows) < 21:
+        return None, None, rows[-1][1] if rows else None
+    adv = statistics.fmean(v for _, _, v in rows[-20:])
+    closes = [c for _, c, _ in rows[-61:]]
+    rets = [b / a - 1 for a, b in zip(closes, closes[1:], strict=False) if a > 0]
+    return adv, statistics.stdev(rets) if len(rets) >= 20 else None, closes[-1]
 
 
 def month_ends(sessions: Sequence[date]) -> list[date]:
@@ -69,13 +87,19 @@ class _Book:
                 self.h[t] *= p / self.last[t]
                 self.last[t] = p
 
-    def rebalance(self, w: dict[str, float], prices: dict[str, float], cost_rate: float) -> None:
+    def rebalance(self, w: dict[str, float], prices: dict[str, float],
+                  cost_rate: float | Callable[[str, float], float]) -> None:  # fmt: skip
+        """``cost_rate`` is a flat share of the value traded, or a function of (ticker, value traded) giving it."""
         v = self.value()
         w = {t: x for t, x in w.items() if prices.get(t) is not None}
         new = {t: v * x for t, x in w.items()}
-        traded = sum(abs(new.get(t, 0.0) - self.h.get(t, 0.0)) for t in set(new) | set(self.h))
+        moves = {t: abs(new.get(t, 0.0) - self.h.get(t, 0.0)) for t in set(new) | set(self.h)}
+        traded = sum(moves.values())
         self.turnover.append(traded / v if v else 0.0)
-        cost = traded * cost_rate
+        if callable(cost_rate):
+            cost = sum(x * cost_rate(t, x) for t, x in moves.items() if x > 0)
+        else:
+            cost = traded * cost_rate
         self.h = {t: x * (1 - cost / v) for t, x in new.items()} if v else {}
         self.cash = (v - cost) - sum(self.h.values())
         self.last = {t: prices[t] for t in self.h}
@@ -148,7 +172,7 @@ def _t(xs: list[float]) -> float | None:
 
 def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Config | None = None,
         costs: CostModel | None = None, benchmark: str = BENCHMARK,
-        members: Callable[[date], frozenset[str]] | None = None,
+        fund_nav: float = FUND_NAV, members: Callable[[date], frozenset[str]] | None = None,
         extra_benchmarks: Sequence[str] = ()) -> dict[str, Any]:  # fmt: skip
     """With ``members``, each month ranks only the tickers in the index on the signal date (point-in-time
     universe); without it, every ticker every month (today's list, with survivorship bias)."""
@@ -190,6 +214,27 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             coverage[ex_day] = {"members": len(m), "withPrice": sum(1 for t in m if panel.get(t, {}) and
                                 min(panel[t]) <= sig_day + timedelta(days=5))}  # fmt: skip
 
+    # costs-v2: each name's cost depends on its volume and volatility as of the signal day, and on the order's size.
+    rates: dict[date, float | Callable[[str, float], float]] = {}
+    prev: set[str] = set()
+    for sig_day, ex_day in execs:
+        if costs.model != "impact":
+            rates[ex_day] = cost_rate
+            continue
+        names = {r.ticker for r in plan[ex_day] if r.composite is not None or r.weight > 0} | prev
+        prev = {r.ticker for r in plan[ex_day] if r.composite is not None}
+        pit = PointInTime(store, sig_day)
+        inputs = {t: cost_inputs(pit, t) for t in names}
+
+        def rate(t: str, units: float, inputs: dict[str, Any] = inputs, day: date = ex_day) -> float:
+            adv, sigma, px = inputs.get(t, (None, None, None))
+            px = px or panel.get(t, {}).get(day)
+            if not px:
+                return costs.move(0, None, None)[0]
+            return cost_fraction(units * fund_nav, px, costs, adv, sigma)
+
+        rates[ex_day] = rate
+
     curve: list[tuple[date, float]] = []
     ew_curve: list[tuple[date, float]] = []
     rf: list[float] = []
@@ -208,8 +253,8 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             tot = sum(w.values())
             w = {t: x / tot for t, x in w.items()} if tot else {}
             ranked = [r.ticker for r in rows if r.composite is not None]
-            book.rebalance(w, prices, cost_rate)
-            ew.rebalance({t: 1 / len(ranked) for t in ranked} if ranked else {}, prices, cost_rate)
+            book.rebalance(w, prices, rates[d])
+            ew.rebalance({t: 1 / len(ranked) for t in ranked} if ranked else {}, prices, rates[d])
             r_ = store.last_rate("DGS3MO", exec_set[d])
             rf_now = (r_.value / 100 / 252) if r_ is not None else 0.0
             months.append({"signalDay": exec_set[d].isoformat(), "tradeDay": d.isoformat(), "ranked": len(ranked),
@@ -242,6 +287,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             if ic is not None:
                 ics[n].append(ic)
 
+    # Is the result skill or luck? Deflated Sharpe against every model tried (see gate.py).
+    research = gate.evaluate(curve, ew_curve, rf, cfg.as_dict())
+
     spy = [(d, panel[benchmark][d]) for d, _ in curve if d in panel[benchmark]]
     if missing_after:
         warnings.append(
@@ -249,6 +297,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         )
     warnings.append(
         "costs: costs-v1 slippage and commission on turnover; minimum commission, borrow and taxes ignored"
+        if costs.model == "flat"
+        else f"costs: {costs.version} half spread, square-root impact and per-share commission for a "
+        f"{fund_nav:,.0f} fund; borrow and taxes ignored"
     )
     strat, ew_stats, spy_stats = stats(curve, rf), stats(ew_curve, rf), stats(spy, rf)
     extra = {b: stats([(d, panel[b][d]) for d, _ in curve if d in panel[b]], rf) for b in extra_benchmarks}
@@ -285,8 +336,12 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             }
             for n in SIGNALS
         },  # fmt: skip
-        "verdict": verdict(strat, ew_stats, spy_stats),
+        "verdict": gate.verdict(verdict(strat, ew_stats, spy_stats), research),
         "months": months,
         "curve": [(d.isoformat(), v) for d, v in curve],
         "warnings": warnings,
+        "research": research,
+        "equalWeightCurve": [(d.isoformat(), v) for d, v in ew_curve],
+        "riskFreeDaily": rf,
+        "fundNav": fund_nav if costs.model == "impact" else None,
     }

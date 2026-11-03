@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Any
 
@@ -22,6 +22,7 @@ from .ledger import Ledger, Order, Portfolio, now_utc
 from .market import MarketMark
 
 SECTOR_MAX = 60
+BENCHMARK = "SPY"  # beta is measured against it
 
 
 class TradeError(ValueError):
@@ -61,6 +62,20 @@ class TradeRequest:
                    note=" ".join(str(d.get("note") or "").split())[:200])  # fmt: skip
 
 
+VOL_SESSIONS = 60  # daily volatility for the impact estimate: the last three months or so
+
+
+def daily_volatility(returns: dict[date, float] | None) -> float | None:
+    """Standard deviation of the last ``VOL_SESSIONS`` daily returns; None with fewer than 20."""
+    if not returns:
+        return None
+    xs = [returns[d] for d in sorted(returns)[-VOL_SESSIONS:]]
+    if len(xs) < 20:
+        return None
+    m = sum(xs) / len(xs)
+    return float(math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1)))
+
+
 MarkFn = Callable[[str], MarketMark]
 ClosesFn = Callable[[str, date, date], list[tuple[date, float]]]
 
@@ -73,7 +88,7 @@ class Desk:
         self.closes = closes
         self.today = today
         self.limits = limits or Limits()
-        self.costs = costs or CostModel()
+        self.costs = costs or CostModel.v2()
 
     # state ------------------------------------------------------------------------------------------------------
     def _portfolio(self, pid: int) -> Portfolio:
@@ -91,15 +106,30 @@ class Desk:
         marks = {s: self.marks(s) for s in syms}
         today = self.today()
         history = A.nav_history(p, filled, self.closes, today - timedelta(days=1))
+        returns = {s: self._returns(s) for s in [*syms, BENCHMARK]}
         return {"portfolio": p, "orders": orders, "filled": filled, "positions": pos, "marks": marks,
-                "history": history, "cash": A.cash(p, filled)}  # fmt: skip
+                "history": history, "cash": A.cash(p, filled), "returns": returns,
+                "halted": self.ledger.halted(pid)}  # fmt: skip
+
+    def _returns(self, symbol: str) -> dict[date, float] | None:
+        """Daily close-to-close returns over about the last year and a half, for beta and volatility."""
+        today = self.today()
+        rows = [(d, c) for d, c in self.closes(symbol, today - timedelta(days=550), today) if c]
+        out = {b[0]: b[1] / a[1] - 1 for a, b in zip(rows, rows[1:], strict=False) if a[1] > 0}
+        return out or None
+
+    def _risk_mark(self, st: dict[str, Any], symbol: str) -> R.Mark:
+        m: MarketMark = st["marks"][symbol]
+        return replace(m.risk_mark(), returns=st["returns"].get(symbol))
 
     def _book(self, st: dict[str, Any]) -> R.Book:
         holdings = tuple(
-            R.Holding(p.symbol, p.strategy, p.sector, p.quantity, st["marks"][p.symbol].risk_mark())
+            R.Holding(p.symbol, p.strategy, p.sector, p.quantity, self._risk_mark(st, p.symbol))
             for p in st["positions"].values() if p.quantity
         )  # fmt: skip
-        return R.Book(st["cash"], holdings, tuple(h.nav for h in st["history"]))
+        halted = st["halted"]
+        return R.Book(st["cash"], holdings, tuple(h.nav for h in st["history"]), st["returns"].get(BENCHMARK),
+                      f"{halted['reason']} (since {halted['at']})" if halted else "")  # fmt: skip
 
     # views ------------------------------------------------------------------------------------------------------
     def view(self, pid: int) -> dict[str, Any]:
@@ -120,7 +150,29 @@ class Desk:
             "limits": self.limits.as_dict(),
             "costs": self.costs.as_dict(),
             "strategies": {k: STRATEGY_NAMES[k] for k in STRATEGIES},
+            "killSwitch": st["halted"],
+            "ledgerIntegrity": self.ledger.verify(),
         }
+
+    # kill switch -------------------------------------------------------------------------------------------------
+    def halt(self, pid: int, reason: str) -> dict[str, Any]:
+        """Turn the kill switch on: from now on no trade may add exposure. Recorded in the ledger."""
+        self._portfolio(pid)
+        reason = " ".join(str(reason or "").split())[:200]
+        if not reason:
+            raise TradeError("say why the portfolio is being halted")
+        self.ledger.set_control(pid, "halt", reason)
+        return self.view(pid)
+
+    def resume(self, pid: int, reason: str) -> dict[str, Any]:
+        self._portfolio(pid)
+        reason = " ".join(str(reason or "").split())[:200]
+        if not reason:
+            raise TradeError("say why trading is being resumed")
+        if not self.ledger.halted(pid):
+            raise TradeError("the kill switch is not on")
+        self.ledger.set_control(pid, "resume", reason)
+        return self.view(pid)
 
     # trading ----------------------------------------------------------------------------------------------------
     def _plan(self, pid: int, req: TradeRequest) -> dict[str, Any]:
@@ -152,7 +204,7 @@ class Desk:
                     raise TradeError(
                         f"{req.symbol}: no price, so a size by weight or amount cannot be worked out"
                     )
-                ref = m.price * (1 + self.costs.slippage_bps * 1e-4 * (1 if req.side == "buy" else -1))
+                ref = m.price * (1 + self.costs.sizing_bps() * 1e-4 * (1 if req.side == "buy" else -1))
                 if req.amount is not None:
                     target = req.amount
                 else:
@@ -181,9 +233,10 @@ class Desk:
             sector, basis = held.sector, held.sector_basis or "position"
         else:
             sector, basis = m.sector, m.sector_basis
-        fill = simulate(qty, m.price, self.costs) if m.price is not None and m.price > 0 else None
+        fill = (simulate(qty, m.price, self.costs, m.adv_shares, daily_volatility(st["returns"].get(req.symbol)))
+                if m.price is not None and m.price > 0 else None)  # fmt: skip
         trade = R.Trade(req.symbol, req.strategy, sector, qty, fill.price if fill else 0.0,
-                        fill.commission if fill else 0.0, m.risk_mark())  # fmt: skip
+                        fill.commission if fill else 0.0, self._risk_mark(st, req.symbol))  # fmt: skip
         report = R.check_trade(self._book(st), trade, self.limits, self.today())
         return {"request": req, "quantity": qty, "preQuantity": pre_qty, "mark": m, "fill": fill,
                 "sector": sector, "sectorBasis": basis or "", "report": report}  # fmt: skip
@@ -200,7 +253,12 @@ class Desk:
         return self._payload(self._plan(pid, req))
 
     def execute(self, pid: int, req: TradeRequest) -> dict[str, Any]:
-        """Fill the trade on paper if, and only if, the risk report approves it. Either way the attempt is logged."""
+        """Fill the trade on paper if, and only if, the risk report approves it. Either way the attempt is logged.
+        Nothing is written to a ledger whose hash chain does not check out."""
+        broken = self.ledger.verify()
+        if not broken["ok"]:
+            raise TradeError("the paper ledger failed its integrity check, so no trade is recorded: "
+                             + "; ".join(broken["problems"][:3]))  # fmt: skip
         plan = self._plan(pid, req)
         report: R.Report = plan["report"]
         m: MarketMark = plan["mark"]
@@ -215,7 +273,7 @@ class Desk:
             sector=plan["sector"], sector_basis=plan["sectorBasis"] or "none", quantity=plan["quantity"],
             reference_price=m.price, price_source=m.source, price_at=m.at, price_sha256=m.raw_sha256,
             fill_price=f.price if approved else None, commission=f.commission if approved else None,
-            slippage_bps=self.costs.slippage_bps, commission_bps=self.costs.commission_bps,
+            slippage_bps=f.slippage_bps if f else None, commission_bps=f.commission_bps if f else None,
             cost_version=self.costs.version, currency=m.currency, limits_version=self.limits.version,
             risk=report.as_dict(), reason=reason, note=req.note,
         )  # fmt: skip

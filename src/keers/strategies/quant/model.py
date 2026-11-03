@@ -31,9 +31,9 @@ from .signals import Signal
 
 SIGNALS = {**PRICE_SIGNALS, "value": fundamental.value, "quality": fundamental.quality}
 
-# Paper trading of strategy C stays off until a backtest of the current model beats both SPY and the equal-weight
-# book, and the person approves it in a reviewed change to this line.
-APPROVED_FOR_PAPER = False
+# Paper trading of strategy C stays off until a backtest of the current model passes gate.py (beats SPY and the
+# equal-weight book, and a Deflated Sharpe of at least 0.95) and the person records an approval for that exact
+# configuration in config/research/trials.json (gate.paper_approval).
 
 
 @dataclass(frozen=True)

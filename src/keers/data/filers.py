@@ -130,6 +130,7 @@ class Filers:
         self.fetcher, self.store = fetcher, store
         self.sec = sec or SEC(fetcher, store)
         self.esef = Esef(fetcher, store)
+        self.directory_status = "not loaded in this session"  # what the last filer-list refresh did
 
     def _get(self, url: str) -> Response:
         resp = self.fetcher.get(url, headers={"Accept": "application/vnd.api+json"})
@@ -170,15 +171,22 @@ class Filers:
         """Refresh the cached filings.xbrl.org filer list if it is missing or old. Returns what happened."""
         at = self.store.esef_entities_fetched()
         if at and datetime.fromisoformat(at) > datetime.now(UTC) - timedelta(days=DIRECTORY_MAX_AGE_DAYS):
+            if not self.directory_status.startswith(("fetched", "filer list")):
+                self.directory_status = f"cached {at}"
             return f"cached {at}"
+        if self.directory_status.startswith("filer list unavailable"):
+            return self.directory_status  # failed earlier in this session: do not fetch every page again
         try:
             rows = self.esef.entities()
         except (FetchError, ParseError) as e:
-            return f"filer list unavailable: {e}"
+            self.directory_status = f"filer list unavailable: {e}"
+            return self.directory_status
         if not rows:
-            return "filer list empty"
+            self.directory_status = "filer list empty"
+            return self.directory_status
         n = self.store.put_esef_entities((lei, nm, normalise(nm)) for lei, nm in rows)
-        return f"fetched {n} filers"
+        self.directory_status = f"fetched {n} filers"
+        return self.directory_status
 
     def find_in_directory(self, symbol: str, name: str) -> dict[str, Any] | None:
         """Link by an exact normalised name in the filings.xbrl.org filer list, if exactly one filer has it."""
@@ -205,7 +213,8 @@ class Filers:
         recs = self.search(name)
         hits = name_matches(name, recs)
         out: dict[str, Any] = {"symbol": symbol.upper(), "name": name, "normalised": normalise(name),
-                               "candidates": [r.as_dict() for r in recs[:10]]}  # fmt: skip
+                               "candidates": [r.as_dict() for r in recs[:10]],
+                               "directory": self.directory_status}  # fmt: skip
         if not hits:
             out["linked"] = False
             out["reason"] = "no active LEI record has exactly this name"

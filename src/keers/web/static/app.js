@@ -687,7 +687,33 @@ async function researchTab(c, body) {
         h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, strat, port,
           h("button", { class: "btn primary", onclick: () => go(false) }, "Write memo"),
           h("button", { class: "btn", onclick: () => go(true), title: "Writes the memo and places the proposed trade on paper, if the risk limits allow it" }, "Write memo and place paper trade")))),
-    out);
+    out, trackRecord(c.symbol));
+}
+
+// How the agents' saved calls turned out against SPY (keers.agents.scorecard). Arithmetic in code only.
+function trackRecord(symbol) {
+  const box = h("section", { class: "panel", style: "margin-top:12px" },
+    h("div", { class: "ph" }, h("h2", {}, "Track record"), h("span", { class: "faint" }, "every saved call, graded against SPY at its horizon")),
+    h("div", { class: "pb" }, h("div", { class: "loading" }, "Loading…")));
+  api(`/api/agents/scorecard?symbol=${encodeURIComponent(symbol)}`).then((r) => {
+    const a = r.analyst, b = r.bear;
+    const row = (k, v) => h("tr", {}, h("th", {}, k), h("td", {}, v));
+    const calls = r.calls.length ? h("table", { style: "margin-top:10px" },
+      h("tr", {}, ["Called", "Strategy", "Stance", "Bear", "Status", "Through", "Excess vs SPY"].map((x) => h("th", {}, x))),
+      r.calls.map((x) => h("tr", {}, h("td", {}, x.called), h("td", {}, x.strategy), h("td", {}, `${x.stance}${x.conviction ? ` (${x.conviction})` : ""}`),
+        h("td", {}, x.bear || "—"), h("td", {}, x.status), h("td", {}, x.sessions ? x.through : "—"), h("td", {}, x.sessions ? fpct(x.excessReturn, 1) : "—"))))
+      : h("p", { class: "faint", style: "margin-top:10px" }, `No saved calls on ${symbol} yet.`);
+    fill(box.querySelector(".pb"),
+      h("table", {},
+        row("All calls (every company)", `${a.calls} · ${a.graded} graded · ${a.pending} pending`),
+        row("Hit rate (directional, graded)", a.directional ? `${fpct(a.hitRate, 0)} of ${a.directional}` : "—"),
+        row("Average excess return, signed by the call", fpct(a.meanSignedExcess, 1)),
+        row("IC (conviction vs excess return)", a.ic === null ? (a.icNote || "—") : `${a.ic.toFixed(2)} (t ${a.icT === null ? "—" : a.icT.toFixed(1)})`),
+        row("Bear: calls let through / objected to", `${b.letThrough} (${fpct(b.meanSignedExcessLetThrough, 1)}) / ${b.objected} (${fpct(b.meanSignedExcessObjected, 1)})`)),
+      h("p", { class: "faint", style: "margin-top:6px" }, `Horizons: A ${r.horizonSessions.A}, B ${r.horizonSessions.B} sessions. A call is pending until its horizon passes.`),
+      calls);
+  }).catch((e) => fill(box.querySelector(".pb"), h("p", { class: "err" }, e.message)));
+  return box;
 }
 
 // --- distress ------------------------------------------------------------------------------------------------
@@ -894,6 +920,7 @@ const CHECK_TEXT = {
   "concentration.sector": "Sector concentration", "concentration.strategy": "Strategy concentration",
   "liquidity.trade": "Trade vs volume", "liquidity.position": "Position vs volume", "exposure.gross": "Gross exposure",
   "exposure.net": "Net exposure", "cash.no_borrowing": "No borrowing", "drawdown": "Drawdown",
+  "exposure.beta": "Net beta to SPY", "volatility": "Book volatility", "kill_switch": "Kill switch",
 };
 const STATUS_LVL = { pass: "clear", warn: "watch", fail: "severe", unknown: "unknown" };
 function checkBadge(st) { return h("span", { class: `lvl ${STATUS_LVL[st] || "unknown"}` }, st); }
@@ -960,9 +987,25 @@ async function renderPortfolio(list, pid) {
     kpi("Drawdown", fpct(s.drawdown, 1), `worst ${fpct(s.maxDrawdown, 1)} · halt at ${fpct(d.limits.drawdown_halt, 0)}`),
   );
 
+  const reason = h("input", { placeholder: "Reason (recorded)", "aria-label": "Reason", maxlength: 200, style: "min-width:220px" });
+  const ksMsg = h("span", { class: "err" });
+  const flip = async (on) => {
+    try { await api(`/api/portfolios/${pid}/${on ? "halt" : "resume"}`, { method: "POST", body: JSON.stringify({ reason: reason.value }) }); renderPortfolio(list, pid); }
+    catch (e) { ksMsg.textContent = e.message; }
+  };
+  const mk = r.figures.market || {};
+  const integrity = d.ledgerIntegrity || { ok: true, problems: [] };
+  const safety = h("div", { style: "margin-bottom:10px" },
+    integrity.ok ? null : h("div", { class: "callout bad", style: "margin-bottom:8px" }, h("strong", {}, "Ledger integrity check failed: trading is stopped. "), integrity.problems.slice(0, 3).join("; ")),
+    d.killSwitch
+      ? h("div", { class: "callout bad" }, h("strong", {}, "Kill switch on. "), `${d.killSwitch.reason} (since ${d.killSwitch.at}). Only trades that reduce exposure can fill. `,
+        h("div", { style: "margin-top:6px;display:flex;gap:8px;flex-wrap:wrap" }, reason, h("button", { class: "btn", onclick: () => flip(false) }, "Resume trading"), ksMsg))
+      : h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, reason,
+        h("button", { class: "btn", onclick: () => flip(true), title: "Blocks every trade that adds exposure until it is turned off" }, "Turn on kill switch"), ksMsg,
+        h("span", { class: "faint" }, `Net beta ${isNum(mk.beta) ? fnum(mk.beta, 2) : "unknown"} · volatility ${fpct(mk.volatility, 1)} · ledger ${integrity.ok ? "chain intact" : "BROKEN"} (${integrity.orders ?? 0} orders)`)));
   const riskPanel = h("section", { class: "panel" },
     h("div", { class: "ph" }, h("h2", {}, "Risk limits on the current book"), h("span", { class: "faint mono" }, r.limitsVersion)),
-    h("div", { class: "pb" }, r.breaches.length
+    h("div", { class: "pb" }, safety, r.breaches.length
       ? h("div", { class: "callout bad" }, h("strong", {}, `${r.breaches.length} breach${r.breaches.length > 1 ? "es" : ""}. `), "Trades that add to a breach are blocked; trades that reduce it are allowed.",
         h("ul", {}, r.breaches.map((b) => h("li", {}, `${CHECK_TEXT[b.name] || b.name}${b.subject ? ` (${b.subject})` : ""}: ${b.detail}`))))
       : h("div", { class: "callout" }, h("strong", {}, "No breaches. "), "Every limit is within bounds and every price is fresh."),
@@ -1037,8 +1080,12 @@ function limitsTable(l, c) {
     ["One trade", `${fpct(l.max_trade_adv, 0)} of ${l.adv_days}-day average volume`], ["One position", `${fpct(l.max_position_adv, 0)} of average volume`],
     ["Gross exposure", `up to ${fpct(l.max_gross, 0)}`], ["Net exposure", `${fpct(l.min_net, 0)} to ${fpct(l.max_net, 0)}`],
     ["Drawdown", `warn at ${fpct(l.drawdown_warn, 0)}, halt new risk at ${fpct(l.drawdown_halt, 0)}`],
+    ["Net beta to SPY", `${fnum(l.min_beta, 2)} to ${fnum(l.max_beta, 2)}, from ${l.risk_days} sessions of returns (at least ${l.min_risk_days})`],
+    ["Book volatility", `up to ${fpct(l.max_volatility, 0)} a year, today's positions over the same sessions`],
     ["Price age", `at most ${l.max_price_age_days} business days; a stale quote blocks`], ["Currency", `${l.base_currency} only (no FX yet)`],
-    ["Fill costs", `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
+    ["Fill costs", c.model === "impact"
+      ? `${fnum(c.half_spread_bps, 0)} bp half spread + ${fnum(c.impact_coefficient, 1)} × daily volatility × √(shares / ADV) impact (${fnum(c.fallback_impact_bps, 0)} bp if unknown) + ${fnum(c.commission_per_share, 3)} a share commission (min ${fnum(c.min_commission, 2)}, max ${fpct(c.max_commission_pct, 0)} of value), ${c.version}`
+      : `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
   ];
   return h("table", {}, h("tbody", {}, rows.map(([a, b]) => h("tr", {}, h("td", {}, a), h("td", { class: "muted" }, b)))));
 }
@@ -1085,7 +1132,7 @@ function renderTicket(box, d, list, pid) {
         h("tr", {}, h("td", {}, "Shares"), h("td", { class: "n" }, signed(fnum(r.quantity, 0), r.quantity)), h("td", { class: "muted" }, `position ${fnum(r.positionBefore, 0)} → ${fnum(r.positionAfter, 0)}`)),
         h("tr", {}, h("td", {}, "Price used"), h("td", { class: "n" }, isNum(m.price) ? fnum(m.price, 2) : "—"), h("td", { class: "muted" }, `${m.source}${m.at ? ` · ${m.at}` : ""}${m.currency ? ` · ${m.currency}` : ""}`)),
         (m.warnings || []).length ? h("tr", {}, h("td", {}, "Price notes"), h("td", { colspan: 2, class: "muted" }, m.warnings.join(" · "))) : null,
-        h("tr", {}, h("td", {}, "Simulated fill"), h("td", { class: "n" }, f ? fnum(f.price, 4) : "—"), h("td", { class: "muted" }, f ? `${fnum(f.slippage_bps, 0)} bp slippage` : "no price to fill at")),
+        h("tr", {}, h("td", {}, "Simulated fill"), h("td", { class: "n" }, f ? fnum(f.price, 4) : "—"), h("td", { class: "muted" }, f ? `${fnum(f.slippage_bps, 1)} bp price move${f.basis ? ` (${f.basis})` : ""}` : "no price to fill at")),
         h("tr", {}, h("td", {}, "Notional + commission"), h("td", { class: "n" }, f ? money(f.notional, 2) : "—"), h("td", { class: "muted" }, f ? `commission ${fnum(f.commission, 2)}` : "")),
         h("tr", {}, h("td", {}, "Average daily volume"), h("td", { class: "n" }, isNum(m.advShares) ? fnum(m.advShares, 0) : "unknown"), h("td", { class: "muted" }, `${m.advSessions} sessions`)),
         h("tr", {}, h("td", {}, "Sector"), h("td", { class: "n" }, r.sector || "unknown"), h("td", { class: "muted" }, r.sectorBasis ? `from: ${r.sectorBasis}` : "enter one above")),
