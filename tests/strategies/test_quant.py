@@ -100,7 +100,21 @@ def test_backtest_trades_the_session_after_the_signal(store: Store) -> None:
     assert res["strategy"]["maxDrawdown"] >= 0 and "survivorship" in res["warnings"][0]
     assert set(res["signals"]) == {"momentum_12_1", "low_volatility", "value", "quality"}
     assert res["signals"]["value"]["months"] == 0  # no accounts in this store: unknown, never guessed
-    assert set(res["verdict"]) == {"beatsSpy", "beatsEqualWeight", "passes"}
+    assert set(res["verdict"]) == {
+        "beatsSpy",
+        "beatsEqualWeight",
+        "passes",
+        "gate",
+        "deflatedSharpe",
+        "dsrPasses",
+    }
+    r = res["research"]
+    assert not r["registered"] and "not in the trial register" in r["warnings"][0]  # n_long=5 is a new trial
+    assert r["sharpeTest"]["trials"] == 3 and r["sharpeTest"]["observations"] == len(res["curve"]) - 1
+    assert r["holdoutDaysExcluded"] == 0  # these fictional prices end before the holdout starts
+    v = res["verdict"]
+    assert v["passes"] == (v["beatsSpy"] and v["beatsEqualWeight"] and v["dsrPasses"])
+    assert len(res["equalWeightCurve"]) == len(res["curve"]) == len(res["riskFreeDaily"])
     free = backtest.run(store, TICKERS, date(2021, 2, 1), END, replace(V1, n_long=5),
                         backtest.CostModel(slippage_bps=0, commission_bps=0))  # fmt: skip
     assert free["strategy"]["totalReturn"] > res["strategy"]["totalReturn"]  # costs are charged

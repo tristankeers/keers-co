@@ -5,7 +5,7 @@ name: Quant backtest
 
 on:
   pull_request:
-    paths: ["src/keers/strategies/quant/**", ".github/workflows/quant-backtest.yml"]
+    paths: ["src/keers/strategies/quant/**", "src/keers/research/**", "config/research/**", ".github/workflows/quant-backtest.yml"]
   workflow_dispatch:
     inputs:
       start:
@@ -46,6 +46,12 @@ jobs:
       - name: Backtest v1 (kept for comparison)
         if: always()
         run: python -m keers.strategies.quant --db /tmp/q.sqlite backtest --universe config/universe/kci100.txt --start "$START" --preset v1 --out quant-out/backtest-v1.json
+      - name: Overfitting check across v1 and v2 (probability of backtest overfitting)
+        if: always()
+        run: python -m keers.research pbo quant-out/backtest-v1.json quant-out/backtest-v2.json | tee quant-out/pbo.json
+      - name: Gate
+        if: always()
+        run: python -c "import json; d=json.load(open('quant-out/backtest-v2.json')); print(json.dumps({'verdict': d['verdict'], 'research': d['research']}, indent=2))"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

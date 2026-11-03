@@ -10,6 +10,9 @@ Comparisons: SPY held throughout, and an equal-weight book of every company that
 (same timing and costs), which isolates what the ranking adds. Per signal: the monthly return of the top fifth
 minus the bottom fifth, and the rank correlation between the signal and the next month's return (the IC).
 
+The verdict is ``gate.py``'s: beating both benchmarks is not enough; the Deflated Sharpe Ratio, which raises the
+bar for every model tried (``config/research/trials.json``), must reach 95%.
+
 Known biases, reported with every run: the universe is today's list of tickers, so companies that were delisted
 are missing (survivorship bias, which flatters results); prices are Yahoo's adjusted closes.
 """
@@ -24,7 +27,9 @@ from typing import Any
 
 from keers.data.store import Store
 from keers.portfolio.fills import BPS, CostModel
+from keers.research.trials import Register
 
+from . import gate
 from .model import SIGNALS, Config, Row, rank
 from .pit import PointInTime
 from .signals import SIGNALS_VERSION
@@ -147,7 +152,8 @@ def _t(xs: list[float]) -> float | None:
 
 
 def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Config | None = None,
-        costs: CostModel | None = None, benchmark: str = BENCHMARK) -> dict[str, Any]:  # fmt: skip
+        costs: CostModel | None = None, benchmark: str = BENCHMARK,
+        register: Register | None = None) -> dict[str, Any]:  # fmt: skip
     cfg, costs = cfg or Config(), costs or CostModel()
     cost_rate = (costs.slippage_bps + costs.commission_bps) * BPS
     tickers = sorted({t.upper() for t in tickers} - {benchmark})
@@ -236,7 +242,7 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         "costs: costs-v1 slippage and commission on turnover; minimum commission, borrow and taxes ignored"
     )
     strat, ew_stats, spy_stats = stats(curve, rf), stats(ew_curve, rf), stats(spy, rf)
-    return {
+    out: dict[str, Any] = {
         "ran": True,
         "version": BACKTEST_VERSION,
         "model": cfg.version,
@@ -265,3 +271,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         "curve": [(d.isoformat(), v) for d, v in curve],
         "warnings": warnings,
     }
+    # Is the result skill or luck? Deflated Sharpe against every model tried (see gate.py).
+    out["research"] = gate.evaluate(curve, ew_curve, rf, cfg.as_dict(), register)
+    out["verdict"] = gate.verdict(out["verdict"], out["research"])
+    out["equalWeightCurve"] = [(d.isoformat(), v) for d, v in ew_curve]
+    out["riskFreeDaily"] = rf
+    return out

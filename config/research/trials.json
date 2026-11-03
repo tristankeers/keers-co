@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "about": "Every model configuration backtested for a strategy, so the Deflated Sharpe Ratio knows how many were tried. Add each new configuration here, with its run, in the same reviewed change that adds it. Never delete a trial. See docs/research-protocol.md.",
+  "strategies": {
+    "C": {
+      "holdoutStart": "2026-11-03",
+      "holdoutNote": "Everything before this date has already been seen while designing quant-c-v1 and v2, so the holdout is the period after the protocol was written. Its result is looked at once per model and recorded in holdoutRuns.",
+      "trials": [
+        {
+          "id": "quant-c-v1",
+          "configHash": "c1f26ceebfb74c36",
+          "universe": "config/universe/kci100.txt (today's list)",
+          "period": "2017-02 to 2026-10",
+          "sharpe": 0.57,
+          "run": "https://github.com/tristankeers/keers-co/actions/runs/39923030866",
+          "recorded": "2026-10-23",
+          "note": "Momentum 12-1 plus low volatility, equal weights. Sharpe as reported by the run, rounded to two places."
+        },
+        {
+          "id": "quant-c-v2",
+          "configHash": "273e5d421114815b",
+          "universe": "config/universe/kci100.txt (today's list)",
+          "period": "2017-02 to 2026-10",
+          "sharpe": 0.84,
+          "run": "https://github.com/tristankeers/keers-co/actions/runs/39923030866",
+          "recorded": "2026-10-23",
+          "note": "Momentum, value and quality; inverse-volatility sizing. Sharpe as reported by the run, rounded to two places."
+        }
+      ],
+      "holdoutRuns": []
+    }
+  }
+}
