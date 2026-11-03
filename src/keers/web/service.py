@@ -835,6 +835,16 @@ class Workbench:
         out["notice"] = PAPER_NOTICE
         return out
 
+    def kill_switch(self, pid: int, on: bool, reason: Any) -> dict[str, Any]:
+        """Turn a portfolio's kill switch on (no trade may add exposure) or off. Recorded in the ledger."""
+        with self.paper_lock, self.desk() as d:
+            try:
+                out = d.halt(pid, str(reason or "")) if on else d.resume(pid, str(reason or ""))
+            except TradeError as e:
+                raise InputError(str(e)) from e
+        out["notice"] = PAPER_NOTICE
+        return out
+
     def paper_trade(self, pid: int, body: Mapping[str, Any], execute: bool) -> dict[str, Any]:
         with self.paper_lock, self.desk() as d:
             try:
@@ -866,6 +876,16 @@ class Workbench:
             raise InputError(str(e)) from e
         return r.as_dict()
 
+    def agent_scorecard(self, symbol: str | None = None) -> dict[str, Any]:
+        """How the agents' saved calls turned out against SPY (``keers.agents.scorecard``). Reads only."""
+        from keers.agents import scorecard
+
+        runs = scorecard.load_runs(Path(self.db_path).resolve().parent / "agent-runs")
+        out = scorecard.scorecard(runs, self.open_store().adjusted_closes, self.today())
+        if symbol:
+            out["calls"] = [c for c in out["calls"] if c["symbol"] == symbol]
+        return out
+
     # strategy C signals (keers.strategies.quant) -----------------------------------------------------------------
     def _quant_tickers(self, st: Store, tickers: Any) -> list[str]:
         if tickers:
@@ -890,12 +910,13 @@ class Workbench:
     def quant_rebalance(self, pid: int, execute: bool, tickers: Any = None) -> dict[str, Any]:
         """Move strategy C's holdings towards the target book. Every ticket goes through ``paper_trade`` (the desk
         and the risk limits); a blocked ticket is recorded as rejected and the rest carry on."""
-        from keers.strategies.quant import MODEL_VERSION, model, rebalance
+        from keers.strategies.quant import MODEL_VERSION, gate, model, rebalance
 
-        if execute and not model.APPROVED_FOR_PAPER:
+        if execute and gate.paper_approval(model.Config().as_dict()) is None:
             raise InputError(
-                f"strategy C ({MODEL_VERSION}) is not approved for paper trading yet: its backtest has not beaten "
-                "both SPY and the equal-weight book. Preview only."
+                f"strategy C ({MODEL_VERSION}) is not approved for paper trading: no approval for this exact "
+                "configuration is recorded in config/research/trials.json (it needs a backtest that passes the gate "
+                "and a reviewed change). Preview only."
             )
         sig = self.quant_signals(tickers)
         view = self.portfolio(pid)

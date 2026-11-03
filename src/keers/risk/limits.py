@@ -1,6 +1,6 @@
 """The risk limits, as one versioned, validated set of numbers.
 
-The defaults below are ``risk-limits-v1``. They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
+The defaults below are ``risk-limits-v2`` (v1 plus the beta and volatility limits). They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
 must give every limit: a file with a missing, extra or out-of-range key is refused, so a typo can never switch a
 limit off.
 """
@@ -26,7 +26,7 @@ def _default_strategy_caps() -> dict[str, float]:
 
 @dataclass(frozen=True)
 class Limits:
-    version: str = "risk-limits-v1"
+    version: str = "risk-limits-v2"
     # Concentration, as a share of net asset value (NAV). Long and short both count (absolute market value).
     max_position: float = 0.10  # one position
     max_sector: float = 0.25  # all positions in one sector
@@ -43,6 +43,12 @@ class Limits:
     # Drawdown from the highest NAV so far.
     drawdown_warn: float = 0.10  # flagged
     drawdown_halt: float = 0.15  # no trade may add gross exposure
+    # Market risk of the whole book, from daily returns over the last ``risk_days`` sessions.
+    max_beta: float = 1.20  # net beta to SPY: sum of each position's share of NAV times its beta
+    min_beta: float = -0.30
+    max_volatility: float = 0.25  # annualised volatility of today's book replayed over that history
+    risk_days: int = 252
+    min_risk_days: int = 120  # fewer common sessions than this: beta or volatility is unknown
     # Data quality.
     max_price_age_days: int = 3  # business days; older prices are stale
     base_currency: str = "USD"  # no FX conversion yet, so other currencies are refused
@@ -86,7 +92,12 @@ def validate(lim: Limits) -> list[str]:
         p.append(f"max_strategy must give a cap for each of {', '.join(STRATEGIES)}")
     elif not all(_share(v) for v in lim.max_strategy.values()):
         p.append("each max_strategy cap must be above 0 and at most 5")
-    for name in ("adv_days", "min_adv_days", "max_price_age_days"):
+    if not _share(lim.max_volatility):
+        p.append("max_volatility must be a number above 0 and at most 5")
+    if not (isinstance(lim.max_beta, int | float) and isinstance(lim.min_beta, int | float)
+            and -5 <= lim.min_beta < lim.max_beta <= 5):  # fmt: skip
+        p.append("min_beta must be below max_beta, both between -5 and 5")
+    for name in ("adv_days", "min_adv_days", "max_price_age_days", "risk_days", "min_risk_days"):
         v = getattr(lim, name)
         if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 260:
             p.append(f"{name} must be a whole number from 1 to 260")
@@ -96,6 +107,12 @@ def validate(lim: Limits) -> list[str]:
         and lim.min_adv_days > lim.adv_days
     ):
         p.append("min_adv_days cannot exceed adv_days")
+    if (
+        isinstance(lim.risk_days, int)
+        and isinstance(lim.min_risk_days, int)
+        and lim.min_risk_days > lim.risk_days
+    ):
+        p.append("min_risk_days cannot exceed risk_days")
     if _share(lim.drawdown_warn) and _share(lim.drawdown_halt) and lim.drawdown_warn > lim.drawdown_halt:
         p.append("drawdown_warn cannot exceed drawdown_halt")
     if not isinstance(lim.base_currency, str) or len(lim.base_currency) != 3:

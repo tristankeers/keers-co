@@ -63,6 +63,26 @@ memo are for.
 Prompts are versioned `agents-v1`. Headlines are not given to the models: they could carry instructions
 written by others, and the agents work only from the fact sheet.
 
+## Track record (`scorecard.py`, `scorecard-v1`)
+
+Every saved run is a call, and `python -m keers.agents scorecard` (or the Track record panel under the Research memo
+tab, `GET /api/agents/scorecard`) grades it against what the share price did next:
+
+- The return that counts is the **excess over SPY** over the same sessions, from the close the memo saw. A call is
+  graded at its strategy's horizon (A: 126 sessions, about six months; B: 252, about a year) and is **pending**
+  until then, shown with its return so far.
+- **Hit rate** and **payoff** (average win over average loss) on long and short calls; the **average signed excess
+  return** (positive when calls are right on balance).
+- **IC**: rank correlation between signed conviction (short high −3 … long high +3) and excess return, with a
+  t-stat, shown from 20 graded calls.
+- Split by who wrote the analyst's call (the model or `rules-v1`), for the committee's proposed trades only, and
+  for the bear: the average signed excess return of calls it let through and of calls it objected to. A useful
+  bear objects to the worse ones.
+
+A re-run of the same company and strategy on the same day replaces the earlier run, so it does not count twice. All
+of it is arithmetic in code; no model is asked. The idea of grading each analyst at its horizon comes from the
+MIT-licensed virattt/ai-hedge-fund project; the code is our own.
+
 ## Not done yet
 
 - Strategy C trades come from its systematic signals (docs/quant-signals.md), never from the agents.

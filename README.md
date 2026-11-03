@@ -58,7 +58,9 @@ The Research memo tab (or `python -m keers.agents run DBX --strategy B --portfol
 research analyst, a bear reviewer and an IC memo writer. They write words only: every figure comes from the
 engines as a fact key that code fills in and numbers to its source. Code decides whether to propose a trade and
 its size, and the trade goes through the paper desk and the risk limits like any other. Without
-`ANTHROPIC_API_KEY` the agents follow stated rules instead of a model. See `docs/agents.md`.
+`ANTHROPIC_API_KEY` the agents follow stated rules instead of a model. `python -m keers.agents scorecard` (and the
+Track record panel) grades every saved call against SPY at its horizon: hit rate, payoff and IC. See
+`docs/agents.md`.
 
 It runs on your own machine only: Yahoo's data is for personal use, so do not put it on a public address. Why
 this stack: `docs/adr/0004-research-workbench-stack.md`. The `workbench-live.yml` workflow runs it against the

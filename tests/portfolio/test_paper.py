@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -23,10 +24,26 @@ def mm(symbol: str, price: float | None, day: date | None = FRIDAY, adv: float |
                       adv, 20, warnings, sector, "listing" if sector else "")  # fmt: skip
 
 
+def walks(days: int = 360) -> dict[str, list[tuple[date, float]]]:
+    """FICTIONAL daily closes ending on FRIDAY: SPY and two names that move with it, for beta and volatility."""
+    rng = random.Random(9)
+    out: dict[str, list[tuple[date, float]]] = {"SPY": [], "AAA": [], "BBB": []}
+    px = {"SPY": 400.0, "AAA": 100.0, "BBB": 50.0}
+    d = FRIDAY - timedelta(days=round(days * 7 / 5))
+    while d <= FRIDAY:
+        if d.weekday() < 5:
+            m = rng.gauss(0.0003, 0.01)
+            for k in px:
+                px[k] *= 1 + (m if k == "SPY" else m + rng.gauss(0, 0.006))
+                out[k].append((d, px[k]))
+        d += timedelta(days=1)
+    return out
+
+
 class Prices:
     def __init__(self) -> None:
         self.marks: dict[str, MarketMark] = {"AAA": mm("AAA", 100.0), "BBB": mm("BBB", 50.0, sector="Energy")}
-        self.history: dict[str, list[tuple[date, float]]] = {}
+        self.history: dict[str, list[tuple[date, float]]] = walks()
 
     def mark(self, s: str) -> MarketMark:
         return self.marks.get(s, mm(s, None, None))
@@ -41,7 +58,7 @@ def setup(tmp_path: Path) -> tuple[Desk, Prices, int]:
     pid = led.create_portfolio("Test", 1_000_000).id
     px = Prices()
     clock = {"today": TODAY}
-    desk = Desk(led, px.mark, px.closes, lambda: clock["today"])
+    desk = Desk(led, px.mark, px.closes, lambda: clock["today"], costs=CostModel())  # v1: round numbers below
     desk.clock = clock  # type: ignore[attr-defined]
     return desk, px, pid
 
@@ -183,3 +200,98 @@ def test_market_helpers() -> None:
     assert average_volume(rows, 20, 4) == (None, 3)
     assert sector_from_sic("7372") == "Technology" and sector_from_sic("1311") == "Energy"
     assert sector_from_sic(None) is None and sector_from_sic("") is None
+
+
+def test_kill_switch_blocks_new_risk_and_is_recorded(setup: tuple[Desk, Prices, int]) -> None:
+    desk, _px, pid = setup
+    assert desk.execute(pid, req(shares=500))["filled"]
+    with pytest.raises(TradeError, match="say why"):
+        desk.halt(pid, " ")
+    v = desk.halt(pid, "reviewing the book")
+    assert v["killSwitch"]["reason"] == "reviewing the book"
+    blocked = desk.execute(pid, req(shares=10))
+    assert not blocked["filled"] and "kill_switch" in blocked["order"]["reason"]
+    assert desk.execute(pid, req(side="sell", shares=100))["filled"]  # cutting is still allowed
+    desk.resume(pid, "review done")
+    assert desk.view(pid)["killSwitch"] is None and desk.execute(pid, req(shares=10))["filled"]
+    with pytest.raises(TradeError, match="not on"):
+        desk.resume(pid, "again")
+
+
+def test_market_risk_reaches_the_report(setup: tuple[Desk, Prices, int]) -> None:
+    desk, px, pid = setup
+    r = desk.preview(pid, req(shares=500))
+    after = r["risk"]["figures"]["marketAfter"]
+    assert 0 < after["beta"] < 0.2 and after["volatility"] > 0  # 5% of NAV in a name with beta about 1
+    px.history["AAA"] = px.history["AAA"][-30:]  # a short history: beta unknown, so the trade is blocked
+    r = desk.preview(pid, req(shares=500))
+    assert not r["risk"]["approved"] and any(c["name"] == "exposure.beta" for c in r["risk"]["breaches"])
+
+
+def test_hash_chain_catches_an_edited_order_and_stops_trading(setup: tuple[Desk, Prices, int]) -> None:
+    desk, _px, pid = setup
+    desk.execute(pid, req(shares=100))
+    desk.execute(pid, req(shares=10_000))  # rejected, still chained
+    assert desk.ledger.verify() == {"ok": True, "orders": 2, "controls": 0, "problems": []}
+    desk.ledger.db.execute("UPDATE orders SET quantity=1 WHERE id=1")
+    bad = desk.ledger.verify()
+    assert not bad["ok"] and "order 1" in bad["problems"][0]
+    with pytest.raises(TradeError, match="integrity"):
+        desk.execute(pid, req(shares=1))
+    assert desk.view(pid)["ledgerIntegrity"]["ok"] is False
+
+
+def test_schema_1_ledger_is_migrated_and_chained(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "old.sqlite"
+    led = Ledger(path)
+    pid = led.create_portfolio("Old", 10_000).id
+    led.append(Order(pid, "2025-11-07T10:00:00+00:00", "2025-11-07", "rejected", "AAA", "B", None, "none", 1, 1.0,
+                     "t", None, "", None, None, 0, 0, "", "USD", "", {"approved": False}, "x"))  # fmt: skip
+    led.close()
+    db = sqlite3.connect(path)  # make it look like schema 1
+    db.execute("UPDATE orders SET prev_sha256=NULL, row_sha256=NULL")
+    db.execute("UPDATE meta SET value='1' WHERE key='schema_version'")
+    db.commit()
+    db.close()
+    led = Ledger(path)
+    assert led.verify()["ok"] and led.verify()["orders"] == 1
+    assert led.db.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "2"
+
+
+def test_costs_v2_by_hand() -> None:
+    c = CostModel.v2()
+    # 10,000 shares against 1,000,000 a day, 2% daily volatility: impact 1.0 × 0.02 × √0.01 = 20 bp, plus 5 bp.
+    f = simulate(10_000, 50.0, c, adv=1_000_000, sigma=0.02)
+    assert f.price == pytest.approx(50 * 1.0025) and f.slippage_bps == pytest.approx(25)
+    assert f.commission == pytest.approx(50.0) and "square-root" in f.basis  # 10,000 × 0.005
+    small = simulate(-100, 50.0, c, adv=1_000_000, sigma=0.02)
+    assert small.price < 50 and small.slippage_bps == pytest.approx(7) and small.commission == 1.0  # minimum
+    assert simulate(1, 0.5, c, 1e6, 0.02).commission == pytest.approx(
+        0.005, rel=1e-2
+    )  # capped at 1% of value
+    unknown = simulate(100, 50.0, c)
+    assert unknown.slippage_bps == pytest.approx(30) and "unknown" in unknown.basis
+    with pytest.raises(ValueError):
+        CostModel(model="other")
+
+
+def test_desk_uses_costs_v2_by_default(tmp_path: Path) -> None:
+    led = Ledger(tmp_path / "paper.sqlite")
+    pid = led.create_portfolio("V2", 1_000_000).id
+    px = Prices()
+    desk = Desk(led, px.mark, px.closes, lambda: TODAY)
+    out = desk.execute(pid, req(shares=500))
+    assert (
+        out["filled"] and out["fill"]["cost_version"] == "costs-v2" and "square-root" in out["fill"]["basis"]
+    )
+    o = led.orders(pid)[0]
+    assert o.cost_version == "costs-v2" and 5 < o.slippage_bps < 10  # 500 of 2,000,000 a day is a small order
+
+
+def test_hash_chain_survives_sqlite_storing_whole_numbers_as_reals(setup: tuple[Desk, Prices, int]) -> None:
+    desk, _px, pid = setup
+    assert desk.execute(pid, req(weight=0.02))["filled"]  # sized by weight: the share count is a Python int
+    assert desk.ledger.verify()["ok"]
+    assert desk.execute(pid, req(weight=0.01))["filled"]

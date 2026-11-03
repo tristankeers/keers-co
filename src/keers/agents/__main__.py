@@ -1,4 +1,5 @@
-"""Command line: ``python -m keers.agents run DBX --strategy B [--portfolio 1 [--execute]]``.
+"""Command line: ``python -m keers.agents run DBX --strategy B [--portfolio 1 [--execute]]`` and
+``python -m keers.agents scorecard`` (how the saved calls turned out).
 
 Without ``ANTHROPIC_API_KEY`` the agents use their stated rules (rules-v1) and the memo says so. The memo is
 printed and saved, with the full record of the run, under ``agent-runs/`` next to the store.
@@ -31,9 +32,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     r.add_argument("--offline-model", action="store_true", help="use the rules even if an API key is set")
     r.add_argument("--json", action="store_true", help="print the full run record instead of the memo")
+    sc = sub.add_parser("scorecard", help="grade every saved run against what the share price did next")
+    sc.add_argument("--calls", action="store_true", help="also print every call")
     a = ap.parse_args(argv)
 
     db = os.environ.get("KEERS_DB", DEFAULT_DB)
+    if a.cmd == "scorecard":
+        from datetime import date
+
+        from keers.data.store import Store
+
+        from . import scorecard
+
+        runs = scorecard.load_runs(Path(db).resolve().parent / "agent-runs")
+        res = scorecard.scorecard(runs, Store(db).adjusted_closes, date.today())
+        if not a.calls:
+            res.pop("calls")
+        print(json.dumps(res, indent=1))
+        return 0
     wb = workbench_from_env()  # KEERS_OFFLINE=1 reads the store only
     if wb.live is not None:  # bring filings and prices up to date first (the views read the store)
         try:

@@ -17,7 +17,7 @@ from datetime import date
 from typing import Any
 
 from keers.research import stats
-from keers.research.trials import Register
+from keers.research.trials import Register, config_hash
 
 GATE_VERSION = "gate-v2"
 MIN_DSR = 0.95
@@ -88,4 +88,19 @@ def verdict(base: dict[str, Any], research: dict[str, Any]) -> dict[str, Any]:
     out = {**base, "gate": GATE_VERSION, "deflatedSharpe": dsr,
            "dsrPasses": dsr is not None and dsr >= MIN_DSR}  # fmt: skip
     out["passes"] = bool(base.get("passes")) and out["dsrPasses"]
+    return out
+
+
+def paper_approval(config: dict[str, Any], register: Register | None = None) -> dict[str, Any] | None:
+    """The person's recorded approval for paper trading THIS configuration, or None.
+
+    The approval lives in ``config/research/trials.json`` (``approvedForPaper``) and names the configuration by
+    hash, with who approved it, when, why and the run that passed the gate. Changing any setting changes the hash,
+    so an approval never carries over to a model nobody reviewed. It is added only in a reviewed change.
+    """
+    reg = register or Register.load()
+    entry = reg.strategy(STRATEGY).get("approvedForPaper")
+    if not entry or entry.get("configHash") != config_hash(config):
+        return None
+    out: dict[str, Any] = entry
     return out

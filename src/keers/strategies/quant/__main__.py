@@ -22,6 +22,7 @@ from keers.data.market import Market, price_sources
 from keers.data.refresh import DEFAULT_DB, read_universe, user_agent
 from keers.data.sec import SEC, ParseError
 from keers.data.store import Store
+from keers.portfolio.fills import CostModel
 
 from . import backtest, model
 from .pit import PointInTime
@@ -45,6 +46,12 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--n-long", type=int, default=model.Config.n_long)
             p.add_argument(
                 "--preset", choices=["v1", "v2"], default="v2", help="model version (v1 kept to compare)"
+            )
+            p.add_argument(
+                "--costs", choices=["v1", "v2"], default="v1", help="cost model (v2: spread and impact)"
+            )
+            p.add_argument(
+                "--fund-nav", type=float, default=backtest.FUND_NAV, help="fund size costs-v2 prices for"
             )
             p.add_argument("--out", help="write the full result as JSON here")
     a = ap.parse_args(argv)
@@ -81,7 +88,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     res = backtest.run(
-        store, tickers, a.start, a.end, replace(model.Config.preset(a.preset), n_long=a.n_long)
+        store,
+        tickers,
+        a.start,
+        a.end,
+        replace(model.Config.preset(a.preset), n_long=a.n_long),
+        CostModel.named(a.costs),
+        fund_nav=a.fund_nav,
     )
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
