@@ -29,7 +29,10 @@ from keers.data.xbrl import fetch_instance, fetch_linkbase, latest_periodic, par
 LIST = "config/universe/foreign-test.txt"
 PATTERN = re.compile(
     r"(?i)(purchase|capital ?expend|capex|invest|acqui|addition|depreci|amorti|impair|borrow|debt|loan|bond|note|"
-    r"financ|operating|ebit|interest|lease)"
+    r"financ|operating|ebit|interest|lease|"
+    # Spanish and French words used in Iberdrola's and TotalEnergies' own concept names
+    r"deuda|prestamo|obligacion|emprestito|pasivosfinancieros|arrendamiento|amortizacion|inversion|explotacion|"
+    r"dette|emprunt|investissement|amortissement)"
 )
 FOREIGN_FORMS = ("20-F", "40-F", "20-F/A", "40-F/A")
 MAX_ROWS = 120
@@ -59,6 +62,14 @@ def row_text(doc: str, concept: str) -> list[str]:
     return rows[:3]
 
 
+def _numeric(body: dict[str, Any]) -> bool:
+    try:
+        float(str(body.get("value")))
+    except ValueError:
+        return False
+    return True
+
+
 def esef_dump(fetcher: Fetcher, filers: Filers, lei: str) -> None:
     found, how = filers.esef.filings(lei)
     latest = esef.latest_per_period(found, 1)
@@ -78,7 +89,7 @@ def esef_dump(fetcher: Fetcher, filers: Filers, lei: str) -> None:
     for body in (doc.get("facts") or {}).values():
         dims = body.get("dimensions") or {}
         c = str(dims.get("concept") or "")
-        if set(dims) - esef.PLAIN_DIMENSIONS or not PATTERN.search(c.split(":")[-1]):
+        if set(dims) - esef.PLAIN_DIMENSIONS or not PATTERN.search(c.split(":")[-1]) or not _numeric(body):
             continue
         prefix = c.split(":", 1)[0]
         if prefix == "ifrs-full" and not re.search(
@@ -88,8 +99,8 @@ def esef_dump(fetcher: Fetcher, filers: Filers, lei: str) -> None:
         seen.setdefault(c, []).append(f"{dims.get('period')} {dims.get('unit')} = {body.get('value')}")
     print(f"  -- matching facts without dimensions ({len(seen)} concepts)")
     for c in sorted(seen, key=lambda x: (x.startswith("ifrs-full"), x))[:MAX_ROWS]:
-        print(f"    {c}: {'; '.join(seen[c][:4])}")
-        for r in row_text(page, c):
+        print(f"    {c}: {'; '.join(sorted(seen[c], reverse=True)[:3])}")
+        for r in row_text(page, c)[:1]:
             print(f"        row: {r}")
 
 

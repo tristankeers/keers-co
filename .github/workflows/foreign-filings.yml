@@ -45,7 +45,7 @@ jobs:
         run: python scripts/foreign_probe.py
       - name: Company-specific lines (for review)
         if: always()
-        run: python scripts/foreign_lines_diag.py TTE.PA IBE.MC VOLV-B.ST VOD.L SHEL.L CNQ
+        run: python scripts/foreign_lines_diag.py TTE.PA IBE.MC VOD.L
       - uses: actions/upload-artifact@v4
         if: always()
         with:
