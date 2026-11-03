@@ -115,7 +115,12 @@ def fetch_sp500(store: Store, start: date, membership_path: str, report_path: st
     market = Market(fetcher, store, token, price_sources(os.environ.get("KEERS_PRICE_SOURCES")))
     resp = fetcher.get(history.WIKI_URL)
     store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
-    m = history.parse(resp.body.decode("utf-8"), date.today(), resp.sha256)
+    try:
+        m = history.parse(resp.body.decode("utf-8"), date.today(), resp.sha256)
+    except history.ParseError:
+        Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(report_path).with_name("sp500-page.html").write_bytes(resp.body)  # for diagnosis
+        raise
     Path(membership_path).parent.mkdir(parents=True, exist_ok=True)
     Path(membership_path).write_text(json.dumps(m.as_dict(), indent=1))
     failed: dict[str, str] = {}

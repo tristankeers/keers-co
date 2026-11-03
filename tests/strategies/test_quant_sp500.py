@@ -23,7 +23,7 @@ def page(current: list[tuple[str, str, int]], changes: list[tuple[str, str, str,
     return (
         "<html><table id='constituents'><tr><th>Symbol</th><th>Security</th><th>GICS Sector</th>"
         f"<th>Date added</th><th>CIK</th></tr>{cons}</table>"
-        "<table id='changes'><tr><th rowspan='2'>Date</th><th colspan='2'>Added</th><th colspan='2'>Removed</th>"
+        "<table class='wikitable'><tr><th rowspan='2'>Effective Date</th><th colspan='2'>Added</th><th colspan='2'>Removed</th>"
         f"<th rowspan='2'>Reason</th></tr><tr><th>Ticker</th><th>Security</th><th>Ticker</th><th>Security</th></tr>"
         f"{rows}</table></html>"
     )
@@ -58,6 +58,13 @@ def test_membership_walks_back_through_changes() -> None:
 def test_parse_refuses_a_page_without_the_tables() -> None:
     with pytest.raises(history.ParseError):
         history.parse("<html><table id='other'></table></html>", date(2026, 1, 1))
+
+
+def test_tables_without_ids_are_found_by_header_and_nested_tables_ignored() -> None:
+    html = page(FILLER, FILLER_CHANGES).replace("id='constituents'", "class='x'")
+    html = html.replace("<td>X</td>", "<td><table><tr><td>inner</td></tr></table>X</td>", 1)
+    m = history.parse(html, date(2026, 1, 1))
+    assert len(m.current) == 460 and len(m.changes) == 100
 
 
 def test_rowspan_dates_carry_down() -> None:

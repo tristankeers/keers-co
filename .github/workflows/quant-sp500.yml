@@ -67,10 +67,11 @@ jobs:
       - name: Backtest v2 on the point-in-time index
         run: python -m keers.strategies.quant --db "$DB" backtest --start "$START" --membership quant-out/sp500-membership.json --benchmarks RSP --preset v2 --out quant-out/sp500-backtest-v2.json
       - name: Backtest v1 on the point-in-time index
-        if: always()
         run: python -m keers.strategies.quant --db "$DB" backtest --start "$START" --membership quant-out/sp500-membership.json --benchmarks RSP --preset v1 --out quant-out/sp500-backtest-v1.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: quant-sp500
-          path: quant-out/*.json
+          path: |
+            quant-out/*.json
+            quant-out/*.html

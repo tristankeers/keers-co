@@ -26,7 +26,8 @@ class ParseError(ValueError):
 
 
 class _Tables(HTMLParser):
-    """Collects the text of every cell of every table with an ``id``, expanding ``rowspan``."""
+    """Collects the text of every cell of every top-level table, expanding ``rowspan``. A table is keyed by its
+    ``id``, or ``table-<n>`` when it has none."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -41,9 +42,12 @@ class _Tables(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         a = dict(attrs)
         if tag == "table":
-            self._stack.append(a.get("id"))
-            if a.get("id"):
-                self.tables.setdefault(str(a["id"]), [])
+            if self._stack:  # a table inside a table cell: keep reading the outer one
+                self._stack.append(None)
+                return
+            tid = str(a.get("id") or f"table-{len(self.tables)}")
+            self._stack.append(tid)
+            self.tables.setdefault(tid, [])
         elif not self._stack or self._stack[-1] is None:
             return
         elif tag == "tr":
@@ -202,9 +206,19 @@ def _norm(name: str) -> str:
 def parse(html: str, as_of: date, sha256: str = "") -> Membership:
     p = _Tables()
     p.feed(html)
-    cons, chg = p.tables.get("constituents"), p.tables.get("changes")
+
+    def header(rows: list[list[tuple[str, str]]]) -> str:
+        return " ".join(c[1].lower() for r in rows[:2] for c in r if c[0] == "th")
+
+    cons = p.tables.get("constituents") or next(
+        (t for t in p.tables.values() if t and "symbol" in header(t) and "security" in header(t)), None
+    )
+    chg = p.tables.get("changes") or next(
+        (t for t in p.tables.values() if t and "added" in header(t) and "removed" in header(t)), None
+    )
     if not cons or not chg:
-        raise ParseError(f"expected tables 'constituents' and 'changes'; found {sorted(p.tables)}")
+        found = {k: header(v)[:80] for k, v in p.tables.items()}
+        raise ParseError(f"expected a constituents table and a changes table; found {found}")
     head = [c[1].lower() for c in cons[0]]
     try:
         i_sym, i_name = head.index("symbol"), head.index("security")
