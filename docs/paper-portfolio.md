@@ -15,7 +15,7 @@ Paper trading only. No broker is connected and no real order is ever sent.
 4. The trade fills only when every required check is present and passed. Otherwise it is recorded as rejected
    with the reasons. Preview runs steps 2 and 3 without writing anything; placing the trade runs them again.
 
-## The checks (`risk-limits-v1`)
+## The checks (`risk-limits-v2`)
 
 | Check | Limit |
 |---|---|
@@ -28,7 +28,10 @@ Paper trading only. No broker is connected and no real order is ever sent.
 | Net exposure | −30% to +100% of NAV |
 | No borrowing | cash may not go below zero |
 | Drawdown | warning at 10%; at 15% only trades that reduce exposure are allowed |
-| Data quality | every price present, under 3 business days old, not flagged stale; USD only (no FX yet); sector, strategy and volume known |
+| Net beta to SPY | −0.30 to +1.20: each position's share of NAV times its beta, summed |
+| Book volatility | at most 25% a year: today's positions replayed over the last 252 sessions of daily returns |
+| Kill switch | while it is on, only trades that reduce exposure are allowed |
+| Data quality | every price present, under 3 business days old, not flagged stale; USD only (no FX yet); sector, strategy and volume known; at least 120 sessions of returns for beta and volatility |
 
 Rules that keep it safe:
 
@@ -38,7 +41,28 @@ Rules that keep it safe:
   exits are never blocked for size against volume (flagged instead).
 - `keers.risk` imports nothing from the portfolio, strategies, valuation or web code.
 - To change limits, set `KEERS_RISK_LIMITS` to a JSON file with every key (see `Limits` in
-  `src/keers/risk/limits.py`). A missing, unknown or out-of-range key is refused.
+  `src/keers/risk/limits.py`). A missing, unknown or out-of-range key is refused, so a v1 file needs the five new
+  keys (`max_beta`, `min_beta`, `max_volatility`, `risk_days`, `min_risk_days`) before it loads.
+- Beta and volatility use daily closes from the store over about the last year and a half. A name with less than
+  120 sessions of history (a recent listing) has an unknown beta, so it cannot be bought until it has more.
+
+## Kill switch
+
+The Portfolio tab (or `POST /api/portfolios/{id}/halt` and `/resume`, each with a `reason`) turns a portfolio's
+kill switch on or off. While it is on, every trade that would add gross exposure is rejected (and recorded as
+rejected); closing or cutting positions still goes through. Each change is kept, with its time and reason, in the
+ledger's `controls` table. The drawdown halt at 15% works the same way, automatically.
+
+## Tamper-evident ledger (schema 2)
+
+Every order row stores the SHA-256 of its own contents and of the row before it, and kill-switch records are
+chained the same way. Editing, deleting or reordering a row breaks the chain. The desk checks the whole chain
+before it records any trade and refuses to trade on a broken one; the Portfolio tab shows the result. A schema 1
+ledger is upgraded in place the first time it is opened: its existing rows are chained in the order they were
+written, so the chain vouches for them from that moment on.
+
+The kill switch and the hash chain follow ideas from the MIT-licensed virattt/ai-hedge-fund project (a kill switch
+checked inside the engine, a hash-chained book of record); the code is our own.
 
 ## Record and analytics
 

@@ -12,6 +12,10 @@ Approval is strict:
 - a report is approved only when every required check is present and every check passed or warned. A check that
   did not run is a missing check, and a missing check blocks the trade.
 
+Market risk (``risk-limits-v2``): the book's net beta to SPY and the annualised volatility of today's positions
+replayed over the last ``risk_days`` sessions of daily returns. A holding with too short a history makes them
+unknown, which blocks new trades. The kill switch, when on, blocks any trade that adds gross exposure.
+
 A limit that is already breached does not trap the book: a trade that brings a breached figure down passes that
 check (it says so), while any trade that pushes it further up fails.
 """
@@ -44,6 +48,9 @@ TRADE_CHECKS = (
     "exposure.net",
     "cash.no_borrowing",
     "drawdown",
+    "exposure.beta",
+    "volatility",
+    "kill_switch",
 )
 BOOK_CHECKS = (
     "data.book_prices",
@@ -51,6 +58,9 @@ BOOK_CHECKS = (
     "exposure.net",
     "cash.no_borrowing",
     "drawdown",
+    "exposure.beta",
+    "volatility",
+    "kill_switch",
 )
 
 
@@ -66,6 +76,7 @@ class Mark:
     currency: str | None
     adv_shares: float | None = None  # average daily volume in shares; None when too little history
     warnings: tuple[str, ...] = ()  # from the source, e.g. "stale: market is open but …"
+    returns: dict[date, float] | None = None  # daily close-to-close returns, keyed by the later day
 
 
 @dataclass(frozen=True)
@@ -82,6 +93,8 @@ class Book:
     cash: float
     holdings: tuple[Holding, ...] = ()
     nav_history: tuple[float, ...] = ()  # end-of-day NAV, oldest first, before today
+    benchmark: dict[date, float] | None = None  # SPY's daily returns, for beta; None: beta cannot be measured
+    halted: str = ""  # why the kill switch is on; empty when it is off
 
 
 @dataclass(frozen=True)
@@ -236,7 +249,7 @@ def after(book: Book, t: Trade) -> Book:
             break
     else:
         holdings.append(Holding(t.symbol, t.strategy, t.sector, t.quantity, t.mark))
-    return Book(book.cash - t.quantity * t.price - t.cost, tuple(holdings), book.nav_history)
+    return replace(book, cash=book.cash - t.quantity * t.price - t.cost, holdings=tuple(holdings))
 
 
 def drawdown(history: Iterable[float], nav: float | None) -> float | None:
@@ -271,6 +284,115 @@ def _safely(name: str, fn: Callable[[], list[Check]]) -> list[Check]:
     except Exception as e:  # a check that cannot run must block, never pass
         return [Check(name, FAIL, f"check could not run: {type(e).__name__}: {e}")]
     return out or [Check(name, UNKNOWN, "check produced no result")]
+
+
+@dataclass(frozen=True)
+class MarketRisk:
+    beta: float | None  # net beta of the book (sum of share of NAV times beta)
+    volatility: float | None  # annualised
+    sessions: int  # common sessions the volatility used
+    betas: dict[str, float | None]  # per symbol
+    why: str = ""  # why a figure is unknown
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"beta": self.beta, "volatility": self.volatility, "sessions": self.sessions, "betas": self.betas,
+                "why": self.why}  # fmt: skip
+
+
+def _window(book: Book, lim: Limits) -> list[date]:
+    return sorted(book.benchmark or {})[-lim.risk_days :]
+
+
+def beta(
+    r: dict[date, float] | None, bench: dict[date, float], days: list[date], lim: Limits
+) -> float | None:
+    """Covariance with the benchmark over its variance, on the days both have a return (at least ``min_risk_days``)."""
+    if not r:
+        return None
+    common = [d for d in days if d in r]
+    if len(common) < lim.min_risk_days:
+        return None
+    xs, ms = [r[d] for d in common], [bench[d] for d in common]
+    mx, mm = sum(xs) / len(xs), sum(ms) / len(ms)
+    var = sum((m - mm) ** 2 for m in ms)
+    if var <= 0:
+        return None
+    return sum((x - mx) * (m - mm) for x, m in zip(xs, ms, strict=True)) / var
+
+
+def market_risk(book: Book, lim: Limits) -> MarketRisk:
+    """Net beta and the volatility of today's positions replayed over the last ``risk_days`` sessions."""
+    held: dict[str, float] = {}
+    for h in book.holdings:
+        if h.quantity:
+            held[h.symbol] = held.get(h.symbol, 0.0) + h.quantity * (h.mark.price or 0.0)
+    if not held:
+        return MarketRisk(0.0, 0.0, 0, {}, "")
+    x = exposure(book)
+    if x.nav is None or x.nav <= 0:
+        return MarketRisk(None, None, 0, {}, "NAV unknown or not positive")
+    if not book.benchmark:
+        return MarketRisk(None, None, 0, {}, "no benchmark returns")
+    days = _window(book, lim)
+    rets: dict[str, dict[date, float]] = {h.symbol: h.mark.returns or {} for h in book.holdings if h.quantity}
+    weights = {s: v / x.nav for s, v in held.items()}
+    betas = {s: beta(rets.get(s), book.benchmark, days, lim) for s in held}
+    unknown_b = sorted(s for s, b in betas.items() if b is None)
+    net_beta = None if unknown_b else sum(weights[s] * (betas[s] or 0.0) for s in held)
+    common = [d for d in days if all(d in rets.get(s, {}) for s in held)]
+    vol = None
+    if len(common) >= lim.min_risk_days:
+        series = [sum(weights[s] * rets[s][d] for s in held) for d in common]
+        m = sum(series) / len(series)
+        vol = (sum((v - m) ** 2 for v in series) / (len(series) - 1)) ** 0.5 * 252**0.5
+    why = []
+    if unknown_b:
+        why.append(f"beta unknown for {', '.join(unknown_b)} (needs {lim.min_risk_days} sessions of returns)")
+    if vol is None:
+        why.append(
+            f"only {len(common)} sessions where every holding has a return (needs {lim.min_risk_days})"
+        )
+    return MarketRisk(net_beta, vol, len(common), betas, "; ".join(why))
+
+
+def _beta_check(pre: MarketRisk, post: MarketRisk, lim: Limits) -> Check:
+    if post.beta is None:
+        return Check(
+            "exposure.beta", UNKNOWN, f"net beta cannot be measured: {post.why}", "book", None, lim.max_beta
+        )
+    b, lo, hi = post.beta, lim.min_beta, lim.max_beta
+    if lo - 1e-12 <= b <= hi + 1e-12:
+        return Check("exposure.beta", PASS, f"net beta {b:.2f} within {lo:.2f} to {hi:.2f}", "book", b,
+                     hi if b >= 0 else lo)  # fmt: skip
+    limit = hi if b > hi else lo
+    if (
+        pre.beta is not None
+        and abs(b - limit) < abs(pre.beta - limit)
+        and (b - limit) * (pre.beta - limit) > 0
+    ):
+        return Check("exposure.beta", WARN, f"net beta {b:.2f} is outside the limit, but this trade moves it back "
+                     f"from {pre.beta:.2f}", "book", b, limit)  # fmt: skip
+    return Check("exposure.beta", FAIL, f"net beta {b:.2f} is outside {lo:.2f} to {hi:.2f}", "book", b, limit)
+
+
+def _vol_check(pre: MarketRisk, post: MarketRisk, lim: Limits) -> Check:
+    if post.volatility is None:
+        return Check("volatility", UNKNOWN, f"volatility cannot be measured: {post.why}", "book", None,
+                     lim.max_volatility)  # fmt: skip
+    return _cap("volatility", "book", pre.volatility, post.volatility, lim.max_volatility,
+                f"annualised volatility over {post.sessions} sessions")  # fmt: skip
+
+
+def _kill_check(book: Book, adds_gross: bool | None) -> Check:
+    """The kill switch: while it is on, nothing may add exposure. Closing and cutting positions stays allowed."""
+    if not book.halted:
+        return Check("kill_switch", PASS, "kill switch off", "book")
+    if adds_gross is False:
+        return Check(
+            "kill_switch", WARN, f"kill switch on ({book.halted}); this trade reduces exposure", "book"
+        )
+    return Check("kill_switch", FAIL, f"kill switch on ({book.halted}): only trades that reduce exposure are allowed",
+                 "book")  # fmt: skip
 
 
 # --------------------------------------------------------------------------------------------------------------
@@ -389,17 +511,30 @@ def check_trade(book: Book, t: Trade, lim: Limits, today: date) -> Report:
     def dd() -> list[Check]:
         return [_drawdown_check(book, pre_x, lim, adds_gross)]
 
+    pre_m, post_m = market_risk(book, lim), market_risk(post_book, lim)
+
+    def beta_cap() -> list[Check]:
+        return [_beta_check(pre_m, post_m, lim)]
+
+    def vol_cap() -> list[Check]:
+        return [_vol_check(pre_m, post_m, lim)]
+
+    def kill() -> list[Check]:
+        return [_kill_check(book, adds_gross)]
+
     checks: list[Check] = []
     for name, fn in (
         ("data.strategy", strategy), ("data.trade_price", trade_price), ("data.currency", currency),
         ("data.book_prices", book_prices), ("data.sector", sector), ("position.size", position),
         ("concentration.sector", sector_cap), ("concentration.strategy", strategy_cap),
         ("liquidity.trade", liq_trade), ("liquidity.position", liq_position), ("exposure.gross", gross),
-        ("exposure.net", net), ("cash.no_borrowing", cash), ("drawdown", dd),
+        ("exposure.net", net), ("cash.no_borrowing", cash), ("drawdown", dd), ("exposure.beta", beta_cap),
+        ("volatility", vol_cap), ("kill_switch", kill),
     ):  # fmt: skip
         checks += _safely(name, fn)
     figures = {"before": pre_x.as_dict(), "after": post_x.as_dict(), "cashAfter": post_book.cash,
-               "drawdown": drawdown(book.nav_history, pre_x.nav)}  # fmt: skip
+               "drawdown": drawdown(book.nav_history, pre_x.nav), "marketBefore": pre_m.as_dict(),
+               "marketAfter": post_m.as_dict(), "halted": book.halted}  # fmt: skip
     return Report(tuple(checks), TRADE_CHECKS, lim.version, figures)
 
 
@@ -528,12 +663,26 @@ def assess(book: Book, lim: Limits, today: date) -> Report:
     def dd() -> list[Check]:
         return [_drawdown_check(book, x, lim, adds_gross=False)]
 
+    m = market_risk(book, lim)
+
+    def beta_cap() -> list[Check]:
+        return [_beta_check(m, m, lim)]
+
+    def vol_cap() -> list[Check]:
+        return [_vol_check(m, m, lim)]
+
+    def kill() -> list[Check]:
+        # The book itself is not in breach because the switch is on; it is flagged.
+        return [Check("kill_switch", WARN, f"kill switch on: {book.halted}", "book") if book.halted
+                else Check("kill_switch", PASS, "kill switch off", "book")]  # fmt: skip
+
     checks: list[Check] = []
     for name, fn in (
         ("data.book_prices", lambda: _book_price_checks(book, lim, today)), ("position.size", positions),
         ("concentration.sector", sectors), ("concentration.strategy", strategies),
         ("liquidity.position", liquidity), ("exposure.gross", gross), ("exposure.net", net),
-        ("cash.no_borrowing", cash), ("drawdown", dd),
+        ("cash.no_borrowing", cash), ("drawdown", dd), ("exposure.beta", beta_cap), ("volatility", vol_cap),
+        ("kill_switch", kill),
     ):  # fmt: skip
         checks += _safely(name, fn)
     # At the halt level the book itself is in breach, not only new trades.
@@ -541,5 +690,5 @@ def assess(book: Book, lim: Limits, today: date) -> Report:
     if d is not None and d >= lim.drawdown_halt:
         checks = [c if c.name != "drawdown" else replace(c, status=FAIL, detail=f"drawdown {_pct(d)} has reached the "
                   f"{_pct(lim.drawdown_halt)} halt: new risk is blocked") for c in checks]  # fmt: skip
-    figures = {"exposure": x.as_dict(), "drawdown": d}
+    figures = {"exposure": x.as_dict(), "drawdown": d, "market": m.as_dict(), "halted": book.halted}
     return Report(tuple(checks), BOOK_CHECKS, lim.version, figures)

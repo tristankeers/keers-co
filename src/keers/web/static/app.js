@@ -920,6 +920,7 @@ const CHECK_TEXT = {
   "concentration.sector": "Sector concentration", "concentration.strategy": "Strategy concentration",
   "liquidity.trade": "Trade vs volume", "liquidity.position": "Position vs volume", "exposure.gross": "Gross exposure",
   "exposure.net": "Net exposure", "cash.no_borrowing": "No borrowing", "drawdown": "Drawdown",
+  "exposure.beta": "Net beta to SPY", "volatility": "Book volatility", "kill_switch": "Kill switch",
 };
 const STATUS_LVL = { pass: "clear", warn: "watch", fail: "severe", unknown: "unknown" };
 function checkBadge(st) { return h("span", { class: `lvl ${STATUS_LVL[st] || "unknown"}` }, st); }
@@ -986,9 +987,25 @@ async function renderPortfolio(list, pid) {
     kpi("Drawdown", fpct(s.drawdown, 1), `worst ${fpct(s.maxDrawdown, 1)} · halt at ${fpct(d.limits.drawdown_halt, 0)}`),
   );
 
+  const reason = h("input", { placeholder: "Reason (recorded)", "aria-label": "Reason", maxlength: 200, style: "min-width:220px" });
+  const ksMsg = h("span", { class: "err" });
+  const flip = async (on) => {
+    try { await api(`/api/portfolios/${pid}/${on ? "halt" : "resume"}`, { method: "POST", body: JSON.stringify({ reason: reason.value }) }); renderPortfolio(list, pid); }
+    catch (e) { ksMsg.textContent = e.message; }
+  };
+  const mk = r.figures.market || {};
+  const integrity = d.ledgerIntegrity || { ok: true, problems: [] };
+  const safety = h("div", { style: "margin-bottom:10px" },
+    integrity.ok ? null : h("div", { class: "callout bad", style: "margin-bottom:8px" }, h("strong", {}, "Ledger integrity check failed: trading is stopped. "), integrity.problems.slice(0, 3).join("; ")),
+    d.killSwitch
+      ? h("div", { class: "callout bad" }, h("strong", {}, "Kill switch on. "), `${d.killSwitch.reason} (since ${d.killSwitch.at}). Only trades that reduce exposure can fill. `,
+        h("div", { style: "margin-top:6px;display:flex;gap:8px;flex-wrap:wrap" }, reason, h("button", { class: "btn", onclick: () => flip(false) }, "Resume trading"), ksMsg))
+      : h("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center" }, reason,
+        h("button", { class: "btn", onclick: () => flip(true), title: "Blocks every trade that adds exposure until it is turned off" }, "Turn on kill switch"), ksMsg,
+        h("span", { class: "faint" }, `Net beta ${isNum(mk.beta) ? fnum(mk.beta, 2) : "unknown"} · volatility ${fpct(mk.volatility, 1)} · ledger ${integrity.ok ? "chain intact" : "BROKEN"} (${integrity.orders ?? 0} orders)`)));
   const riskPanel = h("section", { class: "panel" },
     h("div", { class: "ph" }, h("h2", {}, "Risk limits on the current book"), h("span", { class: "faint mono" }, r.limitsVersion)),
-    h("div", { class: "pb" }, r.breaches.length
+    h("div", { class: "pb" }, safety, r.breaches.length
       ? h("div", { class: "callout bad" }, h("strong", {}, `${r.breaches.length} breach${r.breaches.length > 1 ? "es" : ""}. `), "Trades that add to a breach are blocked; trades that reduce it are allowed.",
         h("ul", {}, r.breaches.map((b) => h("li", {}, `${CHECK_TEXT[b.name] || b.name}${b.subject ? ` (${b.subject})` : ""}: ${b.detail}`))))
       : h("div", { class: "callout" }, h("strong", {}, "No breaches. "), "Every limit is within bounds and every price is fresh."),
@@ -1063,6 +1080,8 @@ function limitsTable(l, c) {
     ["One trade", `${fpct(l.max_trade_adv, 0)} of ${l.adv_days}-day average volume`], ["One position", `${fpct(l.max_position_adv, 0)} of average volume`],
     ["Gross exposure", `up to ${fpct(l.max_gross, 0)}`], ["Net exposure", `${fpct(l.min_net, 0)} to ${fpct(l.max_net, 0)}`],
     ["Drawdown", `warn at ${fpct(l.drawdown_warn, 0)}, halt new risk at ${fpct(l.drawdown_halt, 0)}`],
+    ["Net beta to SPY", `${fnum(l.min_beta, 2)} to ${fnum(l.max_beta, 2)}, from ${l.risk_days} sessions of returns (at least ${l.min_risk_days})`],
+    ["Book volatility", `up to ${fpct(l.max_volatility, 0)} a year, today's positions over the same sessions`],
     ["Price age", `at most ${l.max_price_age_days} business days; a stale quote blocks`], ["Currency", `${l.base_currency} only (no FX yet)`],
     ["Fill costs", `${fnum(c.slippage_bps, 0)} bp slippage + ${fnum(c.commission_bps, 0)} bp commission (min ${fnum(c.min_commission, 2)}), ${c.version}`],
   ];

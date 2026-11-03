@@ -135,6 +135,14 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     def preview(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
         return wb.paper_trade(pid, body, execute=False)
 
+    @app.post("/api/portfolios/{pid}/halt")
+    def halt(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.kill_switch(pid, True, body.get("reason"))
+
+    @app.post("/api/portfolios/{pid}/resume")
+    def resume(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
+        return wb.kill_switch(pid, False, body.get("reason"))
+
     @app.post("/api/portfolios/{pid}/trades")
     def trade(pid: int, body: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:  # noqa: B008
         return wb.paper_trade(pid, body, execute=True)

@@ -5,6 +5,8 @@
     "C": {
       "holdoutStart": "2026-11-03",
       "holdoutNote": "Everything before this date has already been seen while designing quant-c-v1 and v2, so the holdout is the period after the protocol was written. Its result is looked at once per model and recorded in holdoutRuns.",
+      "approvedForPaper": null,
+      "approvalNote": "Set only in a reviewed change, by the person, once a backtest of this exact configuration passes gate-v2: {\"configHash\": ..., \"approvedBy\": ..., \"date\": ..., \"run\": ..., \"reason\": ...}. Any change to the model's settings changes its hash and needs a new approval.",
       "trials": [
         {
           "id": "quant-c-v1",

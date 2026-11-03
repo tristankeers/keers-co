@@ -54,11 +54,13 @@ mostly fit noise; the next useful test is a wider universe that includes deliste
 
 ## Paper-trading gate
 
-`model.APPROVED_FOR_PAPER` is `False`. While it is, the rebalance endpoint previews tickets but refuses to execute
-them. It should only be set to `True` in a reviewed change, after a backtest of the current model passes `gate-v2`
-(reported as `verdict`): it beats both SPY and the equal-weight book on CAGR and Sharpe, and its Deflated Sharpe
-Ratio, counting every model in the trial register, is at least 0.95. The backtest's `research` section has the
-statistics. See `docs/research-protocol.md`.
+Paper trading of strategy C is off until an approval for the exact model configuration is recorded in
+`config/research/trials.json` (`approvedForPaper`: configuration hash, who approved it, when, the run and why). Until
+then the rebalance endpoint previews tickets but refuses to execute them. An approval should only be added in a
+reviewed change, after a backtest of that configuration passes `gate-v2` (reported as `verdict`): it beats both SPY
+and the equal-weight book on CAGR and Sharpe, and its Deflated Sharpe Ratio, counting every model in the trial
+register, is at least 0.95. Changing any setting changes the hash, so an approval never carries over to an
+unreviewed model. The backtest's `research` section has the statistics. See `docs/research-protocol.md`.
 
 ## No look-ahead
 

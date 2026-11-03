@@ -51,5 +51,5 @@ The PBO across registered versions is reported by the Quant backtest workflow (`
 is not part of the pass/fail rule yet, because two versions give only a coarse figure. A PBO above 0.5 should block
 approval in review.
 
-Passing the gate does not turn on paper trading. That still takes a reviewed change to
-`model.APPROVED_FOR_PAPER`.
+Passing the gate does not turn on paper trading. That takes the person's approval of that exact configuration,
+recorded in the trial register (`approvedForPaper`, by configuration hash) in a reviewed change.

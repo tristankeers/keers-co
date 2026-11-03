@@ -153,7 +153,10 @@ def test_rebalance_is_refused_until_approved_then_goes_through_desk_and_risk(
     pv = c.post(f"/api/portfolios/{pid}/strategies/c/rebalance", json={"tickers": ["EXW"]}).json()
     assert pv["results"][0]["approved"] and not pv["results"][0]["filled"]  # preview is allowed
 
-    monkeypatch.setattr(model, "APPROVED_FOR_PAPER", True)
+    from keers.strategies.quant import gate
+
+    assert gate.paper_approval(model.Config().as_dict()) is None  # nothing is approved in the real register
+    monkeypatch.setattr(gate, "paper_approval", lambda cfg: {"configHash": "test", "approvedBy": "test"})
     r = c.post(f"/api/portfolios/{pid}/strategies/c/rebalance", json=body).json()
     assert r["results"][0]["filled"] and r["results"][0]["approved"]
     v = c.get(f"/api/portfolios/{pid}").json()
