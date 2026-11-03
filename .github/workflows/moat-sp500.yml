@@ -69,9 +69,12 @@ jobs:
           key: moat-sp500-${{ github.run_id }}
       - name: Backtest moat-b-v1 on the point-in-time index
         run: python -m keers.strategies.moat --db "$DB" backtest --start "$START" --membership moat-out/sp500-membership.json --benchmarks RSP --out moat-out/sp500-moat-backtest.json
-      - name: Screen today's index
+      - name: Screen the index on the last stored session
         if: always()
-        run: python -m keers.strategies.moat --db "$DB" screen --membership moat-out/sp500-membership.json --out moat-out/sp500-moat-today.json || true
+        run: |
+          # Stored prices end at the last session fetched, so screen as of that day rather than today.
+          LAST=$(python -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(\"SELECT MAX(day) FROM prices WHERE ticker='SPY'\").fetchone()[0])" "$DB")
+          python -m keers.strategies.moat --db "$DB" screen --as-of "$LAST" --membership moat-out/sp500-membership.json --out moat-out/sp500-moat-latest.json || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

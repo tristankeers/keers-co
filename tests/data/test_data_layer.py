@@ -217,6 +217,23 @@ def test_fetcher_retries_then_succeeds() -> None:
     assert [s for s in slept if s >= 1] == [1.0, 2.0]
 
 
+def test_fetcher_retries_a_body_cut_off_mid_download() -> None:
+    import http.client
+
+    calls: list[int] = []
+
+    def opener(req: urllib.request.Request, timeout: float) -> bytes:
+        calls.append(1)
+        if len(calls) == 1:
+            raise http.client.IncompleteRead(b"partial")
+        return b"whole"
+
+    r = Fetcher("Test agent test@example.com", opener=opener, sleep=lambda s: None).get(
+        "https://data.sec.gov/a"
+    )
+    assert r.body == b"whole" and len(calls) == 2
+
+
 def test_fetcher_waits_longer_after_a_rate_limit() -> None:
     calls, slept = [], []
 
