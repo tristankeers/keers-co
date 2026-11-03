@@ -17,7 +17,7 @@ from . import lines, own_lines
 from .http import Fetcher, FetchError, Response
 from .models import Fact, Filing
 from .store import Store
-from .xbrl import InstanceError
+from .xbrl import Instance, InstanceError, fetch_instance
 
 # Debt lines whose blanks on the face balance sheet are recorded, for companies in company_lines.toml.
 LINE_WATCH = set(F.DEBT_CONCEPTS + F.DEBT_DUE_12M)
@@ -27,6 +27,8 @@ SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
 
 FORMS = {"10-K", "10-Q", "10-K/A", "10-Q/A", "20-F", "40-F"}
+CATCH_UP_FORMS = ("10-K", "10-Q")  # periodic filings read from their own instance when company facts lags
+CATCH_UP_MAX = 3  # at most this many filings per company per refresh (newest first)
 
 
 class ParseError(ValueError):
@@ -140,6 +142,47 @@ def concept_inventory(doc: Any, pattern: str, since: date | None = None) -> list
     return sorted(out, key=lambda r: r["concept"])
 
 
+def _unit(raw: str) -> str:
+    """An instance unit in company-facts spelling: ``iso4217:USD/xbrli:shares`` → ``USD/shares``."""
+    return "/".join(m.split(":")[-1] for m in raw.split("/"))
+
+
+def instance_to_facts(inst: Instance, cik: int, concepts: Iterable[str] | None) -> list[Fact]:
+    """The standard (us-gaap, dei, srt) facts in a filing's instance that company facts would carry: those without
+    dimensions and with a value, limited to ``concepts``. Values are as filed; the filing date is the filing's."""
+    keep = set(concepts) if concepts is not None else None
+    out = []
+    for f in inst.facts:
+        if f.dims or f.prefix not in ("us-gaap", "dei", "srt") or f.value != f.value:  # NaN: tagged nil
+            continue
+        if keep is not None and f"{f.prefix}:{f.concept}" not in keep:
+            continue
+        out.append(Fact(cik, f.prefix, f.concept, _unit(f.unit), f.start, f.end, f.value, inst.accn, inst.form,
+                        inst.filed, raw_sha256=inst.sha256))  # fmt: skip
+    return out
+
+
+def missing_filings(store: Store, cik: int, filings: Iterable[Filing]) -> list[Filing]:
+    """10-Qs and 10-Ks filed after the newest fact in the store that no stored fact comes from, newest first.
+
+    Company facts sometimes lags a filing by months (Visa's 10-Q of 29 July 2026 was not in it on 3 November), which
+    left the latest accounts looking stale. Only filings newer than every stored fact count, so a filing that
+    company facts carries under another accession, or an old one it never carried, is not fetched again and again.
+    """
+    row = store.db.execute("SELECT MAX(filed) FROM facts WHERE cik=?", (cik,)).fetchone()
+    newest = date.fromisoformat(row[0]) if row and row[0] else None
+    if newest is None:
+        return []
+    out = []
+    for f in sorted(filings, key=lambda f: f.filing_date, reverse=True):
+        if f.form not in CATCH_UP_FORMS or f.filing_date <= newest:
+            continue
+        if store.db.execute("SELECT 1 FROM facts WHERE cik=? AND accn=? LIMIT 1", (cik, f.accn)).fetchone():
+            continue
+        out.append(f)
+    return out[:CATCH_UP_MAX]
+
+
 class SEC:
     """Fetches SEC documents, stores the raw bytes, and writes parsed records to the store."""
 
@@ -190,6 +233,19 @@ class SEC:
             "facts": len(facts),
             "newFacts": added,
         }
+        # Filings company facts does not carry yet are read from their own XBRL instance. On failure they stay
+        # unread, so the accounts stay as old as company facts left them (and may read as stale): never guessed.
+        for f in missing_filings(self.store, cik, filings):
+            try:
+                inst = fetch_instance(self.fetcher, cik, f.accn, f.form, f.filing_date)
+                got = instance_to_facts(inst, cik, concepts)
+                if not got:
+                    raise InstanceError("no standard facts in the instance")
+                self.store.put_facts(got)
+                out.setdefault("fromInstance", []).append({"filing": f.accn, "form": f.form,
+                                                           "filed": f.filing_date.isoformat(), "facts": len(got)})  # fmt: skip
+            except (FetchError, InstanceError, ET.ParseError) as e:
+                out.setdefault("fromInstanceErrors", []).append(f"{f.form} {f.accn}: {str(e)[:200]}")
         if cik in lines.config():
             # A failure here leaves the company's own lines unread, so its debt reads as unknown: never zero.
             try:

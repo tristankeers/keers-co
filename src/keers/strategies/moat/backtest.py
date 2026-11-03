@@ -75,7 +75,9 @@ def block_reason(why: Sequence[str]) -> str:
     return first.split(":", 1)[0]
 
 
-def screen_quarter(store: Store, tickers: Sequence[str], day: date) -> tuple[dict[str, str], dict[str, list[str]]]:
+def screen_quarter(
+    store: Store, tickers: Sequence[str], day: date
+) -> tuple[dict[str, str], dict[str, list[str]]]:
     status: dict[str, str] = {}
     blocked: dict[str, list[str]] = {}
     for t in tickers:
