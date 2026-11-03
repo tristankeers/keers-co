@@ -50,6 +50,14 @@
         }
       ],
       "holdoutRuns": []
+    },
+    "B": {
+      "holdoutStart": "2026-11-03",
+      "holdoutNote": "Strategy B's moat screen (moat-v1) was designed on 2026-11-03 without looking at any backtest. Days from this date on are the holdout.",
+      "approvedForPaper": null,
+      "approvalNote": "Strategy B trades come from the research committee (keers.agents), gated by the moat screen and the risk limits. This field is kept for symmetry with C; the moat backtest does not open or close any gate.",
+      "trials": [],
+      "holdoutRuns": []
     }
   }
 }

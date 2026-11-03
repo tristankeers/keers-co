@@ -259,3 +259,14 @@ def test_kill_switch_blocks_new_risk_but_allows_cutting() -> None:
     assert rep.approved and statuses(rep)["kill_switch"] == "warn"
     assert statuses(R.assess(halted, LIM, TODAY))["kill_switch"] == "warn"
     assert statuses(R.check_trade(mkbook(950_000.0, (h,)), buy(10), LIM, TODAY))["kill_switch"] == "pass"
+
+
+def test_long_only_mandate_blocks_a_strategy_b_short_but_not_a_sale() -> None:
+    held = mkbook(900_000.0, (R.Holding("AAA", "B", "Technology", 1_000, mark()),))
+    assert statuses(R.check_trade(held, buy(-1_000), LIM, TODAY))["mandate.long_only"] == "pass"  # sells out
+    rep = R.check_trade(held, buy(-1_200), LIM, TODAY)
+    assert not rep.approved and statuses(rep)["mandate.long_only"] == "fail"
+    assert statuses(R.check_trade(EMPTY, buy(-100, strategy="A"), LIM, TODAY))["mandate.long_only"] == "pass"
+    assert LIM.version == "risk-limits-v3" and LIM.long_only == ["B"]
+    with pytest.raises(ValueError, match="long_only"):
+        Limits(long_only=["Z"])

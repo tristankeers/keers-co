@@ -1,6 +1,7 @@
 """The risk limits, as one versioned, validated set of numbers.
 
-The defaults below are ``risk-limits-v2`` (v1 plus the beta and volatility limits). They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
+The defaults below are ``risk-limits-v3`` (v1 plus the beta and volatility limits in v2, plus the long-only
+mandates in v3). They can be replaced by a JSON file (``KEERS_RISK_LIMITS``), which
 must give every limit: a file with a missing, extra or out-of-range key is refused, so a typo can never switch a
 limit off.
 """
@@ -24,13 +25,19 @@ def _default_strategy_caps() -> dict[str, float]:
     return {"A": 0.40, "B": 0.60, "C": 0.40}
 
 
+def _default_long_only() -> list[str]:
+    return ["B"]  # Strategy B's mandate: durable-moat compounders, long only
+
+
 @dataclass(frozen=True)
 class Limits:
-    version: str = "risk-limits-v2"
+    version: str = "risk-limits-v3"
     # Concentration, as a share of net asset value (NAV). Long and short both count (absolute market value).
     max_position: float = 0.10  # one position
     max_sector: float = 0.25  # all positions in one sector
     max_strategy: dict[str, float] = field(default_factory=_default_strategy_caps)  # one strategy's sleeve
+    # Mandates: strategies that may never hold a short position.
+    long_only: list[str] = field(default_factory=_default_long_only)
     # Liquidity, as a share of the average daily volume (ADV) in shares.
     adv_days: int = 20  # sessions averaged
     min_adv_days: int = 10  # fewer sessions with volume than this: ADV is unknown
@@ -92,6 +99,8 @@ def validate(lim: Limits) -> list[str]:
         p.append(f"max_strategy must give a cap for each of {', '.join(STRATEGIES)}")
     elif not all(_share(v) for v in lim.max_strategy.values()):
         p.append("each max_strategy cap must be above 0 and at most 5")
+    if not isinstance(lim.long_only, list) or not set(lim.long_only) <= set(STRATEGIES):
+        p.append(f"long_only must be a list drawn from {', '.join(STRATEGIES)}")
     if not _share(lim.max_volatility):
         p.append("max_volatility must be a number above 0 and at most 5")
     if not (isinstance(lim.max_beta, int | float) and isinstance(lim.min_beta, int | float)

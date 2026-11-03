@@ -1,0 +1,79 @@
+name: Moat backtest (S&P 500, point in time)
+
+# Backtests the Strategy B moat screen on the S&P 500 as it stood each quarter, including companies that later
+# left the index. Starts from the store the quant S&P 500 workflow caches (membership, filings, prices), fetches
+# whatever is missing, fetches SEC company facts again for companies stored before the moat screen's lines were
+# collected, and saves the store under its own cache key. Needs SEC_USER_AGENT; TIINGO_TOKEN for delisted prices.
+
+on:
+  pull_request:
+    paths: ["src/keers/strategies/moat/**", ".github/workflows/moat-sp500.yml"]
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Backtest start date"
+        required: false
+        default: "2017-01-01"
+      fetch_minutes:
+        description: "Time budget for fetching prices, in minutes"
+        required: false
+        default: "120"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: moat-sp500-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      START: ${{ inputs.start || '2017-01-01' }}
+      FETCH_MINUTES: ${{ inputs.fetch_minutes || '120' }}
+      DB: /home/runner/quant-store/sp500.sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret"
+            exit 1
+          fi
+          mkdir -p /home/runner/quant-store
+      - run: pip install -e .
+      - name: Restore the store (this workflow's, else the quant workflow's)
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/quant-store
+          key: moat-sp500-${{ github.run_id }}
+          restore-keys: |
+            moat-sp500-
+            quant-sp500-
+      - name: Fetch membership, filings and prices
+        run: python -m keers.strategies.quant --db "$DB" fetch-sp500 --start "$START" --membership moat-out/sp500-membership.json --report moat-out/sp500-fetch.json --max-minutes "$FETCH_MINUTES"
+      - name: Fetch company facts again where they predate the moat screen
+        run: python -m keers.strategies.moat --db "$DB" refetch-accounts --max-minutes 90 | tee moat-out/refetch.json
+      - name: Save the store for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/quant-store
+          key: moat-sp500-${{ github.run_id }}
+      - name: Backtest moat-b-v1 on the point-in-time index
+        run: python -m keers.strategies.moat --db "$DB" backtest --start "$START" --membership moat-out/sp500-membership.json --benchmarks RSP --out moat-out/sp500-moat-backtest.json
+      - name: Screen today's index
+        if: always()
+        run: python -m keers.strategies.moat --db "$DB" screen --membership moat-out/sp500-membership.json --out moat-out/sp500-moat-today.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: moat-sp500
+          path: moat-out/*.json

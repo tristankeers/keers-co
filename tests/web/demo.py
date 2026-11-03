@@ -27,6 +27,44 @@ def rows() -> list[fx.Row]:
     for start, end, v, f in [("2024-01-01", "2024-12-31", 40, fx.K24), ("2024-01-01", "2024-09-30", 30, fx.Q3_25),
                              ("2025-01-01", "2025-09-30", 33, fx.Q3_25)]:  # fmt: skip
         out.append(fx._dur("InterestExpense", start, end, v, f))
+    return out + history_rows()
+
+
+# Fiscal years 2018-2024, as filed in each year's (fictional) 10-K, for the Strategy B moat screen. FY2023 and
+# FY2024 revenue, operating income, D&A, net income and capex are already in the base rows.
+HISTORY = {  # year: (revenue, operating income, capex, cash from operations, diluted shares m, assets, current liabs, cash)
+    2018: (600, 117, 20, 120, 54.0, 760, 140, 100),
+    2019: (640, 125, 21, 130, 53.6, 800, 150, 110),
+    2020: (690, 135, 22, 140, 53.2, 850, 160, 120),
+    2021: (750, 150, 24, 155, 52.8, 900, 170, 130),
+    2022: (820, 164, 25, 170, 52.4, 950, 180, 140),
+    2023: (900, 180, 27, 180, 52.0, 1000, 190, 150),
+    2024: (1000, 200, 30, 190, 51.6, 1100, 240, 150),
+}
+
+
+def history_rows() -> list[fx.Row]:
+    out: list[fx.Row] = []
+    for y, (rev, ebit, capex, cfo, shares, assets, cl, cash) in HISTORY.items():
+        filing = (
+            fx.K24 if y >= 2023 else (f"0000000001-{(y + 1) % 100:02d}-100{y % 10}", "10-K", f"{y + 1}-02-14")
+        )
+        start, end = f"{y}-01-01", f"{y}-12-31"
+        if y < 2023:
+            for c, val in (("Revenues", rev), ("OperatingIncomeLoss", ebit),
+                           ("PaymentsToAcquirePropertyPlantAndEquipment", capex)):  # fmt: skip
+                out.append(fx._dur(c, start, end, val, filing))
+        pretax = ebit - 40
+        out += [fx._dur("NetCashProvidedByUsedInOperatingActivities", start, end, cfo, filing),
+                fx._dur("IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+                        start, end, pretax, filing),
+                fx._dur("IncomeTaxExpenseBenefit", start, end, round(pretax * 0.21, 2), filing),
+                ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", start, end, shares * fx.M,
+                 *filing),
+                fx._inst("Assets", end, assets, filing), fx._inst("LiabilitiesCurrent", end, cl, filing)]  # fmt: skip
+        if y < 2024:  # 2024 cash, short-term investments and current debt are in the base rows
+            out += [fx._inst("CashAndCashEquivalentsAtCarryingValue", end, cash, filing),
+                    fx._inst("LongTermDebtCurrent", end, 20, filing)]  # fmt: skip
     return out
 
 

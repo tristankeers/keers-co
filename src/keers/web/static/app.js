@@ -262,7 +262,7 @@ function go(symbol) {
 }
 
 // --- router --------------------------------------------------------------------------------------------------
-const TABS = [["overview", "Overview"], ["valuation", "Valuation"], ["distress", "Distress screen"], ["chart", "Chart"], ["news", "News"], ["research", "Research memo"]];
+const TABS = [["overview", "Overview"], ["valuation", "Valuation"], ["distress", "Distress screen"], ["moat", "Moat screen"], ["chart", "Chart"], ["news", "News"], ["research", "Research memo"]];
 let current = { symbol: null, company: null };
 let chartHandle = null;
 
@@ -369,7 +369,7 @@ async function companyView(symbol, tab) {
   fill(view, companyHeader(c), bar, body);
   if (!STATUS) await loadStatus();
   if (current.company === c && needsAutoLoad(c)) autoLoad(c, tab, $("#refresh-btn", bar));
-  const render = { overview: overviewTab, valuation: valuationTab, distress: distressTab, chart: chartTab, news: newsTab, research: researchTab }[tab];
+  const render = { overview: overviewTab, valuation: valuationTab, distress: distressTab, moat: moatTab, chart: chartTab, news: newsTab, research: researchTab }[tab];
   try { await render(c, body); } catch (e) { fill(body, h("p", { class: "err" }, e.message)); }
   if (tab === "overview" || tab === "chart") refreshQuote(c);
 }
@@ -758,6 +758,61 @@ async function distressTab(c, body) {
     if ((r.dataWarnings || []).length) parts.push(h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, "Snapshot issues behind these checks"), h("ul", {}, r.dataWarnings.map((w) => h("li", {}, w)))));
   }
   parts.push(h("p", { class: "faint", style: "margin-top:12px" }, "A screen for research, not a verdict: it lists companies worth a closer look. Rules: two severe checks make a company distressed; one severe or two watch flags, stressed; any unknown check without a severe flag, incomplete."));
+  fill(body, ...parts);
+}
+
+// --- moat (Strategy B) ---------------------------------------------------------------------------------------
+const MOAT_NAMES = { roic: "Median ROIC", roicConsistency: "ROIC consistency", marginStability: "Margin stability", growth: "Revenue growth", cashConversion: "Cash conversion", balanceSheet: "Net debt / EBITDA", dilution: "Share dilution" };
+function moatValue(c) {
+  if (!isNum(c.value)) return "—";
+  if (c.name === "balanceSheet") return fx(c.value, 1);
+  if (c.name === "marginStability") return `${fnum(c.value * 100, 1)}pp`;
+  return fpct(c.value, 1);
+}
+async function moatTab(c, body) {
+  fill(body, h("div", { class: "loading" }, "Running the screen…"));
+  const r = await api(`/api/companies/${encodeURIComponent(c.symbol)}/moat`);
+  const pr = r.price || {};
+  const head = h("div", { class: "kpis" },
+    h("div", { class: "kpi" }, h("div", { class: "eyebrow" }, "Overall"), h("div", { class: "v" }, levelBadge(r.status)), h("div", { class: "s" }, `${r.screenVersion}${r.window ? ` · ${r.window}` : ""}`)),
+    h("div", { class: "kpi" }, h("div", { class: "eyebrow" }, "Median ROIC"), h("div", { class: "v" }, fpct(r.medianRoic, 1)), h("div", { class: "s" }, "NOPAT ÷ average operating invested capital")),
+    h("div", { class: "kpi" }, h("div", { class: "eyebrow" }, "Earnings yield"), h("div", { class: "v" }, fpct(pr.earningsYield, 1)), h("div", { class: "s" }, pr.earningsYieldMethod || "not graded")),
+    h("div", { class: "kpi" }, h("div", { class: "eyebrow" }, "FCF yield"), h("div", { class: "v" }, fpct(pr.fcfYield, 1)), h("div", { class: "s" }, pr.fcfYieldMethod || "not graded")),
+  );
+  const parts = [head];
+  if (r.status === "blocked" || r.status === "not available") {
+    parts.push(h("div", { class: "callout bad", style: "margin-top:16px" }, h("strong", {}, "The screen did not run. "), h("ul", {}, (r.blockedBy || []).map((b) => h("li", {}, b)))));
+  } else if (r.reason) {
+    parts.push(h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, `${r.status}: `), r.reason));
+  }
+  if ((r.checks || []).length) {
+    const rows = r.checks.map((ch) => h("tr", {}, h("td", {}, MOAT_NAMES[ch.name] || ch.name), h("td", {}, levelBadge(ch.level)), h("td", { class: "n" }, moatValue(ch)), h("td", {}, ch.reason), h("td", { class: "muted" }, ch.thresholds)));
+    parts.push(h("section", { class: "panel", style: "margin-top:16px" },
+      h("div", { class: "ph" }, h("h2", {}, "Checks"), h("span", { class: "faint" }, "Unknown never counts as a pass.")),
+      h("div", { class: "pb flush scroll-x" }, h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "Check"), h("th", {}, "Level"), h("th", { class: "n" }, "Value"), h("th", {}, "Why"), h("th", {}, "Thresholds"))),
+        h("tbody", {}, rows)))));
+  }
+  if ((r.years || []).length) {
+    const cell = (y, k, f) => {
+      const inp = (y.inputs || {})[k];
+      const td = h("td", { class: "n" + (inp ? " clickable" : "") }, f);
+      if (inp) td.addEventListener("click", () => openDrawer(`${k}, fiscal ${y.end.slice(0, 4)}`, inp, r.currency || "USD"));
+      return td;
+    };
+    const rows = r.years.map((y) => h("tr", {}, h("td", { class: "mono", style: "white-space:nowrap" }, y.end),
+      cell(y, "revenue", fnum(y.revenue, 0)), cell(y, "operatingIncome", fpct(y.operatingMargin, 1)), h("td", { class: "n" }, fpct(y.grossMargin, 1)),
+      cell(y, "incomeTax", `${fpct(y.taxRate, 0)}${y.taxBasis && y.taxBasis !== "effective" ? " *" : ""}`), h("td", { class: "n" }, fnum(y.nopat, 0)),
+      cell(y, "investedCapitalEnd", fnum(y.investedCapital, 0)), h("td", { class: "n" }, fpct(y.roic, 1)),
+      cell(y, "operatingCashFlow", fnum(y.fcf, 0)), cell(y, "dilutedShares", fnum(y.dilutedShares, 1)),
+      h("td", { class: "muted" }, (y.notes || []).join("; "))));
+    parts.push(h("section", { class: "panel", style: "margin-top:16px" },
+      h("div", { class: "ph" }, h("h2", {}, `Fiscal years (${r.currency || "USD"} millions)`), h("span", { class: "faint" }, "Click a figure for its filing. * statutory tax rate (assumption).")),
+      h("div", { class: "pb flush scroll-x" }, h("table", {},
+        h("thead", {}, h("tr", {}, ["Year end", "Revenue", "Op. margin", "Gross margin", "Tax rate", "NOPAT", "Avg invested capital", "ROIC", "Free cash flow", "Diluted shares (m)", "Notes"].map((x, i) => h("th", i && i < 10 ? { class: "n" } : {}, x)))),
+        h("tbody", {}, rows)))));
+  }
+  parts.push(h("p", { class: "faint", style: "margin-top:12px" }, "Strategy B screen for research, not a verdict. Every check passes: compounder; one or two watch flags: candidate; three or more: weak; any fail: fails; any unknown without a fail: incomplete. Only compounders and candidates can go to the investment committee. The price is shown, not graded."));
   fill(body, ...parts);
 }
 

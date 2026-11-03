@@ -183,6 +183,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .lvl.severe, .lvl.distressed { color: #fff; background: var(--sev-severe); }
 .lvl.watch, .lvl.stressed { color: var(--sev-watch); border: 1px solid var(--sev-watch); }
 .lvl.clear, .lvl.no-flags { color: var(--sev-clear); border: 1px solid var(--sev-clear); }
+.lvl.fail, .lvl.fails { color: #fff; background: var(--sev-severe); }
+.lvl.weak, .lvl.candidate { color: var(--sev-watch); border: 1px solid var(--sev-watch); }
+.lvl.pass, .lvl.compounder { color: var(--sev-clear); border: 1px solid var(--sev-clear); }
+.lvl.insufficient-history, .lvl.not-applicable,
 .lvl.unknown, .lvl.incomplete, .lvl.blocked, .lvl.not-available { color: var(--sev-unknown); border: 1px dashed var(--sev-unknown); }
 
 .callout { border-left: 3px solid var(--line-strong); padding: 8px 12px; background: var(--panel-2); border-radius: 0 3px 3px 0; }

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from keers.risk.limits import STRATEGIES, STRATEGY_NAMES
+from keers.strategies.moat import PASSING as MOAT_PASSING
 
 from . import facts as F
 from . import guard, roles
@@ -41,6 +42,7 @@ class Desk(Protocol):
     def company(self, symbol: str) -> dict[str, Any]: ...
     def valuation(self, symbol: str) -> dict[str, Any]: ...
     def distress(self, symbol: str) -> dict[str, Any]: ...
+    def moat(self, symbol: str) -> dict[str, Any]: ...
     def paper_trade(self, pid: int, body: Mapping[str, Any], execute: bool) -> dict[str, Any]: ...
 
 
@@ -121,6 +123,9 @@ def decide(
         reasons.append("the analyst found no case")
     if strategy == "B" and case["stance"] == "short":
         reasons.append("strategy B is long only")
+    if strategy == "B" and sheet.moat_status not in MOAT_PASSING:
+        reasons.append(f"strategy B needs the moat screen to pass ({' or '.join(MOAT_PASSING)}); it gave "
+                       f"{sheet.moat_status or 'no result'}")  # fmt: skip
     if bear["verdict"] == "block":
         reasons.append("the bear reviewer blocked it")
     if reasons:
@@ -192,7 +197,8 @@ def _trade_facts(sheet: F.FactSheet, trade: Mapping[str, Any]) -> None:
 # --------------------------------------------------------------------------------------------------------------
 MEMO_FACTS = ("price", "marketCap", "ev", "revenue", "revenueGrowth", "ebitda", "netIncome", "netDebt", "evEbitda",
               "leverage", "dcf.perShare", "dcf.vsPrice", "dcf.wacc", "dcf.tvShare", "lbo.base.irr",
-              "lbo.downside.moic", "score.total", "distress.status", "credit.backdrop")  # fmt: skip
+              "lbo.downside.moic", "score.total", "distress.status", "credit.backdrop", "moat.status", "moat.roic.value",
+              "moat.growth.value", "moat.cashConversion.value", "moat.earningsYield")  # fmt: skip
 
 
 def memo(r: Run) -> str:

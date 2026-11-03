@@ -20,13 +20,14 @@ Paper trading only. No broker is connected and no real order is ever sent.
 4. The trade fills only when every required check is present and passed. Otherwise it is recorded as rejected
    with the reasons. Preview runs steps 2 and 3 without writing anything; placing the trade runs them again.
 
-## The checks (`risk-limits-v2`)
+## The checks (`risk-limits-v3`)
 
 | Check | Limit |
 |---|---|
 | Position size | 10% of NAV |
 | Sector concentration | 25% of NAV (gross) |
 | Strategy sleeve | A 40%, B 60%, C 40% of NAV (gross) |
+| Long-only mandate | Strategy B may never end a trade short (`long_only`, default `["B"]`) |
 | Trade vs volume | 10% of 20-day average daily volume |
 | Position vs volume | 25% of average daily volume |
 | Gross exposure | 150% of NAV |
@@ -47,7 +48,8 @@ Rules that keep it safe:
 - `keers.risk` imports nothing from the portfolio, strategies, valuation or web code.
 - To change limits, set `KEERS_RISK_LIMITS` to a JSON file with every key (see `Limits` in
   `src/keers/risk/limits.py`). A missing, unknown or out-of-range key is refused, so a v1 file needs the five new
-  keys (`max_beta`, `min_beta`, `max_volatility`, `risk_days`, `min_risk_days`) before it loads.
+  keys (`max_beta`, `min_beta`, `max_volatility`, `risk_days`, `min_risk_days`) before it loads, and a v2 file
+  needs `long_only`.
 - Beta and volatility use daily closes from the store over about the last year and a half. A name with less than
   120 sessions of history (a recent listing) has an unknown beta, so it cannot be bought until it has more.
 

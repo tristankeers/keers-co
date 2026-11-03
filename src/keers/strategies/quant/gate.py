@@ -37,9 +37,11 @@ def _returns(curve: Sequence[tuple[date, float]], until: date) -> list[tuple[dat
 
 def evaluate(curve: Sequence[tuple[date, float]], ew_curve: Sequence[tuple[date, float]],
              rf_daily: Sequence[float], config: dict[str, Any],
-             register: Register | None = None) -> dict[str, Any]:  # fmt: skip
+             register: Register | None = None, strategy: str = STRATEGY) -> dict[str, Any]:  # fmt: skip
+    """The overfitting statistics for one backtest curve, against ``strategy``'s trial register (Strategy B's
+    moat backtest uses the same statistics with its own register entry)."""
     reg = register or Register.load()
-    summary = reg.summary(STRATEGY, config)
+    summary = reg.summary(strategy, config)
     holdout = date.fromisoformat(summary["holdoutStart"])
     book = _returns(curve, holdout)
     excess = [r - (rf_daily[i] if i < len(rf_daily) else 0.0) for _, r, i in book]

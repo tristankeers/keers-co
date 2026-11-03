@@ -104,6 +104,12 @@ PRETAX_INCOME = (
 PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
 INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
+# Lines the Strategy B moat screen reads year by year (``keers.strategies.moat``).
+OPERATING_CASH_FLOW = ("us-gaap:NetCashProvidedByUsedInOperatingActivities",
+                       "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+                       "ifrs-full:CashFlowsFromUsedInOperatingActivities")  # fmt: skip
+GROSS_PROFIT = ("us-gaap:GrossProfit", "ifrs-full:GrossProfit")
+TAX_EXPENSE = ("us-gaap:IncomeTaxExpenseBenefit",) + INCOME_TAX
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
        "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
 CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash", "ifrs-full:CashAndCashEquivalents")
@@ -242,7 +248,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + PROFIT_TOTAL + TAX_EXPENSE + REVOLVER_AVAILABLE + OPERATING_CASH_FLOW + GROSS_PROFIT + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -478,6 +484,33 @@ class Fundamentals:
                 p = Period(f.value, f.end, "latest fiscal year (TTM could not be built)", Kind.REPORTED, (f,),
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
+
+    def fiscal_year_ends(self) -> list[date]:
+        """End dates of every fiscal year with revenue filed by the as-of date, oldest first.
+
+        Read across all revenue candidates, because companies move between revenue concepts over the years (most
+        US filers moved to ``RevenueFromContractWithCustomer...`` in 2018).
+        """
+        ends: list[date] = []
+        for c in REVENUE:
+            for f in _annual([f for f in latest_known(self._facts(c)) if f.start is not None]):
+                if not any(_close(f.end, e) for e in ends):
+                    ends.append(f.end)
+        return sorted(ends)
+
+    def annual(self, candidates: Sequence[str], label: str, end: date, unit: str | None = None,
+               scale: float = MILLION) -> Value:  # fmt: skip
+        """A fiscal-year figure as reported, for the year ending near ``end``. Never built from quarters, so it
+        also suits averages such as a weighted share count, where adding year-to-date figures would be wrong."""
+        unit = unit or self.money
+        for c in candidates:
+            hits = [f for f in _annual([f for f in latest_known(self._facts(c)) if f.start is not None])
+                    if _close(f.end, end, 3)]  # fmt: skip
+            if hits:
+                f = hits[-1]
+                return self._value(Period(f.value, f.end, "fiscal year as reported", Kind.REPORTED, (f,)), c,
+                                   unit, scale, "")  # fmt: skip
+        return missing(unit, f"{label}: no fiscal year to {end} filed under {', '.join(candidates)}")
 
     def own(self) -> O.OwnLines | None:
         """This company's reviewed own lines (``own_lines.toml``), if it is listed."""

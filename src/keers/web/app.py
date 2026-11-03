@@ -118,6 +118,10 @@ def create_app(wb: Workbench | None = None) -> FastAPI:
     def distress(symbol: str) -> dict[str, Any]:
         return wb.distress(sym(symbol))
 
+    @app.get("/api/companies/{symbol}/moat")
+    def moat(symbol: str) -> dict[str, Any]:
+        return wb.moat(sym(symbol))
+
     # paper portfolios: every trade is checked by keers.risk before it can fill ---------------------------------
     @app.get("/api/portfolios")
     def portfolios() -> dict[str, Any]:

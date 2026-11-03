@@ -5,7 +5,7 @@ writing its key in braces, ``{ev}``; code puts the formatted value and its sourc
 ``guard``). So a model can never type a number, and every number in a memo traces back to a fact here.
 
 Facts come from the workbench views: the company profile (filed figures with their SEC filings), the kci-v3
-valuation and the distress screen. Text facts (a check's reason, the engine's rationale) are sentences those
+valuation, the distress screen (Strategy A) and the moat screen (Strategy B). Text facts (a check's reason, the engine's rationale) are sentences those
 engines wrote themselves.
 """
 
@@ -19,11 +19,12 @@ from typing import Any, Protocol
 
 
 class Views(Protocol):
-    """What the fact sheet reads. ``keers.web.service.Workbench`` provides all three."""
+    """What the fact sheet reads. ``keers.web.service.Workbench`` provides all four."""
 
     def company(self, symbol: str) -> dict[str, Any]: ...
     def valuation(self, symbol: str) -> dict[str, Any]: ...
     def distress(self, symbol: str) -> dict[str, Any]: ...
+    def moat(self, symbol: str) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class FactSheet:
     )  # why the numbers cannot be relied on (stale, missing)
     warnings: list[str] = field(default_factory=list)
     distress_status: str | None = None
+    moat_status: str | None = None
     valuation_ran: bool = False
 
     def add(self, f: Fact) -> None:
@@ -109,7 +111,8 @@ class FactSheet:
 
     def as_dict(self) -> dict[str, Any]:
         return {"symbol": self.symbol, "name": self.name, "asOf": self.as_of, "blockedBy": self.blocked_by,
-                "warnings": self.warnings, "distressStatus": self.distress_status, "valuationRan": self.valuation_ran,
+                "warnings": self.warnings, "distressStatus": self.distress_status, "moatStatus": self.moat_status,
+                "valuationRan": self.valuation_ran,
                 "facts": [f.as_dict() for f in self.facts.values()]}  # fmt: skip
 
     def sha256(self) -> str:
@@ -154,6 +157,7 @@ def build(views: Views, symbol: str) -> FactSheet:
 
     _valuation(sheet, views.valuation(sym))
     _distress(sheet, views.distress(sym))
+    _moat(sheet, views.moat(sym))
     return sheet
 
 
@@ -222,3 +226,47 @@ def _distress(sheet: FactSheet, d: Mapping[str, Any]) -> None:
         sheet.add(Fact("credit.backdrop", "Credit market backdrop", str(cr["reason"]), "text", "market",
                        "Baa spread level and 3-month change", f"FRED BAA10Y on {cr.get('day')}"))  # fmt: skip
     sheet.warnings += [str(w) for w in d.get("dataWarnings") or []]
+
+
+# How each moat check's value is written (all are fractions except net debt / EBITDA).
+MOAT_UNITS = {"roic": "ratio", "roicConsistency": "ratio", "marginStability": "ratio", "growth": "ratio",
+              "cashConversion": "ratio", "balanceSheet": "x", "dilution": "ratio"}  # fmt: skip
+MOAT_TITLES = {"roic": "median return on invested capital", "roicConsistency": "share of years with ROIC above the floor",
+               "marginStability": "standard deviation of the operating margin", "growth": "revenue growth per year",
+               "cashConversion": "free cash flow as a share of NOPAT", "balanceSheet": "net debt / EBITDA",
+               "dilution": "growth per year in diluted shares"}  # fmt: skip
+
+
+def _moat(sheet: FactSheet, d: Mapping[str, Any]) -> None:
+    sheet.moat_status = d.get("status")
+    ver = str(d.get("screenVersion") or "moat screen")
+    src = f"{ver} as of {d.get('asOf')}" + (f", {d['window']}" if d.get("window") else "")
+    if d.get("status") and d.get("status") != "not available":
+        sheet.add(Fact("moat.status", "Moat screen result", str(d["status"]), "text", "engine", ver, src))
+    if d.get("reason"):
+        sheet.add(Fact("moat.reason", "Moat screen: why it did not grade", str(d["reason"]), "text", "engine", ver,
+                       src))  # fmt: skip
+    if d.get("window"):
+        sheet.add(
+            Fact(
+                "moat.window", "Moat screen: fiscal years read", str(d["window"]), "text", "engine", ver, src
+            )
+        )
+    for chk in d.get("checks") or []:
+        n = str(chk["name"])
+        k = f"moat.{n}"
+        title = MOAT_TITLES.get(n, n)
+        sheet.add(Fact(k, f"Moat check {n}: level", str(chk.get("level")), "text", "engine",
+                       str(chk.get("thresholds") or ""), f"{ver}: {chk.get('thresholds') or ''}"))  # fmt: skip
+        sheet.add(Fact(k + ".reason", f"Moat check {n}: reason", str(chk.get("reason") or ""), "text", "engine",
+                       ver, src))  # fmt: skip
+        if isinstance(chk.get("value"), int | float):
+            sheet.add(Fact(k + ".value", f"Moat check {n}: {title}", float(chk["value"]), MOAT_UNITS.get(n, "ratio"),
+                           "derived", str(chk.get("thresholds") or ""), src))  # fmt: skip
+    price = d.get("price") or {}
+    for key, title in (("earningsYield", "Earnings yield (operating income TTM / EV)"),
+                       ("fcfYield", "Free cash flow yield (latest fiscal year / market cap)")):  # fmt: skip
+        if isinstance(price.get(key), int | float):
+            sheet.add(Fact(f"moat.{key}", title, float(price[key]), "ratio", "derived",
+                           str(price.get(key + "Method") or ""), src))  # fmt: skip
+    sheet.warnings += [str(w) for w in d.get("dataWarnings") or [] if str(w) not in sheet.warnings]
