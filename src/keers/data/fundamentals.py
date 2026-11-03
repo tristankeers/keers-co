@@ -271,6 +271,7 @@ SHARES_MAX_AGE_DAYS = 200
 CADENCE_MAX_DAYS = {"quarterly": 135, "half-yearly": 320, "annual": 500}
 
 SPLIT_MIN = 1.25  # a restated share count this many times the original (or its inverse) is read as a split
+SPLIT_MAX = 50.0  # beyond this the restatement is a units error in a filing, not a split
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
 
@@ -532,6 +533,9 @@ class Fundamentals:
                         r = b.value / a.value
                         if r >= SPLIT_MIN or r <= 1 / SPLIT_MIN:
                             events.append((a.filed, b.filed, r))
+        events = [
+            e for e in events if 1 / SPLIT_MAX <= e[2] <= SPLIT_MAX
+        ]  # a millions-for-units slip is no split
         merged: list[tuple[date, date, float]] = []
         for lo, hi, r in sorted(events):
             for i, (mlo, mhi, mr) in enumerate(merged):
@@ -540,6 +544,19 @@ class Fundamentals:
                     break
             else:
                 merged.append((lo, hi, r))
+        # A period restated across two splits shows both at once (4x for two 2-for-1 splits). Narrow windows are
+        # kept first; a wide one whose ratio is the product of the splits inside it adds nothing.
+        kept: list[tuple[date, date, float]] = []
+        for lo, hi, r in sorted(merged, key=lambda e: (e[1] - e[0]).days):
+            inside = [k for k in kept if lo <= k[0] and k[1] <= hi]
+            rest = r
+            for k in inside:
+                rest /= k[2]
+            if abs(rest - 1) <= 0.05:
+                continue
+            if rest >= SPLIT_MIN or rest <= 1 / SPLIT_MIN:
+                kept.append((lo, hi, rest))
+        merged = kept
         return sorted(merged, key=lambda e: e[1])
 
     def own(self) -> O.OwnLines | None:

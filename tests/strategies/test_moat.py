@@ -239,4 +239,25 @@ def test_a_share_count_scaling_error_is_left_out(store: Store) -> None:
     r = moat.screen(store, fx.TICKER, demo.AS_OF)
     d = next(c for c in r["checks"] if c["name"] == "dilution")
     assert d["level"] == "pass" and "53.6m" not in d["reason"] and "to 52.0m" in d["reason"]
-    assert any("left out" in n for n in r["dataWarnings"])
+    assert any("too few for a listed company" in n for n in r["dataWarnings"])
+
+
+def test_two_splits_are_counted_once_each_and_a_units_slip_is_no_split(store: Store) -> None:
+    from keers.data.sec import parse_company_facts
+
+    c = "WeightedAverageNumberOfDilutedSharesOutstanding"
+    a = ("0000000001-22-2001", "10-Q", "2022-05-01")  # pre-split
+    b = ("0000000001-22-2002", "10-Q", "2022-08-01")  # after split 1 (2-for-1)
+    d = ("0000000001-23-2003", "10-Q", "2023-05-01")  # after split 2 (2-for-1)
+    e = ("0000000001-23-2004", "10-Q", "2023-08-01")  # restates in millions by mistake
+    rows = [("us-gaap", c, "shares", "2022-01-01", "2022-03-31", 50 * fx.M, *a),
+            ("us-gaap", c, "shares", "2022-01-01", "2022-03-31", 100 * fx.M, *b),
+            ("us-gaap", c, "shares", "2022-04-01", "2022-06-30", 100 * fx.M, *b),
+            ("us-gaap", c, "shares", "2022-04-01", "2022-06-30", 200 * fx.M, *d),
+            ("us-gaap", c, "shares", "2021-01-01", "2021-12-31", 50 * fx.M, *a),
+            ("us-gaap", c, "shares", "2021-01-01", "2021-12-31", 200 * fx.M, *d),  # both splits at once
+            ("us-gaap", c, "shares", "2023-01-01", "2023-03-31", 200 * fx.M, *d),
+            ("us-gaap", c, "shares", "2023-01-01", "2023-03-31", 200.0, *e)]  # fmt: skip
+    store.put_facts(parse_company_facts(fx.company_facts(rows), "sha-splits"))
+    got = F.Fundamentals(store, fx.CIK, demo.AS_OF).share_splits()
+    assert [round(r, 6) for _, _, r in got] == [2.0, 2.0]

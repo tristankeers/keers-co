@@ -68,6 +68,7 @@ CONVERSION_PASS, CONVERSION_WATCH = 0.70, 0.40  # total FCF / total NOPAT
 LEVERAGE_PASS, LEVERAGE_WATCH = 2.0, 3.0  # net debt / EBITDA (lower is better)
 DILUTION_PASS, DILUTION_WATCH = 0.01, 0.03  # diluted share count CAGR (lower is better)
 
+MIN_SHARES_M = 0.01  # fewer than 10,000 diluted shares: the filing used the wrong unit
 SHARE_OUTLIER = 20.0  # a year's share count this many times off the others' median is a filing error
 MAX_EFFECTIVE_TAX = 0.50
 STATUTORY_US_BEFORE_2018, STATUTORY_US, STATUTORY_IFRS = 0.35, 0.21, 0.25
@@ -227,7 +228,8 @@ def year_figures(fu: F.Fundamentals, end: date, prior_end: date | None) -> Year:
 def split_adjust(years: Sequence[Year], splits: Sequence[tuple[date, date, float]]) -> None:
     """Put every year's diluted share count on today's share basis.
 
-    A count filed before a split, and never restated, is multiplied by the split ratio. Then a count more than
+    A count filed before a split, and never restated, is multiplied by the split ratio. A count under 10,000
+    shares (a filing that gave millions as units) is left out, with a note. Then a count more than
     ``SHARE_OUTLIER`` times away from the median of the others (a scaling error in the filing) is dropped, with a
     note, rather than allowed to swing the dilution check.
     """
@@ -245,6 +247,11 @@ def split_adjust(years: Sequence[Year], splits: Sequence[tuple[date, date, float
             y.notes.append(
                 f"diluted shares for fiscal {y.end.year} split-adjusted x{factor:g} (filed before a split)"
             )
+    for y in years:
+        if y.diluted_shares is not None and y.diluted_shares < MIN_SHARES_M:
+            y.notes.append(f"diluted shares for fiscal {y.end.year} filed as {y.diluted_shares * 1e6:,.0f} shares, too "
+                           "few for a listed company (probably filed in millions); left out")  # fmt: skip
+            y.diluted_shares = None
     known = [y for y in years if y.diluted_shares is not None]
     if len(known) < 3:
         return
