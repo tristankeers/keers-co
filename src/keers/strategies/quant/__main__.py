@@ -115,8 +115,12 @@ def fetch_sp500(store: Store, start: date, membership_path: str, report_path: st
     market = Market(fetcher, store, token, price_sources(os.environ.get("KEERS_PRICE_SOURCES")))
     resp = fetcher.get(history.WIKI_URL)
     store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
+    live = resp.body.decode("utf-8")
     try:
-        m = history.parse(resp.body.decode("utf-8"), date.today(), resp.sha256)
+        if history.has_changes(live):
+            m = history.parse(live, date.today(), resp.sha256)
+        else:
+            m = _from_revision(fetcher, store, live, resp.sha256)
     except history.ParseError:
         Path(report_path).parent.mkdir(parents=True, exist_ok=True)
         Path(report_path).with_name("sp500-page.html").write_bytes(resp.body)  # for diagnosis
@@ -145,6 +149,25 @@ def fetch_sp500(store: Store, start: date, membership_path: str, report_path: st
         )
     )
     return 0
+
+
+def _from_revision(fetcher: Fetcher, store: Store, live: str, live_sha: str) -> history.Membership:
+    """The live page has no changes table: read it from the newest past revision that has one."""
+    resp = fetcher.get(history.REVISIONS_URL)
+    store.put_raw(resp.url, resp.body, resp.sha256, resp.retrieved_at, resp.content_type)
+    tried: list[str] = []
+    for rev in history.candidates(json.loads(resp.body)):
+        r = fetcher.get(history.revision_url(rev["revid"]))
+        store.put_raw(r.url, r.body, r.sha256, r.retrieved_at, r.content_type)
+        html = r.body.decode("utf-8")
+        if not history.has_changes(html):
+            tried.append(f"{rev['revid']} ({rev.get('timestamp')}): no changes table")
+            continue
+        day = date.fromisoformat(str(rev["timestamp"])[:10])
+        old = history.parse(html, day, r.sha256)
+        print(f"changes table read from revision {rev['revid']} of {day}", file=sys.stderr)
+        return history.merge(old, rev, live, date.today(), live_sha)
+    raise history.ParseError(f"no recent revision has a changes table; tried {tried}")
 
 
 if __name__ == "__main__":

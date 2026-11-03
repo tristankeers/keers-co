@@ -1,6 +1,8 @@
 """Who was in the S&P 500 on a given day, rebuilt from Wikipedia's list of the index and its changes (free).
 
-The page has two tables: today's constituents, and dated changes (ticker added, ticker removed). Walking the
+The page had two tables: today's constituents, and dated changes (ticker added, ticker removed). The live page
+has since dropped the changes table, so the log is read from the newest past revision that still has it, and the
+gap since that revision is rebuilt from today's list (see ``merge``). Walking the
 changes backwards from today's list gives the membership on any past date, including companies that were later
 taken over, went bust or were demoted. That is what removes most of the survivorship bias from a backtest.
 
@@ -219,30 +221,52 @@ def _norm(name: str) -> str:
     return " ".join(n.split())
 
 
-def parse(html: str, as_of: date, sha256: str = "") -> Membership:
+REVISIONS_URL = (
+    "https://en.wikipedia.org/w/api.php?action=query&prop=revisions&titles=List_of_S%26P_500_companies"
+    "&rvlimit=500&rvprop=ids|timestamp|size|comment&format=json&formatversion=2"
+)
+
+
+def revision_url(revid: int) -> str:
+    return f"https://en.wikipedia.org/w/index.php?title=List_of_S%26P_500_companies&oldid={int(revid)}"
+
+
+def _header(rows: list[list[tuple[str, str]]]) -> str:
+    return " ".join(c[1].lower() for r in rows[:2] for c in r if c[0] == "th")
+
+
+@dataclass
+class _Page:
+    current: dict[str, str]
+    ciks: dict[str, int]
+    added_on: dict[str, date]  # ticker -> "Date added" from the constituents table
+    changes: list[dict[str, Any]] | None  # None when the page has no changes table
+    skipped: int
+    found: dict[str, str]
+
+
+def _read(html: str) -> _Page:
     p = _Tables()
     p.feed(html)
-
-    def header(rows: list[list[tuple[str, str]]]) -> str:
-        return " ".join(c[1].lower() for r in rows[:2] for c in r if c[0] == "th")
-
+    found = {k: f"{len(v)} rows: {_header(v)[:60]}" for k, v in p.tables.items()}
     cons = p.tables.get("constituents") or next(
-        (t for t in p.tables.values() if t and "symbol" in header(t) and "security" in header(t)), None
+        (t for t in p.tables.values() if t and "symbol" in _header(t) and "security" in _header(t)), None
     )
     chg = p.tables.get("changes") or next(
-        (t for t in p.tables.values() if t and "added" in header(t) and "removed" in header(t)), None
+        (t for t in p.tables.values() if t and "added" in _header(t) and "removed" in _header(t)), None
     )
-    if not cons or not chg:
-        found = {k: f"{len(v)} rows: {header(v)[:60]}" for k, v in p.tables.items()}
-        raise ParseError(f"expected a constituents table and a changes table; found {found}")
+    if not cons:
+        raise ParseError(f"expected a constituents table; found {found}")
     head = [c[1].lower() for c in cons[0]]
     try:
         i_sym, i_name = head.index("symbol"), head.index("security")
     except ValueError as e:
         raise ParseError(f"constituents header not recognised: {head}") from e
     i_cik = head.index("cik") if "cik" in head else None
+    i_add = head.index("date added") if "date added" in head else None
     current: dict[str, str] = {}
     ciks: dict[str, int] = {}
+    added_on: dict[str, date] = {}
     for row in cons[1:]:
         if len(row) <= max(i_sym, i_name):
             continue
@@ -252,6 +276,12 @@ def parse(html: str, as_of: date, sha256: str = "") -> Membership:
         current[t] = row[i_name][1]
         if i_cik is not None and i_cik < len(row) and row[i_cik][1].strip().isdigit():
             ciks[t] = int(row[i_cik][1].strip())
+        if i_add is not None and i_add < len(row):
+            d = _date(row[i_add][1].split("(")[0])
+            if d is not None:
+                added_on[t] = d
+    if chg is None:
+        return _Page(current, ciks, added_on, None, 0, found)
     changes: list[dict[str, Any]] = []
     skipped = 0
     for row in chg:
@@ -268,7 +298,67 @@ def parse(html: str, as_of: date, sha256: str = "") -> Membership:
             continue
         changes.append({"date": d, "added": added, "addedName": cells[2] if added else None,
                         "removed": removed, "removedName": cells[4] if removed else None})  # fmt: skip
-    if len(current) < 450 or len(changes) < 100:
-        raise ParseError(f"too few rows: {len(current)} constituents, {len(changes)} changes")
-    warn = [f"{skipped} change rows could not be read and were left out"] if skipped else []
-    return Membership(as_of, current, ciks, changes, sha256, warn)
+    return _Page(current, ciks, added_on, changes, skipped, found)
+
+
+def has_changes(html: str) -> bool:
+    """True when the page carries a changes table (older revisions do; the live page no longer does)."""
+    try:
+        return _read(html).changes is not None
+    except ParseError:
+        return False
+
+
+def parse(html: str, as_of: date, sha256: str = "") -> Membership:
+    pg = _read(html)
+    if pg.changes is None:
+        raise ParseError(f"expected a constituents table and a changes table; found {pg.found}")
+    if len(pg.current) < 450 or len(pg.changes) < 100:
+        raise ParseError(f"too few rows: {len(pg.current)} constituents, {len(pg.changes)} changes")
+    warn = [f"{pg.skipped} change rows could not be read and were left out"] if pg.skipped else []
+    return Membership(as_of, pg.current, pg.ciks, pg.changes, sha256, warn)
+
+
+def candidates(api_json: dict[str, Any], tries: int = 8) -> list[dict[str, Any]]:
+    """Past revisions worth trying for the changes table, newest first: the changes table is most of the page,
+    so revisions much smaller than the largest one listed are skipped."""
+    pages = api_json.get("query", {}).get("pages") or []
+    revs = (pages[0].get("revisions") if pages else None) or []
+    if not revs:
+        raise ParseError("revision list was empty")
+    top = max(int(r.get("size") or 0) for r in revs)
+    big = [r for r in revs if int(r.get("size") or 0) >= 0.7 * top]
+    return big[:tries]
+
+
+def merge(
+    old: Membership, old_rev: dict[str, Any], live_html: str, as_of: date, sha256: str = ""
+) -> Membership:
+    """Join the change log of a past revision (``old``) with today's constituents list. Changes after that
+    revision are not in any log, so they are rebuilt: a name on today's list but not the old one joins on its
+    "Date added" (or the revision date if that is missing or earlier); a name on the old list but not today's
+    is kept in the index until today, because its leaving date is unknown. Both are reported as warnings."""
+    pg = _read(live_html)
+    if len(pg.current) < 450:
+        raise ParseError(f"too few rows: {len(pg.current)} constituents on the live page")
+    rev_day = date.fromisoformat(str(old_rev["timestamp"])[:10])
+    joined = sorted(set(pg.current) - set(old.current))
+    left = sorted(set(old.current) - set(pg.current))
+    changes = list(old.changes)
+    for t in joined:
+        d = pg.added_on.get(t)
+        changes.append({"date": d if d and d > rev_day else rev_day, "added": t, "addedName": pg.current[t],
+                        "removed": None, "removedName": None})  # fmt: skip
+    for t in left:
+        changes.append({"date": as_of, "added": None, "addedName": None, "removed": t,
+                        "removedName": old.current[t]})  # fmt: skip
+    warn = list(old.warnings) + [
+        f"the live page has no changes table; the log comes from revision {old_rev.get('revid')} of "
+        f"{rev_day.isoformat()}",
+    ]
+    if joined:
+        warn.append(f"{len(joined)} joined since that revision, dated by 'Date added': {', '.join(joined)}")
+    if left:
+        warn.append(f"{len(left)} left since that revision on unknown dates, kept as members until "
+                    f"{as_of.isoformat()}: {', '.join(left)}")  # fmt: skip
+    return Membership(as_of, pg.current, {**old.ciks, **pg.ciks}, changes, sha256, warn)

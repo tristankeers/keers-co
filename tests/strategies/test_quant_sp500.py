@@ -126,3 +126,28 @@ def test_backtest_ranks_only_members_on_each_signal_date(tmp_path: Path) -> None
         assert set(mo["held"]) <= allowed and mo["members"] == len(allowed)
     assert any("T00" in mo["held"] for mo in res["months"] if mo["signalDay"] < "2021-08-01")
     assert res["benchmarks"]["RSP"]["cagr"] is not None and res["universeCoverage"]["membersMax"] == 11
+
+
+def test_live_page_without_changes_table_uses_a_past_revision() -> None:
+    old_html = page(
+        [*FILLER, ("GONE", "Gone Corp", 7)], [*FILLER_CHANGES, ("May 1, 2015", "GONE", "Gone Corp", "", "")]
+    )
+    live = page([*FILLER, ("NEWB", "Newb Inc.", 8)], []).split("<table class='wikitable'>")[0] + "</html>"
+    live = live.replace("<td><a>NEWB</a></td><td>Newb Inc.</td><td>X</td><td>2000-01-01</td>",
+                        "<td><a>NEWB</a></td><td>Newb Inc.</td><td>X</td><td>2026-07-01</td>")  # fmt: skip
+    assert history.has_changes(old_html) and not history.has_changes(live)
+    with pytest.raises(history.ParseError):
+        history.parse(live, date(2026, 11, 2))
+    api = {"query": {"pages": [{"revisions": [
+        {"revid": 3, "timestamp": "2026-09-01T00:00:00Z", "size": 40000},  # after the table was dropped
+        {"revid": 2, "timestamp": "2026-06-01T00:00:00Z", "size": 200000},
+        {"revid": 1, "timestamp": "2026-05-01T00:00:00Z", "size": 199000},
+    ]}]}}  # fmt: skip
+    cands = history.candidates(api)
+    assert [r["revid"] for r in cands] == [2, 1]
+    old = history.parse(old_html, date(2026, 6, 1))
+    m = history.merge(old, cands[0], live, date(2026, 11, 2))
+    assert "NEWB" not in m.members(date(2026, 6, 15)) and "NEWB" in m.members(date(2026, 7, 2))
+    assert "GONE" in m.members(date(2026, 10, 1)) and "GONE" not in m.members(date(2026, 11, 2))
+    assert "GONE" not in m.members(date(2015, 4, 1)) and "GONE" in m.members(date(2015, 6, 1))
+    assert any("revision 2" in w for w in m.warnings) and any("GONE" in w for w in m.warnings)
