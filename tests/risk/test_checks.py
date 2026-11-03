@@ -268,6 +268,17 @@ def test_kill_switch_blocks_new_risk_but_allows_cutting() -> None:
     assert statuses(R.check_trade(mkbook(950_000.0, (h,)), buy(10), LIM, TODAY))["kill_switch"] == "pass"
 
 
+def test_long_only_mandate_blocks_a_strategy_b_short_but_not_a_sale() -> None:
+    held = mkbook(900_000.0, (R.Holding("AAA", "B", "Technology", 1_000, mark()),))
+    assert statuses(R.check_trade(held, buy(-1_000), LIM, TODAY))["mandate.long_only"] == "pass"  # sells out
+    rep = R.check_trade(held, buy(-1_200), LIM, TODAY)
+    assert not rep.approved and statuses(rep)["mandate.long_only"] == "fail"
+    assert statuses(R.check_trade(EMPTY, buy(-100, strategy="A"), LIM, TODAY))["mandate.long_only"] == "pass"
+    assert LIM.version == "risk-limits-v4" and LIM.long_only == ["B"]
+    with pytest.raises(ValueError, match="long_only"):
+        Limits(long_only=["Z"])
+
+
 # risk-limits-v3 ----------------------------------------------------------------------------------------------
 def test_strategy_a_positions_are_capped_at_five_percent() -> None:
     a = statuses(R.check_trade(EMPTY, buy(700, strategy="A"), LIM, TODAY))  # about 7% of NAV
@@ -282,21 +293,25 @@ def test_strategy_a_positions_are_capped_at_five_percent() -> None:
 
 
 def test_short_sales_below_the_minimum_price_are_refused_and_others_flagged() -> None:
-    cheap = R.check_trade(EMPTY, buy(-100, m=mark(price=3.0)), LIM, TODAY)
+    # strategy C: B is long only (risk-limits-v4)
+    cheap = R.check_trade(EMPTY, buy(-100, strategy="C", m=mark(price=3.0)), LIM, TODAY)
     assert statuses(cheap)["short_sale"] == "fail" and not cheap.approved
-    short = R.check_trade(EMPTY, buy(-100), LIM, TODAY)
+    short = R.check_trade(EMPTY, buy(-100, strategy="C"), LIM, TODAY)
     assert statuses(short)["short_sale"] == "warn" and short.approved
     assert "borrow" in next(c.detail for c in short.checks if c.name == "short_sale")
-    assert statuses(R.check_trade(EMPTY, buy(100, m=mark(price=3.0)), LIM, TODAY))["short_sale"] == "pass"
+    assert (
+        statuses(R.check_trade(EMPTY, buy(100, strategy="C", m=mark(price=3.0)), LIM, TODAY))["short_sale"]
+        == "pass"
+    )
     # covering a short in a cheap share is never blocked by this check
-    held = mkbook(1_000_000.0 + 300.0, (R.Holding("AAA", "B", "Technology", -100, mark(price=3.0)),))
-    cover = R.check_trade(held, buy(100, m=mark(price=3.0)), LIM, TODAY)
+    held = mkbook(1_000_000.0 + 300.0, (R.Holding("AAA", "C", "Technology", -100, mark(price=3.0)),))
+    cover = R.check_trade(held, buy(100, strategy="C", m=mark(price=3.0)), LIM, TODAY)
     assert statuses(cover)["short_sale"] == "pass"
 
 
-def test_v3_limits_file_must_give_the_new_keys() -> None:
+def test_limits_file_must_give_the_v3_keys() -> None:
     d = LIM.as_dict()
-    assert d["version"] == "risk-limits-v3" and d["min_short_price"] == 5.0
+    assert d["version"] == "risk-limits-v4" and d["min_short_price"] == 5.0
     d.pop("min_short_price")
     with pytest.raises(ValueError, match="missing"):
         Limits.from_dict(d)

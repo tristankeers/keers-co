@@ -358,3 +358,11 @@ def test_esef_company_profile_valuation_and_screen(tmp_path: Path) -> None:
         assert v["perShare"]["vsPrice"]["value"] == pytest.approx(v["perShare"]["value"] / (4.5 * 1.30) - 1)
     d = c.get(f"/api/companies/{ff.SYMBOL}/distress").json()
     assert d["currency"] == "EUR" and len(d["checks"]) == 5
+
+
+def test_moat_screen_with_year_provenance(client: TestClient) -> None:
+    r = client.get("/api/companies/EXW/moat").json()
+    assert r["status"] == "compounder" and len(r["checks"]) == 7 and len(r["years"]) == 7
+    cfo = r["years"][-1]["inputs"]["operatingCashFlow"]
+    assert cfo["label"] == "reported" and "sec.gov/Archives" in cfo["sources"][0]["link"]
+    assert client.get("/api/companies/VOD.L/moat").json()["status"] == "not available"

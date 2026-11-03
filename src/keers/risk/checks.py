@@ -20,6 +20,8 @@ unknown, which blocks new trades. The kill switch, when on, blocks any trade tha
 sale check: no new or bigger short below ``min_short_price``; a short that passes is flagged (``warn``) because
 borrow availability and fees are not modelled.
 
+``risk-limits-v4`` adds mandates: a long-only strategy (B, by default) may never end a trade with a short position.
+
 A limit that is already breached does not trap the book: a trade that brings a breached figure down passes that
 check (it says so), while any trade that pushes it further up fails.
 """
@@ -39,6 +41,7 @@ OK = (PASS, WARN)
 # Every pre-trade report must contain at least one check of each of these, or it is not approved.
 TRADE_CHECKS = (
     "data.strategy",
+    "mandate.long_only",
     "data.trade_price",
     "data.currency",
     "data.book_prices",
@@ -419,6 +422,19 @@ def check_trade(book: Book, t: Trade, lim: Limits, today: date) -> Report:
             Check("data.strategy", FAIL, f"strategy must be one of {', '.join(STRATEGIES)}", str(t.strategy))
         ]
 
+    def long_only() -> list[Check]:
+        if t.strategy not in lim.long_only:
+            return [
+                Check(
+                    "mandate.long_only", PASS, f"strategy {t.strategy} may hold short positions", t.strategy
+                )
+            ]
+        if post_qty < -1e-9:
+            return [Check("mandate.long_only", FAIL, f"strategy {t.strategy} is long only: this trade would leave "
+                          f"{t.symbol} at {post_qty:,.0f} shares", f"{t.symbol}/{t.strategy}")]  # fmt: skip
+        return [Check("mandate.long_only", PASS, f"strategy {t.strategy} is long only; {t.symbol} stays at "
+                      f"{post_qty:,.0f} shares", f"{t.symbol}/{t.strategy}")]  # fmt: skip
+
     def trade_price() -> list[Check]:
         why = price_problem(t.mark, today, lim)
         if why:
@@ -543,7 +559,7 @@ def check_trade(book: Book, t: Trade, lim: Limits, today: date) -> Report:
 
     checks: list[Check] = []
     for name, fn in (
-        ("data.strategy", strategy), ("data.trade_price", trade_price), ("data.currency", currency),
+        ("data.strategy", strategy), ("mandate.long_only", long_only), ("data.trade_price", trade_price), ("data.currency", currency),
         ("data.book_prices", book_prices), ("data.sector", sector), ("position.size", position),
         ("concentration.sector", sector_cap), ("concentration.strategy", strategy_cap),
         ("liquidity.trade", liq_trade), ("liquidity.position", liq_position), ("exposure.gross", gross),

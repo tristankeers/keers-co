@@ -104,12 +104,16 @@ PRETAX_INCOME = (
 PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
 INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
-# Cash from operations, for the Strategy A liquidity runway. The first line includes discontinued operations.
+# Cash from operations: the Strategy A liquidity runway and the Strategy B moat screen. The first line includes
+# discontinued operations.
 OPERATING_CASH_FLOW = (
     "us-gaap:NetCashProvidedByUsedInOperatingActivities",
     "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
     "ifrs-full:CashFlowsFromUsedInOperatingActivities",
 )
+# Further lines the Strategy B moat screen reads year by year (``keers.strategies.moat``).
+GROSS_PROFIT = ("us-gaap:GrossProfit", "ifrs-full:GrossProfit")
+TAX_EXPENSE = ("us-gaap:IncomeTaxExpenseBenefit",) + INCOME_TAX
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
        "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
 CASH = ("us-gaap:CashAndCashEquivalentsAtCarryingValue", "us-gaap:Cash", "ifrs-full:CashAndCashEquivalents")
@@ -248,7 +252,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + OPERATING_CASH_FLOW + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + PROFIT_TOTAL + TAX_EXPENSE + REVOLVER_AVAILABLE + OPERATING_CASH_FLOW + GROSS_PROFIT + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -270,6 +274,8 @@ SHARES_MAX_AGE_DAYS = 200
 # - annual (ESEF reports, 20-F and 40-F filers): a year plus four months, plus two weeks
 CADENCE_MAX_DAYS = {"quarterly": 135, "half-yearly": 320, "annual": 500}
 
+SPLIT_MIN = 1.25  # a restated share count this many times the original (or its inverse) is read as a split
+SPLIT_MAX = 50.0  # beyond this the restatement is a units error in a filing, not a split
 YEAR = (350, 380)  # days in a fiscal year (52/53-week years included)
 NEAR = 10  # days of slack when matching period boundaries
 
@@ -484,6 +490,61 @@ class Fundamentals:
                 p = Period(f.value, f.end, "latest fiscal year (TTM could not be built)", Kind.REPORTED, (f,),
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
+
+    def fiscal_year_ends(self) -> list[date]:
+        """End dates of every fiscal year with revenue filed by the as-of date, oldest first.
+
+        Read across all revenue candidates, because companies move between revenue concepts over the years (most
+        US filers moved to ``RevenueFromContractWithCustomer...`` in 2018).
+        """
+        ends: list[date] = []
+        for c in REVENUE:
+            for f in _annual([f for f in latest_known(self._facts(c)) if f.start is not None]):
+                if not any(_close(f.end, e) for e in ends):
+                    ends.append(f.end)
+        return sorted(ends)
+
+    def annual(self, candidates: Sequence[str], label: str, end: date, unit: str | None = None,
+               scale: float = MILLION) -> Value:  # fmt: skip
+        """A fiscal-year figure as reported, for the year ending near ``end``. Never built from quarters, so it
+        also suits averages such as a weighted share count, where adding year-to-date figures would be wrong."""
+        unit = unit or self.money
+        for c in candidates:
+            hits = [f for f in _annual([f for f in latest_known(self._facts(c)) if f.start is not None])
+                    if _close(f.end, end, 3)]  # fmt: skip
+            if hits:
+                f = hits[-1]
+                return self._value(Period(f.value, f.end, "fiscal year as reported", Kind.REPORTED, (f,)), c,
+                                   unit, scale, "")  # fmt: skip
+        return missing(unit, f"{label}: no fiscal year to {end} filed under {', '.join(candidates)}")
+
+    def split_factor(self, accn: str, candidates: Sequence[str] = SHARES_DILUTED) -> float:
+        """How many of today's shares one share counted in filing ``accn`` has become, through stock splits.
+
+        Measured, not looked up: each period that filing reports is compared with the newest later filing of the
+        same period. A ratio of at least ``SPLIT_MIN`` (or its inverse) is a split; a smaller one is an ordinary
+        restatement and counts as none; one beyond ``SPLIT_MAX`` is a units slip in a filing and is ignored. The
+        walk then carries on from that later filing, so splits after it are found too, and each split is counted
+        once however many periods show it. Only filings known by the as-of date count.
+        """
+        facts = [f for c in candidates for f in self._facts(c)]
+        factor, seen = 1.0, set()
+        while accn not in seen:
+            seen.add(accn)
+            mine = {(f.start, f.end): f for f in facts if f.accn == accn}
+            if not mine:
+                break
+            filed = max(f.filed for f in mine.values())
+            later = [(g, mine[(g.start, g.end)]) for g in facts
+                     if (g.start, g.end) in mine and g.filed > filed and g.value > 0 and mine[(g.start, g.end)].value > 0]  # fmt: skip
+            if not later:
+                break
+            g, f = max(later, key=lambda x: (x[0].filed, x[0].accn))
+            r = g.value / f.value
+            if (r >= SPLIT_MIN or r <= 1 / SPLIT_MIN) and 1 / SPLIT_MAX <= r <= SPLIT_MAX:
+                factor *= r
+            accn = g.accn
+        return factor
 
     def own(self) -> O.OwnLines | None:
         """This company's reviewed own lines (``own_lines.toml``), if it is listed."""

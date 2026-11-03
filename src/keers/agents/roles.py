@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from keers.risk.limits import STRATEGY_NAMES
+from keers.strategies.moat import PASSING as MOAT_PASSING
 
 from . import guard
 from .facts import FactSheet
@@ -36,7 +37,9 @@ MANDATES = {
     "B": (
         "Strategy B, durable-moat compounders: high-quality businesses with lasting advantages, bought at a "
         "reasonable price and held for years. Long only. Quality and a margin of safety both matter; a great "
-        "business at a full price is not a buy."
+        "business at a full price is not a buy. Quality is judged first by the moat screen (moat.* facts: returns "
+        "on capital, their consistency, margin stability, growth, cash conversion, leverage and dilution over up "
+        "to ten fiscal years); a company that does not pass it is not a Strategy B trade."
     ),
     "C": (
         "Strategy C, systematic quant: trades come from tested, rule-based signals, not from one company's "
@@ -276,6 +279,18 @@ def _levels(sheet: FactSheet) -> dict[str, list[str]]:
     return out
 
 
+def _moat_levels(sheet: FactSheet) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {"pass": [], "watch": [], "fail": [], "unknown": []}
+    for k, f in sheet.facts.items():
+        if k.startswith("moat.") and k.count(".") == 1 and k in MOAT_CHECK_KEYS and isinstance(f.value, str):
+            out.setdefault(f.value, []).append(k)
+    return out
+
+
+MOAT_CHECK_KEYS = {f"moat.{n}" for n in ("roic", "roicConsistency", "marginStability", "growth", "cashConversion",
+                                         "balanceSheet", "dilution")}  # fmt: skip
+
+
 def _all_known(sheet: FactSheet, text: str) -> bool:
     return all(k in sheet.facts and sheet.facts[k].known for k in guard.keys_in(text))
 
@@ -296,19 +311,28 @@ def rules_analyst(sheet: FactSheet, strategy: str) -> dict[str, Any]:
     elif strategy == "C":
         thesis = "No case: strategy C trades come from its systematic signals (keers.strategies.quant), not from one company."
     elif strategy == "B":
-        if vs is None or score is None:
+        moat = sheet.get("moat.status")
+        if moat not in MOAT_PASSING:
+            thesis = ("No case under the compounder rules: the moat screen must pass first, and it gave "
+                      "{moat.status}." if "moat.status" in sheet.facts else
+                      "No case under the compounder rules: the moat screen did not run.")  # fmt: skip
+        elif vs is None or score is None:
             thesis = "No case: the valuation did not produce a DCF value or a score."
         elif vs >= B_MIN_UPSIDE and score >= B_MIN_SCORE and not flagged:
             stance, conviction = "long", ("medium" if vs >= B_HIGH_UPSIDE else "low")
-            thesis = ("The DCF value of {dcf.perShare} sits above the last close of {price} ({dcf.vsPrice}), the "
-                      "attractiveness score is {score.total}, and the distress screen raises no flags.")  # fmt: skip
+            thesis = ("The moat screen rates the business {moat.status} on {moat.window}, the DCF value of "
+                      "{dcf.perShare} sits above the last close of {price} ({dcf.vsPrice}), the attractiveness score "
+                      "is {score.total}, and the distress screen raises no flags.")  # fmt: skip
         else:
-            thesis = ("No case under the compounder rules: they need a DCF margin of safety, a good score and a "
-                      "clean distress screen together, and these facts do not give all three.")  # fmt: skip
-        point("DCF value against price: {dcf.vsPrice}.", "dcf.vsPrice", "dcf.perShare", "price")
+            thesis = ("No case under the compounder rules: they need a passing moat screen, a DCF margin of safety, "
+                      "a good score and a clean distress screen together, and these facts do not give all four.")  # fmt: skip
+        point("Moat screen: {moat.status}; median ROIC {moat.roic.value}.", "moat.status", "moat.roic.value")
+        point("{moat.roicConsistency.reason}.", "moat.roicConsistency", "moat.roicConsistency.reason")
+        point("{moat.growth.reason}; {moat.cashConversion.reason}.", "moat.growth.reason",
+              "moat.cashConversion.reason")  # fmt: skip
+        point("DCF value against price: {dcf.vsPrice}; earnings yield {moat.earningsYield}.", "dcf.vsPrice",
+              "dcf.perShare", "price", "moat.earningsYield")  # fmt: skip
         point("Attractiveness score: {score.total}.", "score.total")
-        point("Business quality score: {score.quality}; growth score: {score.growth}.", "score.quality",
-              "score.growth")  # fmt: skip
     else:  # A
         stance, conviction, thesis = rules_a(sheet, lv)
         point("Distress screen result: {distress.status}.", "distress.status")
@@ -390,6 +414,18 @@ def rules_bear(sheet: FactSheet, strategy: str, case: dict[str, Any]) -> dict[st
     for k in lv["unknown"]:
         missing.append(f"The distress check {sheet.facts[k].title.split(':')[0].removeprefix('Distress check ')} "
                        "could not run for lack of data.")  # fmt: skip
+    if strategy == "B" and case["stance"] == "long":
+        ml = _moat_levels(sheet)
+        if sheet.get("moat.status") not in MOAT_PASSING:
+            add("The moat screen does not pass ({moat.status}), so this is not a compounder under the mandate.",
+                "fatal", "moat.status")  # fmt: skip
+        for k in ml["fail"]:
+            add(f"Moat check failed: {{{k}.reason}}", "fatal", k)
+        for k in ml["watch"]:
+            add(f"Moat watch flag: {{{k}.reason}}", "minor", k)
+    if strategy == "B":
+        for k in _moat_levels(sheet)["unknown"]:
+            missing.append(f"The moat check {k.removeprefix('moat.')} could not run for lack of data.")
     if strategy == "A":
         _bear_a(sheet, case, add, missing)
     tv = sheet.num("dcf.tvShare")

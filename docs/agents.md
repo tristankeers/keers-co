@@ -17,7 +17,7 @@ decision, trade).
 ## How a run works (`src/keers/agents/committee.py`)
 
 1. **Fact sheet** (`facts.py`). The profile (filed figures with their SEC filings), the kci-v3 valuation and
-   the distress screen are read into a list of facts, each with a key such as `ev`, `dcf.vsPrice` or
+   the distress screen and the moat screen (Strategy B, `docs/moat-compounders.md`) are read into a list of facts, each with a key such as `ev`, `dcf.vsPrice` or
    `distress.interestCover.reason`, a value, a label (reported, derived, market, assumption, estimate,
    engine) and its source.
 2. **Analyst**: stance (long, short or no trade), conviction (low, medium, high), thesis, points with the facts
@@ -25,7 +25,8 @@ decision, trade).
 3. **Bear reviewer**: objections (minor, major, fatal), missing information, and a verdict: proceed, concerns
    or block.
 4. **Decision, in code** (`decide`). No trade if the data is blocked or stale, the valuation did not run, the
-   strategy is C, the analyst found no case, a short is proposed under B (long only), or the bear blocked it.
+   strategy is C, the analyst found no case, a short is proposed under B (long only), a B trade is proposed
+   without a passing moat screen (`compounder` or `candidate`), or the bear blocked it.
    Otherwise the size is set by `sizing-v2`: 1%, 2% or 3% of NAV for low, medium or high conviction, except a
    strategy A short, which is always 1% (distressed shorts can gap up on a rescue, and borrow is not modelled).
 5. **Paper desk.** With a portfolio, the proposal goes to `Workbench.paper_trade`, which is the same path as the

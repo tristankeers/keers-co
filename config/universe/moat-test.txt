@@ -1,0 +1,22 @@
+# Test list for the Strategy B moat screen (3 Nov 2026). Names expected to pass, names expected to fail, a company
+# with negative book equity from buybacks (MCD) and a bank (JPM: not graded). Being on this list is not a finding.
+MSFT
+AAPL
+V
+MA
+COST
+ADBE
+KO
+PEP
+MCD
+ROL
+CPRT
+ISRG
+TXN
+INTU
+DBX
+F
+AAL
+INTC
+PLUG
+JPM

@@ -1,0 +1,58 @@
+name: Moat screen
+
+# Runs the Strategy B moat screen on live data: on pull requests that change it, or by hand from the Actions tab.
+# Needs the SEC_USER_AGENT and TIINGO_TOKEN repository secrets.
+
+on:
+  pull_request:
+    paths: ["src/keers/strategies/moat/**", "scripts/moat_screen.py", ".github/workflows/moat-screen.yml"]
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers separated by spaces (blank: config/universe/moat-test.txt)"
+        required: false
+        default: ""
+      as_of:
+        description: "As-of date, YYYY-MM-DD (blank: today)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      TICKERS: ${{ inputs.tickers }}
+      AS_OF: ${{ inputs.as_of }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+      - run: pip install -e .
+      - name: Screen
+        run: |
+          args=()
+          if [ -n "$AS_OF" ]; then args+=(--as-of "$AS_OF"); fi
+          # shellcheck disable=SC2086
+          python scripts/moat_screen.py "${args[@]}" $TICKERS
+      - name: Summary
+        if: always()
+        run: if [ -f screen-out/moat.md ]; then cat screen-out/moat.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: moat-screen
+          path: |
+            screen-out/moat.json
+            screen-out/moat.md

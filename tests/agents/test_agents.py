@@ -239,3 +239,19 @@ def test_research_route_offline(db: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert r["decision"]["propose"] and r["llm"].startswith("none") and r["memo"].startswith("# ")
     assert (db.parent / "agent-runs" / f"{r['id']}.md").exists()
     assert c.post("/api/companies/EXW/research", json={"strategy": "Z"}).status_code == 422
+
+
+def test_strategy_b_needs_the_moat_screen_to_pass(wb: Workbench, monkeypatch: pytest.MonkeyPatch) -> None:
+    s = F.build(wb, "EXW")
+    assert s.facts["moat.status"].value == "compounder" and s.moat_status == "compounder"
+    assert s.facts["moat.roic.value"].unit == "ratio" and s.facts["moat.roic.value"].label == "derived"
+    from keers.strategies.moat import screener
+
+    monkeypatch.setattr(screener, "ROIC_PASS", 0.50)
+    monkeypatch.setattr(screener, "ROIC_WATCH", 0.40)
+    r = go(wb, "B")
+    assert r.sheet.moat_status == "fails" and r.analyst and r.analyst.data["stance"] == "no_trade"
+    assert not r.decision["propose"]
+    # Even a model's long case cannot get past the gate in code.
+    d = committee.decide(r.sheet, "B", {**GOOD_CASE}, {"verdict": "proceed", "objections": [], "missing": []})
+    assert not d["propose"] and any("moat screen" in x for x in d["reasons"])

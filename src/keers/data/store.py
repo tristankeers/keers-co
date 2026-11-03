@@ -241,6 +241,7 @@ class Store:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.path = str(path)
         self.keep_bodies = keep_bodies
+        self._fact_cache: dict[tuple[int, str, str, str | None], list[Fact]] | None = None
         self.db = sqlite3.connect(self.path)
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript(SCHEMA)
@@ -391,7 +392,14 @@ class Store:
             db.execute("DELETE FROM entity_links WHERE symbol=?", (symbol.upper(),))
 
     # facts -----------------------------------------------------------------------------------------------------
+    def cache_facts(self, on: bool = True) -> None:
+        """Keep each concept's facts in memory after the first read (for backtests, which read the same facts at
+        many as-of dates). Reads still filter by ``known_by``; any write clears the cache."""
+        self._fact_cache = {} if on else None
+
     def put_facts(self, facts: Iterable[Fact]) -> int:
+        if self._fact_cache is not None:
+            self._fact_cache.clear()
         rows = [
             (
                 f.cik, f.taxonomy, f.concept, f.unit, _iso(f.start) or "", f.end.isoformat(), f.value, f.accn,
@@ -413,6 +421,16 @@ class Store:
         taxonomy: str = "us-gaap",
     ) -> list[Fact]:
         """All filed values of a concept, oldest period first. ``known_by`` keeps only facts filed on or before it."""
+        if self._fact_cache is not None:
+            key = (cik, taxonomy, concept, unit)
+            if key not in self._fact_cache:
+                self._fact_cache[key] = self._facts(cik, concept, unit, None, taxonomy)
+            got = self._fact_cache[key]
+            return got if known_by is None else [f for f in got if f.filed <= known_by]
+        return self._facts(cik, concept, unit, known_by, taxonomy)
+
+    def _facts(self, cik: int, concept: str, unit: str | None, known_by: date | None,
+               taxonomy: str) -> list[Fact]:  # fmt: skip
         # A non-SEC filing's web address is kept in ``filings.primary_document``; it is cited with each fact.
         q = ("SELECT f.*, CASE WHEN g.primary_document LIKE 'https://%' THEN g.primary_document ELSE '' END "
              "FROM facts f LEFT JOIN filings g ON g.cik=f.cik AND g.accn=f.accn "
@@ -451,6 +469,8 @@ class Store:
 
     # filings ---------------------------------------------------------------------------------------------------
     def put_filings(self, filings: Iterable[Filing]) -> None:
+        if self._fact_cache is not None:
+            self._fact_cache.clear()  # fact reads join filings for their web address
         rows = [
             (f.cik, f.accn, f.form, f.filing_date.isoformat(), _iso(f.report_date), f.primary_document)
             for f in filings

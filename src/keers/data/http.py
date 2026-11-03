@@ -6,6 +6,7 @@ Only the standard library is used, so the data layer has no third-party runtime 
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import ssl
@@ -153,7 +154,8 @@ class Fetcher:
                 if e.code not in RETRY_STATUSES:
                     break
                 wait = _retry_after(e, delay)
-            except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as e:
+                # HTTPException covers a body cut off mid-download (IncompleteRead), which a retry can fix.
                 reason = getattr(e, "reason", e)
                 last_error = str(reason)
                 if isinstance(reason, ssl.SSLCertVerificationError):

@@ -50,6 +50,25 @@
         }
       ],
       "holdoutRuns": []
+    },
+    "B": {
+      "holdoutStart": "2026-11-03",
+      "holdoutNote": "Strategy B's moat screen (moat-v1) was designed on 2026-11-03 without looking at any backtest. Days from this date on are the holdout.",
+      "approvedForPaper": null,
+      "approvalNote": "Strategy B trades come from the research committee (keers.agents), gated by the moat screen and the risk limits. This field is kept for symmetry with C; the moat backtest does not open or close any gate.",
+      "trials": [
+        {
+          "id": "moat-b-v1-sp500",
+          "configHash": "db638ad6b695baf0",
+          "universe": "S&P 500 members on each signal date, incl. companies that later left (keers.strategies.quant.history)",
+          "period": "2017-04 to 2026-11",
+          "sharpe": 0.66,
+          "run": "https://github.com/tristankeers/keers-co/actions/runs/41699050610",
+          "recorded": "2026-11-03",
+          "note": "moat-v1 compounders and candidates, equal weight, quarterly, costs-v1. CAGR 13.7% vs SPY 14.6% (Sharpe 0.70), RSP 11.6% (0.55), equal weight of judged names 12.3% (0.59). Active vs judged +0.28% a quarter, t 0.61. Sharpe as reported by the run, rounded to two places."
+        }
+      ],
+      "holdoutRuns": []
     }
   }
 }

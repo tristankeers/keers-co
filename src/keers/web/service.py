@@ -45,7 +45,7 @@ from keers.portfolio import market as PM
 from keers.portfolio.desk import Desk, TradeError, TradeRequest
 from keers.portfolio.ledger import Ledger
 from keers.risk.limits import Limits
-from keers.strategies import distress
+from keers.strategies import distress, moat
 from keers.strategies.distressed import analysis as a_analysis
 from keers.valuation import kci_v1_defaults as V1
 from keers.valuation import kci_v3_defaults as V3
@@ -412,6 +412,7 @@ class Workbench:
             "calcVersions": sorted(S.ENGINES),
             "defaultCalcVersion": S.DEFAULT_CALC_VERSION,
             "screenVersion": distress.SCREEN_VERSION,
+            "moatScreenVersion": moat.SCREEN_VERSION,
             "notice": YAHOO_NOTICE,
         }
 
@@ -717,6 +718,33 @@ class Workbench:
                                       for s in inp.get("sources", [])]  # fmt: skip
                     c["inputs"][k] = inp
         res["thresholds"] = {"levels": list(distress.LEVELS)}
+        return res
+
+    # Strategy B moat screen --------------------------------------------------------------------------------------
+    def moat(self, symbol: str) -> dict[str, Any]:
+        """The durable-moat compounder screen (``keers.strategies.moat``) on the stored accounts, as of today."""
+        sym = sources.symbol(symbol)
+        with self.store() as st:
+            co = st.company(sym)
+            if co is None:
+                return {"symbol": sym, "status": "not available", "checks": [], "years": [],
+                        "screenVersion": moat.SCREEN_VERSION,
+                        "blockedBy": ["no filed accounts in the store for this listing (SEC or ESEF); the screen reads "
+                                      "filed accounts"]}  # fmt: skip
+            res = moat.screen(st, sym, self.today())
+
+        def link(inp: dict[str, Any]) -> dict[str, Any]:
+            if isinstance(inp, dict) and "kind" in inp:
+                inp["label"] = inp.pop("kind")
+                inp["sources"] = [{**s, "link": source_link(s, co["cik"], sym), "text": describe_source(s)}
+                                  for s in inp.get("sources", [])]  # fmt: skip
+            return inp
+
+        for c in res.get("checks", []):
+            c["inputs"] = {k: link(v) for k, v in (c.get("inputs") or {}).items()}
+        for y in res.get("years", []):
+            y["inputs"] = {k: link(v) for k, v in (y.get("inputs") or {}).items()}
+        res["thresholds"] = {"levels": list(moat.LEVELS), "passing": list(moat.PASSING)}
         return res
 
     # valuation --------------------------------------------------------------------------------------------------
