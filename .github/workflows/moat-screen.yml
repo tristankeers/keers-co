@@ -46,6 +46,16 @@ jobs:
           if [ -n "$AS_OF" ]; then args+=(--as-of "$AS_OF"); fi
           # shellcheck disable=SC2086
           python scripts/moat_screen.py "${args[@]}" $TICKERS
+      - name: Explain blocked companies
+        if: always()
+        run: |
+          python - <<'PY' || true
+          import json, subprocess, sys
+          res = json.load(open("screen-out/moat.json"))
+          ts = [c["ticker"] for c in res["companies"] if c["status"] == "blocked"]
+          if ts:
+              subprocess.run([sys.executable, "-m", "keers.strategies.moat", "--db", "screen-out/screen.sqlite", "explain", *ts, "--as-of", res["asOf"]])
+          PY
       - name: Summary
         if: always()
         run: if [ -f screen-out/moat.md ]; then cat screen-out/moat.md >> "$GITHUB_STEP_SUMMARY"; fi
