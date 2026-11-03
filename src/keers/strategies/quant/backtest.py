@@ -27,7 +27,6 @@ from typing import Any
 
 from keers.data.store import Store
 from keers.portfolio.fills import BPS, CostModel
-from keers.research.trials import Register
 
 from . import gate
 from .model import SIGNALS, Config, Row, rank
@@ -152,8 +151,7 @@ def _t(xs: list[float]) -> float | None:
 
 
 def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Config | None = None,
-        costs: CostModel | None = None, benchmark: str = BENCHMARK,
-        register: Register | None = None) -> dict[str, Any]:  # fmt: skip
+        costs: CostModel | None = None, benchmark: str = BENCHMARK) -> dict[str, Any]:  # fmt: skip
     cfg, costs = cfg or Config(), costs or CostModel()
     cost_rate = (costs.slippage_bps + costs.commission_bps) * BPS
     tickers = sorted({t.upper() for t in tickers} - {benchmark})
@@ -233,6 +231,9 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             if ic is not None:
                 ics[n].append(ic)
 
+    # Is the result skill or luck? Deflated Sharpe against every model tried (see gate.py).
+    research = gate.evaluate(curve, ew_curve, rf, cfg.as_dict())
+
     spy = [(d, panel[benchmark][d]) for d, _ in curve if d in panel[benchmark]]
     if missing_after:
         warnings.append(
@@ -242,7 +243,7 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         "costs: costs-v1 slippage and commission on turnover; minimum commission, borrow and taxes ignored"
     )
     strat, ew_stats, spy_stats = stats(curve, rf), stats(ew_curve, rf), stats(spy, rf)
-    out: dict[str, Any] = {
+    return {
         "ran": True,
         "version": BACKTEST_VERSION,
         "model": cfg.version,
@@ -266,14 +267,11 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             }
             for n in SIGNALS
         },  # fmt: skip
-        "verdict": verdict(strat, ew_stats, spy_stats),
+        "verdict": gate.verdict(verdict(strat, ew_stats, spy_stats), research),
         "months": months,
         "curve": [(d.isoformat(), v) for d, v in curve],
         "warnings": warnings,
+        "research": research,
+        "equalWeightCurve": [(d.isoformat(), v) for d, v in ew_curve],
+        "riskFreeDaily": rf,
     }
-    # Is the result skill or luck? Deflated Sharpe against every model tried (see gate.py).
-    out["research"] = gate.evaluate(curve, ew_curve, rf, cfg.as_dict(), register)
-    out["verdict"] = gate.verdict(out["verdict"], out["research"])
-    out["equalWeightCurve"] = [(d.isoformat(), v) for d, v in ew_curve]
-    out["riskFreeDaily"] = rf
-    return out
