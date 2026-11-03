@@ -76,6 +76,25 @@ in `universeCoverage`), and every company's outcome is listed in `sp500-fetch.js
 backtest (S&P 500, point in time)** runs it; Tiingo's free limit makes the first fetch slow, so the store is cached
 and a later run continues where one stopped.
 
+### Result (live run 41550299164, 3 Nov 2026, Feb 2017 to Oct 2026, after costs)
+
+| Book | CAGR | Sharpe | Max drawdown |
+|---|---|---|---|
+| quant-c-v2 (momentum + value + quality, 1/vol sizing) | 13.3% | 0.57 | 36% |
+| quant-c-v1 (momentum + low-vol, equal weight) | 6.2% | 0.28 | 35% |
+| SPY | 14.8% | 0.71 | 34% |
+| RSP (equal-weight S&P 500 ETF) | 11.8% | 0.56 | 39% |
+| Equal-weight of ranked members (v2 run) | 12.7% | 0.62 | 37% |
+
+699 tickers were in the index at some point in the window. 591 got SEC accounts and 633 got prices. 58 were left
+out, mostly reused tickers. The priced share of members averaged 91% and never fell below 88%. Every signal's monthly
+top-minus-bottom spread is within noise (t-stats from -0.9 to +0.3). The KCI 100 result (v2 at 21.5%) did not hold
+once delisted names and the full index were included, so the paper gate stays closed.
+
+The live Wikipedia page no longer carries the change log. It is read from the newest past revision that has it
+(revision 1368675864, 10 Aug 2026). Since that revision, 8 names that joined are dated by "Date added". 8 names that
+left have unknown dates, so they are kept as members until today.
+
 ## Paper-trading gate
 
 `model.APPROVED_FOR_PAPER` is `False`. While it is, the rebalance endpoint previews tickets but refuses to execute
@@ -107,8 +126,8 @@ Paper trades go through the workbench: `POST /api/strategies/c/signals` shows th
 
 ## Known limits
 
-- Survivorship bias: the universe is today's ticker list, so companies that were delisted are missing. This flatters
-  backtest results; every run says so.
+- Survivorship bias: the KCI 100 universe is today's ticker list, so companies that were delisted are missing, which
+  flatters its results (every run says so). The S&P 500 run above mostly removes this.
 - Backtest costs are costs-v1 slippage plus commission on turnover; the minimum commission, borrow and tax are ignored.
 - No shorts and no UI panel yet. Fundamentals are SEC filers only in the backtest universe.
 - Yahoo data is personal use only; it must be replaced before any commercial use.
