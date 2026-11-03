@@ -27,11 +27,15 @@ def rows() -> list[fx.Row]:
     for start, end, v, f in [("2024-01-01", "2024-12-31", 40, fx.K24), ("2024-01-01", "2024-09-30", 30, fx.Q3_25),
                              ("2025-01-01", "2025-09-30", 33, fx.Q3_25)]:  # fmt: skip
         out.append(fx._dur("InterestExpense", start, end, v, f))
+    for start, end, v, f in [("2024-01-01", "2024-12-31", 150, fx.K24), ("2024-01-01", "2024-09-30", 100, fx.Q3_25),
+                             ("2025-01-01", "2025-09-30", 120, fx.Q3_25)]:  # fmt: skip
+        out.append(fx._dur("NetCashProvidedByUsedInOperatingActivities", start, end, v, f))  # TTM 170
     return out + history_rows()
 
 
 # Fiscal years 2018-2024, as filed in each year's (fictional) 10-K, for the Strategy B moat screen. FY2023 and
-# FY2024 revenue, operating income, D&A, net income and capex are already in the base rows.
+# FY2024 revenue, operating income, D&A, net income and capex are already in the base rows, and FY2024 cash from
+# operations (150) is in rows() above.
 HISTORY = {  # year: (revenue, operating income, capex, cash from operations, diluted shares m, assets, current liabs, cash)
     2018: (600, 117, 20, 120, 54.0, 760, 140, 100),
     2019: (640, 125, 21, 130, 53.6, 800, 150, 110),
@@ -39,7 +43,7 @@ HISTORY = {  # year: (revenue, operating income, capex, cash from operations, di
     2021: (750, 150, 24, 155, 52.8, 900, 170, 130),
     2022: (820, 164, 25, 170, 52.4, 950, 180, 140),
     2023: (900, 180, 27, 180, 52.0, 1000, 190, 150),
-    2024: (1000, 200, 30, 190, 51.6, 1100, 240, 150),
+    2024: (1000, 200, 30, 150, 51.6, 1100, 240, 150),
 }
 
 
@@ -55,8 +59,9 @@ def history_rows() -> list[fx.Row]:
                            ("PaymentsToAcquirePropertyPlantAndEquipment", capex)):  # fmt: skip
                 out.append(fx._dur(c, start, end, val, filing))
         pretax = ebit - 40
-        out += [fx._dur("NetCashProvidedByUsedInOperatingActivities", start, end, cfo, filing),
-                fx._dur("IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        if y < 2024:
+            out.append(fx._dur("NetCashProvidedByUsedInOperatingActivities", start, end, cfo, filing))
+        out += [fx._dur("IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
                         start, end, pretax, filing),
                 fx._dur("IncomeTaxExpenseBenefit", start, end, round(pretax * 0.21, 2), filing),
                 ("us-gaap", "WeightedAverageNumberOfDilutedSharesOutstanding", "shares", start, end, shares * fx.M,

@@ -1,0 +1,92 @@
+name: Strategy A research run
+
+# Strategy A from live data: refresh filings and prices, run the distress screen, pick candidates, have the
+# research agents write a memo on each of the top ones, and preview any proposed trade on a fresh paper portfolio
+# against the risk limits. Nothing is placed and no broker is involved. Run by hand from the Actions tab, or on a
+# pull request that changes Strategy A.
+# Needs the SEC_USER_AGENT secret (TIINGO_TOKEN is the price fallback). The previous run's candidate list is cached
+# so each run lists what changed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers separated by spaces (blank: the universe file)"
+        required: false
+        default: ""
+      universe:
+        description: "Universe file"
+        required: false
+        default: "config/universe/distress-test.txt"
+      top:
+        description: "Candidates to research"
+        required: false
+        default: "10"
+      use_model:
+        description: "Use the Claude API for the agents (needs the ANTHROPIC_API_KEY secret; paid per call)"
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    paths: ["src/keers/strategies/distressed/**", ".github/workflows/strategy-a.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT || vars.SEC_USER_AGENT }}
+      TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ inputs.use_model && secrets.ANTHROPIC_API_KEY || '' }}
+      TICKERS: ${{ inputs.tickers }}
+      UNIVERSE: ${{ inputs.universe || 'config/universe/distress-test.txt' }}
+      TOP: ${{ inputs.top || '10' }}
+      USE_MODEL: ${{ inputs.use_model && 'yes' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check configuration
+        run: |
+          if [ -z "$SEC_USER_AGENT" ]; then
+            echo "::error::Set SEC_USER_AGENT as a repository secret (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+      - run: pip install -e ".[web,agents]"
+      - name: Previous candidate list
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/strategy-a-prev
+          key: strategy-a-${{ github.run_id }}
+          restore-keys: strategy-a-
+      - name: Run
+        run: |
+          args=(--out strategy-a-out --top "$TOP" --previous /home/runner/strategy-a-prev/candidates.json)
+          if [ -z "$USE_MODEL" ]; then args+=(--offline-model); fi
+          if [ -z "$TICKERS" ]; then args+=(--universe "$UNIVERSE"); fi
+          # shellcheck disable=SC2086
+          python -m keers.strategies.distressed run "${args[@]}" $TICKERS
+      - name: Keep this candidate list for the next run
+        if: success()
+        run: mkdir -p /home/runner/strategy-a-prev && cp strategy-a-out/candidates.json /home/runner/strategy-a-prev/
+      - uses: actions/cache/save@v4
+        if: success()
+        with:
+          path: /home/runner/strategy-a-prev
+          key: strategy-a-${{ github.run_id }}
+      - name: Summary
+        if: always()
+        run: if [ -f strategy-a-out/strategy-a.md ]; then cat strategy-a-out/strategy-a.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: strategy-a
+          path: |
+            strategy-a-out/strategy-a.md
+            strategy-a-out/strategy-a.json
+            strategy-a-out/candidates.json
+            strategy-a-out/agent-runs/

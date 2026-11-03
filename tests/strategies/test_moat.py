@@ -121,7 +121,7 @@ def test_screen_end_to_end_with_hand_worked_numbers(store: Store) -> None:
     assert y24["investedCapital"] == pytest.approx(680)
     assert y24["taxBasis"] == "effective" and y24["taxRate"] == pytest.approx(0.21)
     assert y24["roic"] == pytest.approx(200 * 0.79 / 680)
-    assert y24["fcf"] == pytest.approx(190 - 30)
+    assert y24["fcf"] == pytest.approx(150 - 30)
     assert y24["inputs"]["operatingCashFlow"]["sources"][0]["accn"] == fx.K24[0]
     c = {x["name"]: x for x in r["checks"]}
     assert c["growth"]["value"] == pytest.approx(

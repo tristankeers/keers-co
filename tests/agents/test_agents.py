@@ -111,19 +111,19 @@ def test_render_fills_values_and_numbers_sources_once(wb: Workbench) -> None:
 
 
 # --------------------------------------------------------------------------------------------------------------
-# a run without a model (rules-v1)
+# a run without a model (rules-v2)
 # --------------------------------------------------------------------------------------------------------------
 def test_offline_run_previews_without_writing(wb: Workbench, tmp_path: Path) -> None:
     pid = wb.create_portfolio("P", 1_000_000)["id"]
     r = go(wb, "B", portfolio_id=pid, out_dir=tmp_path / "runs")
-    assert r.analyst and r.analyst.source == "rules-v1" and r.analyst.data["stance"] == "long"
+    assert r.analyst and r.analyst.source == "rules-v2" and r.analyst.data["stance"] == "long"
     assert r.decision["propose"] and r.decision["weight"] == committee.SIZING["low"]
     assert r.trade and r.trade["executed"] is False and r.trade["risk"]["approved"]
     assert wb.portfolio(pid)["orders"] == []  # a preview writes nothing
     rec = json.loads((tmp_path / "runs" / f"{r.id}.json").read_text())
     assert rec["decision"]["propose"] and rec["factsSha256"] == r.sheet.sha256()
     md = (tmp_path / "runs" / f"{r.id}.md").read_text()
-    assert "Previewed on the paper desk (not placed)" in md and "## Sources" in md and "rules-v1" in md
+    assert "Previewed on the paper desk (not placed)" in md and "## Sources" in md and "rules-v2" in md
 
 
 def test_execute_goes_through_the_desk_and_risk(wb: Workbench) -> None:
@@ -178,7 +178,7 @@ def test_typed_numbers_get_one_retry_then_rules(wb: Workbench) -> None:
 
     llm = Fake(analyst=[bad, bad], bear=[GOOD_BEAR], writer=[GOOD_MEMO])
     r = go(wb, "B", llm)
-    assert r.analyst and r.analyst.source == "rules-v1" and r.analyst.data["conviction"] == "low"
+    assert r.analyst and r.analyst.source == "rules-v2" and r.analyst.data["conviction"] == "low"
     assert "9.8x" not in r.memo
 
 
@@ -187,7 +187,7 @@ def test_model_failure_falls_back_and_bear_block_stops_trade(wb: Workbench) -> N
                writer=[LLMError("network down")])  # fmt: skip
     r = go(wb, "B", llm)
     assert not r.decision["propose"] and "the bear reviewer blocked it" in r.decision["reasons"]
-    assert r.writer and r.writer.source == "rules-v1" and "network down" in r.writer.notes[0]
+    assert r.writer and r.writer.source == "rules-v2" and "network down" in r.writer.notes[0]
 
 
 def test_short_under_b_is_refused_in_code(wb: Workbench) -> None:

@@ -2,7 +2,7 @@
 
 1. ``facts.build`` reads the deterministic views into a fact sheet.
 2. The analyst writes the case; the bear reviewer attacks it. Each reply must pass the number guard (figures only
-   as fact keys) or it is sent back once; if it still fails, or no model is configured, ``rules-v1`` stands in.
+   as fact keys) or it is sent back once; if it still fails, or no model is configured, ``rules-v2`` stands in.
 3. Code decides whether to propose a trade (``decide``) and sizes it (``SIZING``). The models never pick a size.
 4. The proposal goes to the paper desk: always a preview through ``keers.risk``; with ``execute`` it is placed
    with ``Desk.execute`` (through ``Workbench.paper_trade``), which checks the risk limits again and fills only
@@ -31,8 +31,11 @@ from .llm import LLM, LLMError
 
 log = logging.getLogger("keers.agents")
 
-SIZING_VERSION = "sizing-v1"
+SIZING_VERSION = "sizing-v2"
 SIZING = {"low": 0.01, "medium": 0.02, "high": 0.03}  # share of NAV for a new position, by analyst conviction
+# sizing-v2: as v1, except that a strategy A short is always the low size. Distressed shorts can gap up on a
+# rescue or a takeover, and borrow is not modelled.
+A_SHORT_SIZE = "low"
 SIDE = {"long": "buy", "short": "sell"}
 
 
@@ -113,7 +116,11 @@ def decide(
         reasons.append("the figures are blocked by data problems")
     if any(f.stale for f in sheet.facts.values()):
         reasons.append("some figures are stale")
-    if not sheet.valuation_ran:
+    if strategy == "A":
+        # A distressed company often has no meaningful DCF; strategy A rests on its own analysis instead.
+        if not sheet.a_analysis_ran:
+            reasons.append("the strategy A analysis (runway, funding gap, recovery value) did not run")
+    elif not sheet.valuation_ran:
         reasons.append("the valuation did not run")
     if strategy == "C":
         reasons.append(
@@ -131,15 +138,16 @@ def decide(
     if reasons:
         return {"propose": False, "reasons": reasons, "headline": "no trade",
                 "text": "No trade is proposed, because " + "; ".join(reasons) + "."}  # fmt: skip
-    weight = SIZING[case["conviction"]]
+    size = A_SHORT_SIZE if strategy == "A" and case["stance"] == "short" else case["conviction"]
+    weight = SIZING[size]
     side = SIDE[case["stance"]]
     sheet.add(F.Fact("trade.weight", "Proposed position size (share of NAV)", weight, "ratio", "assumption",
-                     f"{SIZING_VERSION}: {case['conviction']} conviction", f"{SIZING_VERSION} sizing rule"))  # fmt: skip
+                     f"{SIZING_VERSION}: {case['conviction']} conviction, {size} size", f"{SIZING_VERSION} sizing rule"))  # fmt: skip
     caveat = " The bear reviewer raised concerns, set out below." if bear["verdict"] == "concerns" else ""
-    return {"propose": True, "reasons": [], "side": side, "weight": weight, "conviction": case["conviction"],
+    return {"propose": True, "reasons": [], "side": side, "weight": weight, "conviction": case["conviction"], "size": size,
             "headline": f"proposed paper {'buy' if side == 'buy' else 'short sale'}",
             "text": (f"A paper {'buy' if side == 'buy' else 'short sale'} of {{trade.weight}} of NAV is proposed "
-                     f"({SIZING_VERSION}, {case['conviction']} conviction), subject to the risk limits.{caveat}")}  # fmt: skip
+                     f"({SIZING_VERSION}, {case['conviction']} conviction, {size} size), subject to the risk limits.{caveat}")}  # fmt: skip
 
 
 def run(wb: Desk, symbol: str, strategy: str, llm: LLM | None, why_no_llm: str = "", portfolio_id: int | None = None,
@@ -199,6 +207,9 @@ MEMO_FACTS = ("price", "marketCap", "ev", "revenue", "revenueGrowth", "ebitda", 
               "leverage", "dcf.perShare", "dcf.vsPrice", "dcf.wacc", "dcf.tvShare", "lbo.base.irr",
               "lbo.downside.moic", "score.total", "distress.status", "credit.backdrop", "moat.status", "moat.roic.value",
               "moat.growth.value", "moat.cashConversion.value", "moat.earningsYield")  # fmt: skip
+# Strategy A memos also show its own analysis.
+MEMO_FACTS_A = ("a.runway.months", "a.freeCashFlow", "a.fundingGap.amount", "a.recovery.low.vsPrice",
+                "a.recovery.mid.vsPrice", "a.recovery.high.vsPrice", "a.recovery.mid.debtCovered")  # fmt: skip
 
 
 def memo(r: Run) -> str:
@@ -242,7 +253,7 @@ def memo(r: Run) -> str:
     if bear["missing"]:
         lines += ["", "Missing information:", ""] + [f"- {t(x)}" for x in bear["missing"]]
     lines += ["", "## Key figures", "", "| Figure | Value | Label |", "|---|---|---|"]
-    for k in MEMO_FACTS:
+    for k in MEMO_FACTS + (MEMO_FACTS_A if r.strategy == "A" else ()):
         f = sheet.facts.get(k)
         if f is not None and f.known:
             if k not in cited:

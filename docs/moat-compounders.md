@@ -63,7 +63,7 @@ and free cash flow yield (latest fiscal year ÷ market capitalisation).
 2. `committee.decide` proposes no Strategy B trade unless the screen says `compounder` or `candidate`, whatever
    the analyst or a model argues. The rule-based analyst also needs the DCF margin of safety, the score and a
    clean distress screen, as before; the rule-based bear reviewer turns moat watch flags into objections.
-3. The trade goes through `Desk.execute` and `keers.risk`. `risk-limits-v3` adds the long-only mandate to the
+3. The trade goes through `Desk.execute` and `keers.risk`. `risk-limits-v4` adds the long-only mandate to the
    risk code itself: a trade that would leave a Strategy B position short fails `mandate.long_only`. The B sleeve
    stays capped at 60% of NAV.
 

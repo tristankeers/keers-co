@@ -104,10 +104,14 @@ PRETAX_INCOME = (
 PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
 INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
-# Lines the Strategy B moat screen reads year by year (``keers.strategies.moat``).
-OPERATING_CASH_FLOW = ("us-gaap:NetCashProvidedByUsedInOperatingActivities",
-                       "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
-                       "ifrs-full:CashFlowsFromUsedInOperatingActivities")  # fmt: skip
+# Cash from operations: the Strategy A liquidity runway and the Strategy B moat screen. The first line includes
+# discontinued operations.
+OPERATING_CASH_FLOW = (
+    "us-gaap:NetCashProvidedByUsedInOperatingActivities",
+    "us-gaap:NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+    "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+)
+# Further lines the Strategy B moat screen reads year by year (``keers.strategies.moat``).
 GROSS_PROFIT = ("us-gaap:GrossProfit", "ifrs-full:GrossProfit")
 TAX_EXPENSE = ("us-gaap:IncomeTaxExpenseBenefit",) + INCOME_TAX
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",

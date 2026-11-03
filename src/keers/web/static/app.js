@@ -291,7 +291,7 @@ async function homeView() {
   const s = STATUS || { companies: [], runs: [], rates: {} };
   fill(view, 
     h("div", { class: "home-hero" },
-      h("h1", {}, "Research workbench"),
+      h("h1", {}, "Research ", h("span", { class: "dim" }, "workbench")),
       h("p", {}, "Search any listed company. US SEC filers get the full view: filed fundamentals, the kci-v3 valuation with its kci-v1 comparison, and the distress screen. Other listings show price, chart and news until a fundamentals source exists for their market."),
     ),
     h("div", { class: "grid cols-2" },
@@ -755,6 +755,7 @@ async function distressTab(c, body) {
       h("div", { class: "pb flush scroll-x" }, h("table", {},
         h("thead", {}, h("tr", {}, h("th", {}, "Check"), h("th", {}, "Level"), h("th", { class: "n" }, "Value"), h("th", {}, "Why"), h("th", {}, "Thresholds"))),
         h("tbody", {}, rows)))));
+    if (r.strategyA) parts.push(strategyAPanel(r.strategyA));
     if ((r.dataWarnings || []).length) parts.push(h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, "Snapshot issues behind these checks"), h("ul", {}, r.dataWarnings.map((w) => h("li", {}, w)))));
   }
   parts.push(h("p", { class: "faint", style: "margin-top:12px" }, "A screen for research, not a verdict: it lists companies worth a closer look. Rules: two severe checks make a company distressed; one severe or two watch flags, stressed; any unknown check without a severe flag, incomplete."));
@@ -814,6 +815,34 @@ async function moatTab(c, body) {
   }
   parts.push(h("p", { class: "faint", style: "margin-top:12px" }, "Strategy B screen for research, not a verdict. Every check passes: compounder; one or two watch flags: candidate; three or more: weak; any fail: fails; any unknown without a fail: incomplete. Only compounders and candidates can go to the investment committee. The price is shown, not graded."));
   fill(body, ...parts);
+}
+
+// Strategy A's runway, funding gap and recovery value (keers.strategies.distressed.analysis). Display only: every
+// figure here was worked out in Python.
+const A_NAMES = { runway: "Liquidity runway", fundingGap: "Funding gap, next 12 months", recovery: "Recovery value (mid case)" };
+function aValue(p, money) {
+  if (!isNum(p.value)) return "—";
+  if (p.name === "runway") return `${fnum(p.value, 0)} months`;
+  if (p.name === "recovery") return fpct(p.value, 0);
+  return `${fnum(p.value, 0)} ${money || ""}`.trim();
+}
+function strategyAPanel(a) {
+  if (!a.ran) {
+    return h("div", { class: "callout warn", style: "margin-top:16px" }, h("strong", {}, "Strategy A analysis did not run. "), h("ul", {}, (a.blockedBy || []).map((b) => h("li", {}, b))));
+  }
+  const rows = (a.parts || []).map((p) => h("tr", {}, h("td", {}, A_NAMES[p.name] || p.name), h("td", {}, levelBadge(p.level)),
+    h("td", { class: "n" }, aValue(p, a.money)), h("td", {}, p.reason), h("td", { class: "muted" }, p.thresholds)));
+  const rec = (a.parts || []).find((p) => p.name === "recovery");
+  const cases = rec && rec.cases ? Object.entries(rec.cases) : [];
+  const caseTable = cases.length ? h("table", { style: "margin-top:12px" },
+    h("thead", {}, h("tr", {}, h("th", {}, "Case"), h("th", { class: "n" }, "EV / EBITDA"), h("th", { class: "n" }, "Debt covered"), h("th", { class: "n" }, "Equity per share"), h("th", { class: "n" }, "vs last close"))),
+    h("tbody", {}, cases.map(([k, c]) => h("tr", {}, h("td", {}, k), h("td", { class: "n" }, fx(c.multiple, 1)), h("td", { class: "n" }, fpct(c.debtCovered, 0)),
+      h("td", { class: "n" }, fnum(c.perShare, 2)), h("td", { class: "n" }, fpct(c.vsPrice, 0)))))) : null;
+  return h("section", { class: "panel", style: "margin-top:16px" },
+    h("div", { class: "ph" }, h("h2", {}, "Strategy A analysis"), h("span", { class: "faint" }, `${a.analysisVersion} · multiples are a generic distressed-sale assumption; debt is paid before equity, with no restructuring costs or new shares`)),
+    h("div", { class: "pb flush scroll-x" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", {}, "Measure"), h("th", {}, "Level"), h("th", { class: "n" }, "Value"), h("th", {}, "Why"), h("th", {}, "Thresholds"))),
+      h("tbody", {}, rows)), caseTable));
 }
 
 // --- valuation -----------------------------------------------------------------------------------------------
@@ -1013,7 +1042,7 @@ function createPortfolioView(list) {
       location.hash = `#/portfolio/${p.id}`;
     } catch (e) { msg.textContent = e.message; }
   };
-  fill(view, h("div", { class: "home-hero" }, h("h1", {}, "Paper portfolio"), h("p", {}, list.notice)),
+  fill(view, h("div", { class: "home-hero" }, h("h1", {}, "Paper ", h("span", { class: "dim" }, "portfolio")), h("p", {}, list.notice)),
     h("section", { class: "panel", style: "max-width:520px" },
       h("div", { class: "ph" }, h("h2", {}, "Start a paper portfolio")),
       h("div", { class: "pb form" },
@@ -1251,3 +1280,42 @@ function drawNav(history, nav, today) {
 // --- start ---------------------------------------------------------------------------------------------------
 loadStatus();
 route();
+
+// Top bar: a 1px lime line tracks how far down the page you are.
+(() => {
+  const top = document.querySelector(".topbar");
+  if (!top) return;
+  const line = document.createElement("div");
+  line.className = "scrollbar";
+  line.setAttribute("aria-hidden", "true");
+  top.append(line);
+  const update = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    line.style.setProperty("--p", max > 0 ? (scrollY / max).toFixed(4) : 0);
+  };
+  addEventListener("scroll", update, { passive: true });
+  addEventListener("resize", update);
+  new MutationObserver(update).observe(document.getElementById("view"), { childList: true });
+  update();
+})();
+
+// Scroll-in: panels, KPI rows and headers lift in as they reach the viewport. Skipped for reduced motion.
+(() => {
+  const view = document.getElementById("view");
+  if (!view || matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+  document.documentElement.classList.add("motion");
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) { e.target.classList.add("said"); io.unobserve(e.target); }
+  }), { threshold: 0.08 });
+  const arm = () => {
+    view.querySelectorAll(".panel, .kpis, .co-head, .tabs, .callout").forEach((el) => {
+      if (el.classList.contains("rise") || el.closest(".rise")) return;
+      const sibs = [...el.parentElement.children].filter((c) => c.matches(".panel, .kpis, .co-head, .tabs, .callout"));
+      el.style.setProperty("--d", `${Math.min(sibs.indexOf(el), 6) * 80}ms`);
+      el.classList.add("rise");
+      io.observe(el);
+    });
+  };
+  new MutationObserver(arm).observe(view, { childList: true, subtree: true });
+  arm();
+})();

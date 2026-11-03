@@ -16,7 +16,11 @@ Market risk (``risk-limits-v2``): the book's net beta to SPY and the annualised 
 replayed over the last ``risk_days`` sessions of daily returns. A holding with too short a history makes them
 unknown, which blocks new trades. The kill switch, when on, blocks any trade that adds gross exposure.
 
-Mandates (``risk-limits-v3``): a long-only strategy (B, by default) may never end a trade with a short position.
+``risk-limits-v3`` adds a position cap per strategy (the lower of it and ``max_position`` applies) and the short
+sale check: no new or bigger short below ``min_short_price``; a short that passes is flagged (``warn``) because
+borrow availability and fees are not modelled.
+
+``risk-limits-v4`` adds mandates: a long-only strategy (B, by default) may never end a trade with a short position.
 
 A limit that is already breached does not trap the book: a trade that brings a breached figure down passes that
 check (it says so), while any trade that pushes it further up fails.
@@ -54,6 +58,7 @@ TRADE_CHECKS = (
     "exposure.beta",
     "volatility",
     "kill_switch",
+    "short_sale",
 )
 BOOK_CHECKS = (
     "data.book_prices",
@@ -463,7 +468,21 @@ def check_trade(book: Book, t: Trade, lim: Limits, today: date) -> Report:
     def position() -> list[Check]:
         pre = pre_x.weight(pre_x.by_position.get(key, 0.0))
         post = post_x.weight(post_x.by_position.get(key, 0.0))
-        return [_cap("position.size", f"{t.symbol}/{t.strategy}", pre, post, lim.max_position, "position")]
+        cap = min(lim.max_position, lim.max_position_strategy.get(t.strategy, lim.max_position))
+        return [_cap("position.size", f"{t.symbol}/{t.strategy}", pre, post, cap, "position")]
+
+    def short_sale() -> list[Check]:
+        if not (post_qty < 0 and post_qty < pre_qty):  # not opening or adding to a short
+            return [Check("short_sale", PASS, "not a short sale", t.symbol)]
+        px = t.mark.price
+        if px is None:
+            return [Check("short_sale", UNKNOWN, f"{t.symbol}: no price for the short-sale check", t.symbol, None,
+                          lim.min_short_price)]  # fmt: skip
+        if px < lim.min_short_price:
+            return [Check("short_sale", FAIL, f"{t.symbol} at {px:,.2f} is below the {lim.min_short_price:,.2f} "
+                          "minimum price for a short sale", t.symbol, px, lim.min_short_price)]  # fmt: skip
+        return [Check("short_sale", WARN, f"{t.symbol} short at {px:,.2f}: borrow availability and fees are not "
+                      "modelled", t.symbol, px, lim.min_short_price)]  # fmt: skip
 
     def sector_cap() -> list[Check]:
         if not (t.sector and t.sector.strip()):
@@ -545,7 +564,7 @@ def check_trade(book: Book, t: Trade, lim: Limits, today: date) -> Report:
         ("concentration.sector", sector_cap), ("concentration.strategy", strategy_cap),
         ("liquidity.trade", liq_trade), ("liquidity.position", liq_position), ("exposure.gross", gross),
         ("exposure.net", net), ("cash.no_borrowing", cash), ("drawdown", dd), ("exposure.beta", beta_cap),
-        ("volatility", vol_cap), ("kill_switch", kill),
+        ("volatility", vol_cap), ("kill_switch", kill), ("short_sale", short_sale),
     ):  # fmt: skip
         checks += _safely(name, fn)
     figures = {"before": pre_x.as_dict(), "after": post_x.as_dict(), "cashAfter": post_book.cash,
@@ -624,9 +643,8 @@ def assess(book: Book, lim: Limits, today: date) -> Report:
                 )
                 continue
             w = x.weight(h.quantity * h.mark.price)
-            out.append(
-                _cap("position.size", f"{h.symbol}/{h.strategy}", None, w, lim.max_position, "position")
-            )
+            cap = min(lim.max_position, lim.max_position_strategy.get(h.strategy, lim.max_position))
+            out.append(_cap("position.size", f"{h.symbol}/{h.strategy}", None, w, cap, "position"))
         return out or [Check("position.size", PASS, "no positions", "book")]
 
     def sectors() -> list[Check]:

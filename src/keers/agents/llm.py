@@ -1,7 +1,7 @@
 """The language model behind the agents, and nothing else: optional, replaceable, and never trusted with numbers.
 
 The agents run without a model. Set ``ANTHROPIC_API_KEY`` (and ``pip install -e ".[agents]"``) to have Claude
-write the analysis; without it, each agent uses its stated rules (``rules-v1``) and says so. A paid API call is
+write the analysis; without it, each agent uses its stated rules (``rules-v2``) and says so. A paid API call is
 the only cost here, so nothing calls a model unless the key is set.
 
 ``KEERS_AGENT_MODEL`` picks the model (default ``claude-opus-5-5``), ``KEERS_AGENT_EFFORT`` the effort

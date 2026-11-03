@@ -14,8 +14,9 @@ from .facts import FactSheet
 
 PLACEHOLDER = re.compile(r"\{([A-Za-z][A-Za-z0-9_.]*)\}")
 # Names that contain digits but are not figures: SEC form types and the usual index names.
-ALLOWED = re.compile(r"\b(?:10-K|10-Q|8-K|20-F|40-F|6-K|S&P 500|Russell 2000|Q[1-4]|kci-v[12]|distress-v1|"
-                     r"risk-limits-v1|costs-v1|sizing-v1|rules-v1|agents-v1)\b", re.IGNORECASE)  # fmt: skip
+ALLOWED = re.compile(r"\b(?:10-K|10-Q|8-K|20-F|40-F|6-K|S&P 500|Russell 2000|Q[1-4]|"
+                     r"(?:kci|distress|risk-limits|costs|sizing|rules|agents|a-analysis|a-candidates)-v\d+)\b",
+                     re.IGNORECASE)  # fmt: skip
 DIGITS = re.compile(r"\d")
 NUMBER_WORDS = re.compile(
     r"\b(?:percent|per cent|hundred|thousand|million|billion|trillion|bn|mn|bps|basis points?|"
