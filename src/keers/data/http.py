@@ -19,6 +19,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER = 120.0  # seconds: the longest server-requested wait honoured before trying again
+RATE_LIMIT_MIN_WAIT = 15.0  # seconds: the shortest wait after HTTP 429 when the server names none
 TLS_HINT = (
     "this Python cannot check HTTPS certificates: run pip install certifi, or on a Mac run "
     "'Install Certificates.command' in the Python folder under Applications"
@@ -134,6 +136,7 @@ class Fetcher:
         )
         delay = 1.0
         last_error = ""
+        wait: float | None = None
         for attempt in range(self.retries + 1):
             self._wait_turn(host)
             try:
@@ -149,6 +152,7 @@ class Fetcher:
                 last_error = f"HTTP {e.code}{_reason(e)}"
                 if e.code not in RETRY_STATUSES:
                     break
+                wait = _retry_after(e, delay)
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
                 reason = getattr(e, "reason", e)
                 last_error = str(reason)
@@ -156,6 +160,18 @@ class Fetcher:
                     last_error += f" ({TLS_HINT})"
                     break  # trying again cannot fix a certificate problem
             if attempt < self.retries:
-                self._sleep(delay)
+                self._sleep(wait if wait is not None else delay)
+                wait = None
                 delay *= 2
         raise FetchError(f"{url}: {last_error}")
+
+
+def _retry_after(e: urllib.error.HTTPError, delay: float) -> float | None:
+    """How long to wait after a rate limit or overload: the server's Retry-After (seconds, capped), else for
+    HTTP 429 at least ``RATE_LIMIT_MIN_WAIT``. None means the normal back-off."""
+    raw = (e.headers.get("Retry-After") if e.headers is not None else None) or ""
+    if raw.strip().isdigit():
+        return min(float(raw.strip()), MAX_RETRY_AFTER)
+    if e.code == 429:
+        return max(delay, RATE_LIMIT_MIN_WAIT)
+    return None

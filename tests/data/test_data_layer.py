@@ -217,6 +217,24 @@ def test_fetcher_retries_then_succeeds() -> None:
     assert [s for s in slept if s >= 1] == [1.0, 2.0]
 
 
+def test_fetcher_waits_longer_after_a_rate_limit() -> None:
+    calls, slept = [], []
+
+    def opener(req: urllib.request.Request, timeout: float) -> bytes:
+        calls.append(1)
+        if len(calls) == 1:
+            raise http_error(429)  # no Retry-After: at least 15 seconds
+        if len(calls) == 2:
+            m = Message()
+            m["Retry-After"] = "40"
+            raise urllib.error.HTTPError("https://x", 429, "slow down", m, None)
+        return b"ok"
+
+    f = Fetcher("t", opener=opener, sleep=slept.append, min_interval={})
+    assert f.get("https://filings.xbrl.org/api/entities").body == b"ok"
+    assert [s for s in slept if s >= 10] == [15.0, 40.0]  # the rest are the one-a-second host spacing
+
+
 def test_fetcher_gives_up_on_404_without_retrying() -> None:
     calls = []
 

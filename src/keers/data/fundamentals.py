@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from . import lines as L
+from . import own_lines as O
 from .models import Fact, Kind, Value, missing
 from .store import Store, is_sec_cik
 
@@ -98,6 +99,10 @@ PRETAX_INCOME = (
     "us-gaap:IncomeLossIncludingPortionAttributableToNoncontrollingInterest",
     "ifrs-full:ProfitLossBeforeTax",
 )
+# IFRS income statements without a pre-tax subtotal (TotalEnergies): pre-tax income is rebuilt as profit for the
+# year (all owners) plus income tax expense, both for the same period, and flagged as derived.
+PROFIT_TOTAL = ("ifrs-full:ProfitLoss",)
+INCOME_TAX = ("ifrs-full:IncomeTaxExpenseContinuingOperations",)
 REVOLVER_AVAILABLE = ("us-gaap:LineOfCreditFacilityRemainingBorrowingCapacity",)
 SBC = ("us-gaap:ShareBasedCompensation", "ifrs-full:AdjustmentsForSharebasedPayments",
        "ifrs-full:ExpenseFromSharebasedPaymentTransactionsWithEmployees")  # fmt: skip
@@ -237,7 +242,7 @@ ALL_CONCEPTS: tuple[str, ...] = (
     REVENUE + OPERATING_INCOME + DA + DEPRECIATION + AMORTIZATION + NET_INCOME + CAPEX + INTEREST + SBC + CASH
     + ST_INVESTMENTS + CASH_AND_STI + DEBT_CONCEPTS + OPERATING_LEASES + OPERATING_LEASES_SPLIT + SHARES_COVER
     + SHARES_BALANCE + SHARES_DILUTED + BORROWED + REPAID + NET_BORROWED + BALANCE_SHEET + NET_INTEREST
-    + PRETAX_INCOME + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
+    + PRETAX_INCOME + PROFIT_TOTAL + INCOME_TAX + REVOLVER_AVAILABLE + EPS_BASIC + tuple(c for n in EPS_NUMERATOR.values() for c in n) + tuple(c for part in DA_PARTS for c in part) + DA_WITH_IMPAIRMENT
 )  # fmt: skip
 IFRS_CONCEPTS = tuple(c for c in ALL_CONCEPTS if c.startswith("ifrs-full:"))
 
@@ -370,6 +375,7 @@ class Fundamentals:
         self.usd_per_unit = usd_per_unit
         self.shares_max_age = SHARES_MAX_AGE_DAYS
         self._currency: str | None = None
+        self._own: O.OwnLines | None | bool = False  # False until looked up
 
     @property
     def currency(self) -> str:
@@ -473,6 +479,43 @@ class Fundamentals:
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
 
+    def own(self) -> O.OwnLines | None:
+        """This company's reviewed own lines (``own_lines.toml``), if it is listed."""
+        if self._own is False:
+            self._own = O.for_entity(self.store, self.cik)
+        return self._own if isinstance(self._own, O.OwnLines) else None
+
+    def own_flow(self, stands_for: str, at: date) -> Value | None:
+        """TTM to ``at`` of this company's reviewed own line for ``stands_for`` (``own_lines.toml``), flagged.
+
+        None when the company has no such line or it has no value for the period. Callers use it only after the
+        standard concepts gave nothing.
+        """
+        own = self.own()
+        if own is None:
+            return None
+        for line in own.lines:
+            if line.stands_for != stands_for:
+                continue
+            v = self.flow((line.concept,), line.label, at)
+            if not v.known:
+                continue
+            assert v.value is not None  # noqa: S101
+            warn = (f"{stands_for} is the company's own line {line.concept} (\"{line.label}\"), not a standard "
+                    f"concept; reviewed against {own.reviewed}") + (f"; {line.note}" if line.note else "")  # fmt: skip
+            method = v.method + (" (sign reversed: filed as a negative outflow)" if line.sign < 0 else "")
+            return Value(
+                v.value * line.sign, v.kind, v.unit, method, v.period_end, v.sources, v.warnings + (warn,)
+            )
+        return None
+
+    def capex(self, at: date) -> Value:
+        """Capital expenditure (TTM): the standard lines, else the company's reviewed own line."""
+        v = self.flow(CAPEX, "capital expenditure", at)
+        if v.known:
+            return v
+        return self.own_flow("capex", at) or v
+
     def depreciation_amortisation(self, at: date) -> Value:
         """Total D&A if filed; otherwise depreciation plus amortisation filed as separate lines."""
         total = self.flow(DA, "depreciation and amortisation", at)
@@ -486,6 +529,9 @@ class Fundamentals:
                 gaps = [c[0].split(":")[1] for c, v in zip(DA_PARTS, parts, strict=True) if not v.known]
                 warn = (f"D&A summed from parts; not filed: {', '.join(gaps)}",) if gaps else ()
                 return _sum(found, " + ".join(_name(v) for v in found), warn)
+            own = self.own_flow("da", at)
+            if own is not None:
+                return own
             both = self.flow(DA_WITH_IMPAIRMENT, "D&A with impairment", at)
             if both.known:
                 return Value(both.value, both.kind, both.unit, both.method, both.period_end, both.sources,
@@ -752,6 +798,8 @@ class Fundamentals:
                 if part:
                     leases = _sum(part, _name(part[0]))
                     notes.append(f"only {_name(part[0])} filed among lease liabilities")
+        if borrowings is None:
+            borrowings = self._own_borrowings(at)
         parts = [v for v in (borrowings, leases) if v is not None]
         if not parts:
             if not self.ever_filed(IFRS_DEBT_CONCEPTS):
@@ -767,22 +815,52 @@ class Fundamentals:
             notes.append("no borrowings line filed at this date; debt is lease liabilities only")
         return _sum(parts, method, tuple(notes))
 
+    def _own_borrowings(self, at: date) -> Value | None:
+        """Borrowings from this company's reviewed own balance-sheet lines (``own_lines.toml``), when no standard
+        borrowings line is filed. Every listed borrowings line must have a balance at ``at``, else none is used."""
+        own = self.own()
+        if own is None:
+            return None
+        lines = [ln for ln in own.lines if ln.stands_for in O.BORROWINGS]
+        if not lines:
+            return None
+        vals = [self.balance((ln.concept,), ln.label, at) for ln in lines]
+        if not all(v.known for v in vals):
+            return None
+        names = ", ".join(f'{ln.concept} ("{ln.label}")' for ln in lines)
+        warn = (f"borrowings are the company's own lines {names}, not standard concepts; reviewed against "
+                f"{own.reviewed}",)  # fmt: skip
+        return _sum(vals, " + ".join(_name(v) for v in vals), warn)
+
     def operating_income(self, at: date) -> Value:
         """Operating income (TTM). Without it, pre-tax income plus interest expense, with a warning."""
         ebit = self.flow(OPERATING_INCOME, "operating income", at)
         if ebit.known:
             return ebit
+        own = self.own_flow("operating-income", at)
+        if own is not None:
+            return own
         pretax = self.flow(PRETAX_INCOME, "pre-tax income", at)
-        interest = self.flow(INTEREST, "interest expense", at)
+        if not pretax.known and self.taxonomy == "ifrs-full":
+            profit, tax = self.flow(PROFIT_TOTAL, "profit", at), self.flow(INCOME_TAX, "income tax", at)
+            if profit.known and tax.known:
+                pretax = _sum([profit, tax], "profit + income tax expense (no pre-tax line filed)",
+                              ("no pre-tax line filed; pre-tax income rebuilt as profit + income tax expense",))  # fmt: skip
+        interest = self.gross_interest(at)
         if pretax.known and interest.known:
             return _sum([pretax, interest], "pre-tax income + interest expense (no operating income filed)",
                         ("operating income not filed; pre-tax income + interest used, so other non-operating "
                          "items are included",))  # fmt: skip
         return ebit
 
+    def gross_interest(self, at: date) -> Value:
+        """Gross interest expense (TTM): the standard lines, else the company's reviewed own line."""
+        v = self.flow(INTEREST, "interest expense", at)
+        return v if v.known else (self.own_flow("interest", at) or v)
+
     def interest_expense(self, at: date, debt: Value) -> Value:
         """Interest expense (TTM): gross where it is plausible for the debt found, else net interest cost."""
-        gross = self.flow(INTEREST, "interest expense", at)
+        gross = self.gross_interest(at)
         d = debt.value if debt.known else None
         # The floor catches a stray US GAAP side line. IFRS finance costs are the income-statement line itself, and
         # yen, franc or euro borrowers can pay less than 1%, so the floor is not applied to them.
@@ -816,7 +894,7 @@ class Fundamentals:
 
     def debt_check(self, debt: Value, at: date) -> str | None:
         """Deterministic completeness check: interest expense far too high for the debt found means debt is missing."""
-        interest = self.flow(INTEREST, "interest expense", at)
+        interest = self.gross_interest(at)
         if not (interest.known and debt.known) or interest.value is None or debt.value is None:
             return None
         if debt.value <= 0:

@@ -136,7 +136,7 @@ def build(store: Store, ticker: str, as_of: date) -> Snapshot:
     v["ebit"] = fu.operating_income(at)
     v["da"] = fu.depreciation_amortisation(at)
     v["netIncome"] = fu.flow(F.NET_INCOME, "net income", at)
-    v["capex"] = fu.flow(F.CAPEX, "capital expenditure", at)
+    v["capex"] = fu.capex(at)
     if v["capex"].known and v["capex"].method.startswith(F.CAPEX_COMBINED):
         c = v["capex"]
         v["capex"] = Value(c.value, c.kind, c.unit, c.method, c.period_end, c.sources, c.warnings + (

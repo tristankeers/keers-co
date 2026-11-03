@@ -15,6 +15,7 @@ on:
       - "src/keers/data/fundamentals.py"
       - "src/keers/data/snapshot.py"
       - "scripts/foreign_probe.py"
+      - "scripts/foreign_lines_diag.py"
       - "config/universe/foreign-test.txt"
       - ".github/workflows/foreign-filings.yml"
 
@@ -42,6 +43,9 @@ jobs:
       - run: pip install -e .
       - name: Probe
         run: python scripts/foreign_probe.py
+      - name: Company-specific lines (for review)
+        if: always()
+        run: python scripts/foreign_lines_diag.py TTE.PA IBE.MC VOD.L SHEL.L CNQ
       - uses: actions/upload-artifact@v4
         if: always()
         with:

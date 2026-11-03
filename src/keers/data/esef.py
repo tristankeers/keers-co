@@ -29,6 +29,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import quote, urljoin
 
+from . import own_lines
 from .http import Fetcher, FetchError, Response
 from .models import Fact, Filing
 from .sec import ParseError
@@ -209,11 +210,17 @@ def parse_xbrl_json(
     filing: EsefFiling,
     raw_sha256: str,
     concepts: Iterable[str] | None = None,
+    own: Iterable[str] = (),
 ) -> tuple[list[Fact], ParseReport]:
-    """xBRL-JSON report -> facts for the entity, plus a report of what was left out and why."""
+    """xBRL-JSON report -> facts for the entity, plus a report of what was left out and why.
+
+    ``own`` lists the company's own concepts (``prefix:Name`` as tagged) to keep as well: reviewed lines from
+    ``own_lines.toml``. They are stored under their own prefix, never as ``ifrs-full``.
+    """
     if not isinstance(doc, dict) or not isinstance(doc.get("facts"), dict):
         raise ParseError(f"{filing.json_url}: not an xBRL-JSON report")
     keep = set(concepts) if concepts is not None else None
+    own = set(own)
     prefixes = _prefixes(doc)
     rep = ParseReport()
     groups: dict[tuple[str, str, str, date | None, date], list[tuple[Decimal, float]]] = {}
@@ -225,10 +232,12 @@ def parse_xbrl_json(
             continue
         prefix, name = concept.split(":", 1)
         tax = prefixes.get(prefix)
-        if tax != "ifrs-full":
+        if tax != "ifrs-full" and concept in own and prefix not in prefixes:
+            tax = prefix  # a reviewed own line; its prefix is not bound to the IFRS taxonomy
+        elif tax != "ifrs-full":
             rep.skip("not an ifrs-full concept")
             continue
-        if keep is not None and f"{tax}:{name}" not in keep:
+        elif keep is not None and f"{tax}:{name}" not in keep:
             rep.skip("concept not used")
             continue
         if set(dims) - PLAIN_DIMENSIONS:
@@ -356,9 +365,13 @@ class Esef:
         reports = []
         added = 0
         concepts = list(concepts) if concepts is not None else None
+        own = own_lines.for_lei(lei)
+        if own is not None and concepts is not None:
+            concepts += own.concepts()
+        extension = own.extension_concepts() if own is not None else set()
         for f in chosen:
             resp = self._get(f.json_url)
-            facts, rep = parse_xbrl_json(_json(resp), lei, entity_id, f, resp.sha256, concepts)
+            facts, rep = parse_xbrl_json(_json(resp), lei, entity_id, f, resp.sha256, concepts, extension)
             added += self.store.put_facts(facts)
             reports.append({"fxoId": f.fxo_id, "periodEnd": f.period_end.isoformat(), "added": f.added.isoformat(),
                             "country": f.country, "validationErrors": f.errors, **rep.as_dict()})  # fmt: skip
