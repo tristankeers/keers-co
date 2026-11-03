@@ -144,12 +144,20 @@ are the inputs a person can edit.
 
 ## Motion
 
-Only data moves, and it moves to its real value.
+Motion has two jobs: bring each block in as you reach it, and make the data play out to its real
+value.
+
+- Blocks (panels, KPI rows, headers) lift in from 32px below as they reach the viewport, staggered
+  80 to 90ms with their neighbours. They never wait on anything but the scroll position.
+- Titles rise from behind a mask (word by word on the preview). The finding clause flashes lime,
+  then settles to muted.
 
 - Bars grow from zero to the figure they show. Count-ups end on the exact figure from the run.
 - Severity badges and flagged cells take their colour as they appear, so the eye lands on the flags.
 - A 1px lime line under the top bar tracks scroll position.
-- No fade-in on scroll, no cursor-following glow, no hover fades on buttons.
+- The one pointer effect is the source-runs card on the preview: it tilts up to 9 degrees toward
+  the pointer, with its rows at different depths. No cursor-following glows or beams, and no hover
+  fades on buttons.
 - Everything is readable with motion off: `prefers-reduced-motion: reduce` turns all of it off.
 
 ## Clichés we avoid
@@ -157,8 +165,9 @@ Only data moves, and it moves to its real value.
 Checked against a common list of AI-generated design tells (2026-11-03): no purple-to-blue
 gradients, gradient text, emoji in headings, Inter everywhere, coloured-border or glass cards,
 low-contrast faint text (faint ink is at least 4.5:1 on the canvas), rows of icon boxes, badges
-above headlines, icon-library sprinkles, fade-in on scroll, cursor beams, serif italic accents or
-grain over gradients. Section context (strategy, version, source) sits under the paragraph as a
+above headlines, icon-library sprinkles, cursor beams, serif italic accents or grain over
+gradients. Plain fade-in on scroll is replaced by the lift and word reveal above, which the
+person asked for on 2026-11-03. Section context (strategy, version, source) sits under the paragraph as a
 mono source line, not as a pill above the title.
 
 ## Do
@@ -172,7 +181,7 @@ mono source line, not as a pill above the title.
 - Don't add a second accent colour.
 - Don't use lime for "good" or "pass".
 - Don't show an estimated or invented number to fill a gap.
-- Don't add an italic serif accent, a badge above a title, or a fade-in on scroll.
+- Don't add an italic serif accent, a badge above a title, or a plain opacity fade.
 
 ## Responsive behaviour
 

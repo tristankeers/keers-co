@@ -1243,3 +1243,24 @@ route();
   new MutationObserver(update).observe(document.getElementById("view"), { childList: true });
   update();
 })();
+
+// Scroll-in: panels, KPI rows and headers lift in as they reach the viewport. Skipped for reduced motion.
+(() => {
+  const view = document.getElementById("view");
+  if (!view || matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+  document.documentElement.classList.add("motion");
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) { e.target.classList.add("said"); io.unobserve(e.target); }
+  }), { threshold: 0.08 });
+  const arm = () => {
+    view.querySelectorAll(".panel, .kpis, .co-head, .tabs, .callout").forEach((el) => {
+      if (el.classList.contains("rise") || el.closest(".rise")) return;
+      const sibs = [...el.parentElement.children].filter((c) => c.matches(".panel, .kpis, .co-head, .tabs, .callout"));
+      el.style.setProperty("--d", `${Math.min(sibs.indexOf(el), 6) * 80}ms`);
+      el.classList.add("rise");
+      io.observe(el);
+    });
+  };
+  new MutationObserver(arm).observe(view, { childList: true, subtree: true });
+  arm();
+})();
