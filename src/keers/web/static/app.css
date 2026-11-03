@@ -8,7 +8,7 @@
   --line-strong: #343d2f; /* hairline-strong */
   --text: #e7ebdf;
   --muted: #8e9887;
-  --faint: #5d6658;
+  --faint: #747e6c;
   --accent: #c4f25a;      /* lime: the only brand colour */
   --accent-ink: #0d1205;  /* text on lime */
   --accent-bg: #1d2810;
@@ -30,7 +30,6 @@
 
   --mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --serif: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --radius: 8px;
   --radius-lg: 12px;
   color-scheme: dark;
@@ -45,7 +44,7 @@ body {
 }
 a { color: inherit; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
 a:hover { color: var(--accent); text-decoration-color: currentColor; }
-em.s { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: 0; }
+.dim { color: var(--muted); }
 ::selection { background: var(--accent); color: var(--accent-ink); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .num, td.n, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -61,8 +60,7 @@ button { font: inherit; color: inherit; }
 /* top bar ------------------------------------------------------------------------------------------------- */
 .topbar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 20px;
-  padding: 0 16px; height: 52px; background: color-mix(in srgb, var(--bg) 85%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+  padding: 0 16px; height: 52px; background: var(--bg); border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; white-space: nowrap; }
 .mark { font: 600 10.5px var(--mono); color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 4px 6px; letter-spacing: .02em; }
@@ -267,3 +265,22 @@ tr.closed td { color: var(--faint); }
   .nav a { padding: 4px 6px; }
   .news li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* motion ------------------------------------------------------------------------------------------------- */
+/* Only data moves: bars grow to their value, severity badges take their colour, the top bar tracks scroll.
+   No fades on scroll, no cursor effects. Off entirely for prefers-reduced-motion. */
+.scrollbar { position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--accent);
+  transform-origin: 0 50%; transform: scaleX(var(--p, 0)); pointer-events: none; }
+.btn, .nav a, .seg button { transition: background .2s, border-color .2s, color .2s, box-shadow .2s; }
+@media (prefers-reduced-motion: no-preference) {
+  .bar .fillx { animation: grow .9s cubic-bezier(.2, .7, .2, 1) both; transform-origin: 0 50%; }
+  tr:nth-child(2) .fillx { animation-delay: 60ms; } tr:nth-child(3) .fillx { animation-delay: 120ms; }
+  .bar-row:nth-child(2) .fillx { animation-delay: 60ms; } .bar-row:nth-child(3) .fillx { animation-delay: 120ms; }
+  .bar-row:nth-child(n+4) .fillx { animation-delay: 180ms; }
+  .lvl { animation: ignite .6s .15s ease-out both; }
+  .kpi .v { animation: tick .5s steps(4) both; }
+}
+@keyframes grow { from { transform: scaleX(0); } }
+@keyframes ignite { from { filter: grayscale(1) brightness(.75); } }
+@keyframes tick { from { color: var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .scrollbar { display: none; } }

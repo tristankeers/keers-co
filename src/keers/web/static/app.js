@@ -291,7 +291,7 @@ async function homeView() {
   const s = STATUS || { companies: [], runs: [], rates: {} };
   fill(view, 
     h("div", { class: "home-hero" },
-      h("h1", {}, "Research ", h("em", { class: "s" }, "workbench")),
+      h("h1", {}, "Research ", h("span", { class: "dim" }, "workbench")),
       h("p", {}, "Search any listed company. US SEC filers get the full view: filed fundamentals, the kci-v3 valuation with its kci-v1 comparison, and the distress screen. Other listings show price, chart and news until a fundamentals source exists for their market."),
     ),
     h("div", { class: "grid cols-2" },
@@ -987,7 +987,7 @@ function createPortfolioView(list) {
       location.hash = `#/portfolio/${p.id}`;
     } catch (e) { msg.textContent = e.message; }
   };
-  fill(view, h("div", { class: "home-hero" }, h("h1", {}, h("em", { class: "s" }, "Paper"), " portfolio"), h("p", {}, list.notice)),
+  fill(view, h("div", { class: "home-hero" }, h("h1", {}, "Paper ", h("span", { class: "dim" }, "portfolio")), h("p", {}, list.notice)),
     h("section", { class: "panel", style: "max-width:520px" },
       h("div", { class: "ph" }, h("h2", {}, "Start a paper portfolio")),
       h("div", { class: "pb form" },
@@ -1225,3 +1225,21 @@ function drawNav(history, nav, today) {
 // --- start ---------------------------------------------------------------------------------------------------
 loadStatus();
 route();
+
+// Top bar: a 1px lime line tracks how far down the page you are.
+(() => {
+  const top = document.querySelector(".topbar");
+  if (!top) return;
+  const line = document.createElement("div");
+  line.className = "scrollbar";
+  line.setAttribute("aria-hidden", "true");
+  top.append(line);
+  const update = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    line.style.setProperty("--p", max > 0 ? (scrollY / max).toFixed(4) : 0);
+  };
+  addEventListener("scroll", update, { passive: true });
+  addEventListener("resize", update);
+  new MutationObserver(update).observe(document.getElementById("view"), { childList: true });
+  update();
+})();

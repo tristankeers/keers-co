@@ -1,7 +1,7 @@
 ---
 version: 1
 name: keers-co-workbench
-description: "A dark research desk. A green-biased black canvas, light warm-grey text and one lime accent. Display and body text set in Geist, labels and figures in Geist Mono, and a single italic serif word (Instrument Serif) in headlines. Figures are always real, sourced and dated; anything missing says so."
+description: "A dark research desk. A green-biased black canvas, light warm-grey text and one lime accent. Text set in Geist, labels and figures in Geist Mono. Headlines are two-tone (statement in ink, clause in muted). Only data moves. Figures are always real, sourced and dated; anything missing says so."
 
 colors:
   canvas: "#090b08"
@@ -11,7 +11,7 @@ colors:
   hairline-strong: "#343d2f"
   ink: "#e7ebdf"
   ink-muted: "#8e9887"
-  ink-faint: "#5d6658"
+  ink-faint: "#747e6c"
   accent: "#c4f25a"
   on-accent: "#0d1205"
   accent-tint: "#1d2810"
@@ -39,11 +39,9 @@ typography:
     fontWeight: 500
     lineHeight: 1.1
     letterSpacing: -0.6px
-  accent-word:
-    fontFamily: Instrument Serif
-    fontStyle: italic
-    fontWeight: 400
-    note: "One word or short phrase inside a display or section title. Never a whole line."
+  headline-clause:
+    color: ink-muted
+    note: "The second clause of a display or section title, same face and weight. Carries the finding."
   body:
     fontFamily: Geist
     fontSize: 14px
@@ -115,14 +113,14 @@ are the inputs a person can edit.
 - Geist for headings and body. Headings are weight 500 with tight tracking.
 - Geist Mono, lower case, for labels, table heads, tickers, run ids and every figure. Figures use
   tabular numbers so columns line up.
-- Instrument Serif italic for one word in a headline, for emphasis ("Research *workbench*",
-  "the gate stays *closed*"). One per headline at most.
-- All three load from Google Fonts with system fallbacks, so the workbench still reads correctly
+- Headlines are two-tone in one face: the subject in ink, the finding in muted ink
+  ("Strategy C. The gate stays closed."). No italic serif accents.
+- Both faces load from Google Fonts with system fallbacks, so the workbench still reads correctly
   offline.
 
 ## Layout
 
-- A sticky top bar with a translucent canvas background and a hairline below it.
+- A sticky top bar on the solid canvas colour with a hairline below it. No blur or glass.
 - Panels are cards with a 12px radius, a header row in the label face, and flush tables.
 - Pages open with a short hero: a large title, one muted paragraph, and a faint lime glow in the
   top-right corner. The glow is decoration only and never sits behind figures.
@@ -141,8 +139,27 @@ are the inputs a person can edit.
   fill in `hairline-strong`.
 - **Missing state**: a dashed card with a faint hatch. It says what is missing, why, and how to
   produce it.
-- **Approval ticket** (previews): a paper trade shown as a message with a left rule in lime (filled)
-  or red (blocked) and its risk-check result as a pill.
+- **Approval ticket** (previews): a paper trade shown as a message with a neutral hairline rule and
+  its risk-check result as a pill. The pill carries the colour, not the card border.
+
+## Motion
+
+Only data moves, and it moves to its real value.
+
+- Bars grow from zero to the figure they show. Count-ups end on the exact figure from the run.
+- Severity badges and flagged cells take their colour as they appear, so the eye lands on the flags.
+- A 1px lime line under the top bar tracks scroll position.
+- No fade-in on scroll, no cursor-following glow, no hover fades on buttons.
+- Everything is readable with motion off: `prefers-reduced-motion: reduce` turns all of it off.
+
+## Clichés we avoid
+
+Checked against a common list of AI-generated design tells (2026-11-03): no purple-to-blue
+gradients, gradient text, emoji in headings, Inter everywhere, coloured-border or glass cards,
+low-contrast faint text (faint ink is at least 4.5:1 on the canvas), rows of icon boxes, badges
+above headlines, icon-library sprinkles, fade-in on scroll, cursor beams, serif italic accents or
+grain over gradients. Section context (strategy, version, source) sits under the paragraph as a
+mono source line, not as a pill above the title.
 
 ## Do
 
@@ -155,13 +172,18 @@ are the inputs a person can edit.
 - Don't add a second accent colour.
 - Don't use lime for "good" or "pass".
 - Don't show an estimated or invented number to fill a gap.
-- Don't make a whole headline italic serif.
+- Don't add an italic serif accent, a badge above a title, or a fade-in on scroll.
 
 ## Responsive behaviour
 
 - Below 1000px, two-column layouts stack to one column.
 - Below 720px, the top bar hides the subtitle, keyboard hint and data status.
 - Wide tables scroll inside their own panel; the page never scrolls sideways.
+
+## Known gaps
+
+- The app still prints an em dash for a missing table value in about 30 places in `app.js`.
+  The rule above says to write "missing"; changing every formatter is a separate small PR.
 
 ## Credits
 
