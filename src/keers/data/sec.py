@@ -13,7 +13,7 @@ from datetime import date
 from typing import Any
 
 from . import fundamentals as F
-from . import lines
+from . import lines, own_lines
 from .http import Fetcher, FetchError, Response
 from .models import Fact, Filing
 from .store import Store
@@ -177,6 +177,9 @@ class SEC:
         self.store.put_company(cik, ticker, info["name"], info["sic"], info["fiscalYearEnd"])
         self.store.put_filings(filings)
         resp = self._get(FACTS_URL.format(cik=cik))
+        own = own_lines.for_cik(cik)
+        if own is not None and concepts is not None:
+            concepts = list(concepts) + own.concepts()
         facts = parse_company_facts(_json(resp), resp.sha256, concepts)
         added = self.store.put_facts(facts)
         out: dict[str, Any] = {
@@ -193,4 +196,11 @@ class SEC:
                 out["companyLines"] = lines.refresh_lines(self.fetcher, self.store, cik, LINE_WATCH)
             except (FetchError, InstanceError, ValueError, ET.ParseError) as e:
                 out["companyLinesError"] = str(e)
+        if own is not None and own.extension_concepts():
+            # Reviewed company-specific lines (own_lines.toml) that company facts leaves out. On failure they stay
+            # unread, so the line they stand for reads as unknown.
+            try:
+                out["ownLines"] = own_lines.refresh_sec(self.fetcher, self.store, cik)
+            except (FetchError, InstanceError, ValueError, ET.ParseError) as e:
+                out["ownLinesError"] = str(e)
         return out

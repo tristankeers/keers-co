@@ -1,0 +1,35 @@
+# Company-specific lines that stand for a standard line (see own_lines.py). Each entry was checked against the
+# filing named under "reviewed": the row on the face statement, its label and its printed figures, using
+# scripts/foreign_lines_diag.py (which prints each fact's value, its label and the statement it is presented in).
+# A line is used only when the standard concepts give no value for the period, and every figure taken from one
+# carries a warning naming it. Nothing here is a guess: a company whose line is not listed stays unknown.
+#
+# Identify the filer by "lei" (ESEF reports) or "cik" (SEC 20-F / 40-F filers), never both.
+#
+# stands_for:
+#   capex              capital expenditure (cash paid for property, plant and equipment)
+#   operating-income   operating profit
+#   da                 depreciation and amortisation
+#   interest           interest expense
+# sign = -1 when the company files the outflow as a negative number.
+
+[[company]]
+name = "Shell plc"
+cik = 1306965
+reviewed = "2026-11-03: 20-F for 2025, accession 0001628280-26-017024"
+lines = [
+    # The "Capital expenditure" row of the consolidated cash flow statement: 18,947 (2025), 19,601 (2024),
+    # 22,993 (2023), USD m. Shell's wider "cash capital expenditure" (20,915 in 2025) adds investments in joint
+    # ventures and associates and is not used.
+    { concept = "ifrs-full:PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities", stands_for = "capex", label = "Capital expenditure" },
+]
+
+[[company]]
+name = "Canadian Natural Resources Ltd"
+cik = 1017413
+reviewed = "2026-11-03: 40-F for 2025, accession 0001017413-26-000018"
+lines = [
+    # The property, plant and equipment row of the investing section of the cash flow statement, filed negative:
+    # -6,676 (2025), -5,291 (2024), -4,865 (2023), CAD m. Net of disposal proceeds.
+    { concept = "cnq:CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvestingActivities", stands_for = "capex", label = "Net expenditures on property, plant and equipment", sign = -1, note = "net of proceeds from disposals" },
+]

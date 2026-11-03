@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from . import lines as L
+from . import own_lines as O
 from .models import Fact, Kind, Value, missing
 from .store import Store, is_sec_cik
 
@@ -370,6 +371,7 @@ class Fundamentals:
         self.usd_per_unit = usd_per_unit
         self.shares_max_age = SHARES_MAX_AGE_DAYS
         self._currency: str | None = None
+        self._own: O.OwnLines | None | bool = False  # False until looked up
 
     @property
     def currency(self) -> str:
@@ -473,6 +475,39 @@ class Fundamentals:
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
 
+    def own_flow(self, stands_for: str, at: date) -> Value | None:
+        """TTM to ``at`` of this company's reviewed own line for ``stands_for`` (``own_lines.toml``), flagged.
+
+        None when the company has no such line or it has no value for the period. Callers use it only after the
+        standard concepts gave nothing.
+        """
+        if self._own is False:
+            self._own = O.for_entity(self.store, self.cik)
+        own = self._own
+        if not isinstance(own, O.OwnLines):
+            return None
+        for line in own.lines:
+            if line.stands_for != stands_for:
+                continue
+            v = self.flow((line.concept,), line.label, at)
+            if not v.known:
+                continue
+            assert v.value is not None  # noqa: S101
+            warn = (f"{stands_for} is the company's own line {line.concept} (\"{line.label}\"), not a standard "
+                    f"concept; reviewed against {own.reviewed}") + (f"; {line.note}" if line.note else "")  # fmt: skip
+            method = v.method + (" (sign reversed: filed as a negative outflow)" if line.sign < 0 else "")
+            return Value(
+                v.value * line.sign, v.kind, v.unit, method, v.period_end, v.sources, v.warnings + (warn,)
+            )
+        return None
+
+    def capex(self, at: date) -> Value:
+        """Capital expenditure (TTM): the standard lines, else the company's reviewed own line."""
+        v = self.flow(CAPEX, "capital expenditure", at)
+        if v.known:
+            return v
+        return self.own_flow("capex", at) or v
+
     def depreciation_amortisation(self, at: date) -> Value:
         """Total D&A if filed; otherwise depreciation plus amortisation filed as separate lines."""
         total = self.flow(DA, "depreciation and amortisation", at)
@@ -486,6 +521,9 @@ class Fundamentals:
                 gaps = [c[0].split(":")[1] for c, v in zip(DA_PARTS, parts, strict=True) if not v.known]
                 warn = (f"D&A summed from parts; not filed: {', '.join(gaps)}",) if gaps else ()
                 return _sum(found, " + ".join(_name(v) for v in found), warn)
+            own = self.own_flow("da", at)
+            if own is not None:
+                return own
             both = self.flow(DA_WITH_IMPAIRMENT, "D&A with impairment", at)
             if both.known:
                 return Value(both.value, both.kind, both.unit, both.method, both.period_end, both.sources,
@@ -772,6 +810,9 @@ class Fundamentals:
         ebit = self.flow(OPERATING_INCOME, "operating income", at)
         if ebit.known:
             return ebit
+        own = self.own_flow("operating-income", at)
+        if own is not None:
+            return own
         pretax = self.flow(PRETAX_INCOME, "pre-tax income", at)
         interest = self.flow(INTEREST, "interest expense", at)
         if pretax.known and interest.known:
@@ -783,6 +824,8 @@ class Fundamentals:
     def interest_expense(self, at: date, debt: Value) -> Value:
         """Interest expense (TTM): gross where it is plausible for the debt found, else net interest cost."""
         gross = self.flow(INTEREST, "interest expense", at)
+        if not gross.known:
+            gross = self.own_flow("interest", at) or gross
         d = debt.value if debt.known else None
         # The floor catches a stray US GAAP side line. IFRS finance costs are the income-statement line itself, and
         # yen, franc or euro borrowers can pay less than 1%, so the floor is not applied to them.

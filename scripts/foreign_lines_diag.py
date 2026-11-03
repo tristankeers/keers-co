@@ -16,6 +16,7 @@ import html
 import json
 import re
 import sys
+import xml.etree.ElementTree as ET  # noqa: S405 (SEC filings; expat does not fetch external entities)
 from typing import Any
 
 from keers.data import esef
@@ -24,7 +25,7 @@ from keers.data.http import Fetcher, FetchError
 from keers.data.refresh import user_agent
 from keers.data.sec import ParseError
 from keers.data.store import Store
-from keers.data.xbrl import fetch_instance, fetch_linkbase, latest_periodic, parse_labels
+from keers.data.xbrl import fetch_instance, fetch_linkbase, latest_periodic, parse_statements
 
 LIST = "config/universe/foreign-test.txt"
 PATTERN = re.compile(
@@ -45,6 +46,33 @@ def read_list(path: str) -> list[tuple[str, str]]:
         if line:
             sym, _, rest = line.partition("|")
             out.append((sym.strip().upper(), rest.strip()))
+    return out
+
+
+def all_labels(body: bytes) -> dict[str, list[str]]:
+    """Label linkbase -> {concept: every label text}, so a statement row's own label (often a terse or negated
+    label) is shown beside the standard one."""
+    root = ET.fromstring(body)  # noqa: S314 (SEC filing)
+    out: dict[str, list[str]] = {}
+    x = "{http://www.w3.org/1999/xlink}"
+    for link in root.iter():
+        if not link.tag.endswith("labelLink"):
+            continue
+        locs, texts, arcs = {}, {}, []
+        for el in link:
+            tag = el.tag.rsplit("}", 1)[-1]
+            if tag == "loc":
+                href = el.get(f"{x}href", "").split("#", 1)[-1]
+                locs[el.get(f"{x}label", "")] = href.replace("_", ":", 1)
+            elif tag == "label":
+                texts.setdefault(el.get(f"{x}label", ""), []).append((el.text or "").strip())
+            elif tag == "labelArc":
+                arcs.append((el.get(f"{x}from", ""), el.get(f"{x}to", "")))
+        for a, b in arcs:
+            c = locs.get(a)
+            for t in texts.get(b, []) if c else []:
+                if t and t not in out.setdefault(c, []):
+                    out[c].append(t)
     return out
 
 
@@ -110,20 +138,36 @@ def sec_dump(fetcher: Fetcher, cik: int) -> None:
     inst = fetch_instance(fetcher, cik, accn, form, filed)
     print(f"  {inst.form} {inst.accn} filed {inst.filed}, instance {inst.url}")
     try:
-        labels = parse_labels(fetch_linkbase(fetcher, cik, inst.accn, "_lab.xml"))
+        labels = {
+            c: " | ".join(ts)
+            for c, ts in all_labels(fetch_linkbase(fetcher, cik, inst.accn, "_lab.xml")).items()
+        }
     except Exception as e:  # noqa: BLE001 (diagnostics: report and carry on)
         print(f"  label linkbase error: {e}")
         labels = {}
+    # Which statements each concept is presented in (the role's last path part), to tell face lines from notes.
+    where: dict[str, list[str]] = {}
+    try:
+        for role, cs in parse_statements(fetch_linkbase(fetcher, cik, inst.accn, "_pre.xml")).items():
+            for c in cs:
+                where.setdefault(c, []).append(role.rsplit("/", 1)[-1])
+    except Exception as e:  # noqa: BLE001 (diagnostics: report and carry on)
+        print(f"  presentation linkbase error: {e}")
     rows = [
         x for x in inst.facts if not x.dims and PATTERN.search(x.concept) and x.prefix not in ("dei", "srt")
     ]
     rows = [
         x for x in rows if x.prefix != "ifrs-full" or re.search(r"(?i)purchase|depreci|amorti", x.concept)
     ]
+    last = max((x.end for x in rows), default=None)
+    rows = [x for x in rows if x.end == last]  # the latest period only, to keep the log short
     print(f"  extension prefixes: {sorted(inst.extension_prefixes)}; matching facts: {len(rows)}")
     for x in sorted(rows, key=lambda x: (x.prefix, x.concept, x.end))[:MAX_ROWS]:
         c = f"{x.prefix}:{x.concept}"
-        print(f'    {c} "{labels.get(c, "")}" {x.start or ""}..{x.end} {x.unit} = {x.value:,.0f}')
+        print(
+            f'    {c} "{labels.get(c, "")}" {x.start or ""}..{x.end} {x.unit} = {x.value:,.0f}'
+            f"  [{', '.join(where.get(c, [])[:2])}]"
+        )
 
 
 def main() -> int:
