@@ -475,16 +475,20 @@ class Fundamentals:
                            ("TTM could not be built; latest fiscal year used",))  # fmt: skip
         return self._value(p, concept, self.money, MILLION, f"{label}: no usable period")
 
+    def own(self) -> O.OwnLines | None:
+        """This company's reviewed own lines (``own_lines.toml``), if it is listed."""
+        if self._own is False:
+            self._own = O.for_entity(self.store, self.cik)
+        return self._own if isinstance(self._own, O.OwnLines) else None
+
     def own_flow(self, stands_for: str, at: date) -> Value | None:
         """TTM to ``at`` of this company's reviewed own line for ``stands_for`` (``own_lines.toml``), flagged.
 
         None when the company has no such line or it has no value for the period. Callers use it only after the
         standard concepts gave nothing.
         """
-        if self._own is False:
-            self._own = O.for_entity(self.store, self.cik)
-        own = self._own
-        if not isinstance(own, O.OwnLines):
+        own = self.own()
+        if own is None:
             return None
         for line in own.lines:
             if line.stands_for != stands_for:
@@ -790,6 +794,8 @@ class Fundamentals:
                 if part:
                     leases = _sum(part, _name(part[0]))
                     notes.append(f"only {_name(part[0])} filed among lease liabilities")
+        if borrowings is None:
+            borrowings = self._own_borrowings(at)
         parts = [v for v in (borrowings, leases) if v is not None]
         if not parts:
             if not self.ever_filed(IFRS_DEBT_CONCEPTS):
@@ -805,6 +811,23 @@ class Fundamentals:
             notes.append("no borrowings line filed at this date; debt is lease liabilities only")
         return _sum(parts, method, tuple(notes))
 
+    def _own_borrowings(self, at: date) -> Value | None:
+        """Borrowings from this company's reviewed own balance-sheet lines (``own_lines.toml``), when no standard
+        borrowings line is filed. Every listed borrowings line must have a balance at ``at``, else none is used."""
+        own = self.own()
+        if own is None:
+            return None
+        lines = [ln for ln in own.lines if ln.stands_for in O.BORROWINGS]
+        if not lines:
+            return None
+        vals = [self.balance((ln.concept,), ln.label, at) for ln in lines]
+        if not all(v.known for v in vals):
+            return None
+        names = ", ".join(f'{ln.concept} ("{ln.label}")' for ln in lines)
+        warn = (f"borrowings are the company's own lines {names}, not standard concepts; reviewed against "
+                f"{own.reviewed}",)  # fmt: skip
+        return _sum(vals, " + ".join(_name(v) for v in vals), warn)
+
     def operating_income(self, at: date) -> Value:
         """Operating income (TTM). Without it, pre-tax income plus interest expense, with a warning."""
         ebit = self.flow(OPERATING_INCOME, "operating income", at)
@@ -814,18 +837,21 @@ class Fundamentals:
         if own is not None:
             return own
         pretax = self.flow(PRETAX_INCOME, "pre-tax income", at)
-        interest = self.flow(INTEREST, "interest expense", at)
+        interest = self.gross_interest(at)
         if pretax.known and interest.known:
             return _sum([pretax, interest], "pre-tax income + interest expense (no operating income filed)",
                         ("operating income not filed; pre-tax income + interest used, so other non-operating "
                          "items are included",))  # fmt: skip
         return ebit
 
+    def gross_interest(self, at: date) -> Value:
+        """Gross interest expense (TTM): the standard lines, else the company's reviewed own line."""
+        v = self.flow(INTEREST, "interest expense", at)
+        return v if v.known else (self.own_flow("interest", at) or v)
+
     def interest_expense(self, at: date, debt: Value) -> Value:
         """Interest expense (TTM): gross where it is plausible for the debt found, else net interest cost."""
-        gross = self.flow(INTEREST, "interest expense", at)
-        if not gross.known:
-            gross = self.own_flow("interest", at) or gross
+        gross = self.gross_interest(at)
         d = debt.value if debt.known else None
         # The floor catches a stray US GAAP side line. IFRS finance costs are the income-statement line itself, and
         # yen, franc or euro borrowers can pay less than 1%, so the floor is not applied to them.
@@ -859,7 +885,7 @@ class Fundamentals:
 
     def debt_check(self, debt: Value, at: date) -> str | None:
         """Deterministic completeness check: interest expense far too high for the debt found means debt is missing."""
-        interest = self.flow(INTEREST, "interest expense", at)
+        interest = self.gross_interest(at)
         if not (interest.known and debt.known) or interest.value is None or debt.value is None:
             return None
         if debt.value <= 0:

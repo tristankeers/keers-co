@@ -11,6 +11,9 @@
 #   operating-income   operating profit
 #   da                 depreciation and amortisation
 #   interest           interest expense
+#   borrowings-noncurrent / borrowings-current
+#                      borrowings on the face balance sheet; used together, only when no standard borrowings
+#                      line is filed (IFRS filers)
 # sign = -1 when the company files the outflow as a negative number.
 
 [[company]]
@@ -18,10 +21,10 @@ name = "Shell plc"
 cik = 1306965
 reviewed = "2026-11-03: 20-F for 2025, accession 0001628280-26-017024"
 lines = [
-    # The "Capital expenditure" row of the consolidated cash flow statement: 18,947 (2025), 19,601 (2024),
-    # 22,993 (2023), USD m. Shell's wider "cash capital expenditure" (20,915 in 2025) adds investments in joint
-    # ventures and associates and is not used.
-    { concept = "ifrs-full:PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities", stands_for = "capex", label = "Capital expenditure" },
+    # Cash flow statement, investing activities: 18,947 (2025), 19,601 (2024), 22,993 (2023), USD m. Shell's wider
+    # "cash capital expenditure" (shel:CashOutflowForTotalCashCapitalExpenditure, 20,915 in 2025) adds
+    # investments in joint ventures and associates and is not used.
+    { concept = "ifrs-full:PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities", stands_for = "capex", label = "Purchase of other long-term assets, classified as investing activities" },
 ]
 
 [[company]]
@@ -31,5 +34,31 @@ reviewed = "2026-11-03: 40-F for 2025, accession 0001017413-26-000018"
 lines = [
     # The property, plant and equipment row of the investing section of the cash flow statement, filed negative:
     # -6,676 (2025), -5,291 (2024), -4,865 (2023), CAD m. Net of disposal proceeds.
-    { concept = "cnq:CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvestingActivities", stands_for = "capex", label = "Net expenditures on property, plant and equipment", sign = -1, note = "net of proceeds from disposals" },
+    { concept = "cnq:CashFlowsFromUsedInPropertyPlantandEquipmentClassifiedAsInvestingActivities", stands_for = "capex", label = "Cash Flows From (Used In) Property, Plant and Equipment, Classified As Investing Activities", sign = -1, note = "net of proceeds from disposals" },
+]
+
+[[company]]
+name = "TotalEnergies SE"
+lei = "529900S21EQ1BO4ESM68"
+reviewed = "2026-11-03: ESEF annual report 2025, 529900S21EQ1BO4ESM68-2025-12-31-ESEF-GB-0"
+lines = [
+    # Cash flow statement, investing activities: 16,953 (2025), 14,909 (2024), 17,722 (2023), USD m. One line for
+    # property, plant and equipment and intangible assets together.
+    { concept = "tot:PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssets", stands_for = "capex", label = "Purchase of property, plant and equipment and intangible assets", note = "includes intangible assets" },
+    # Income statement, cost of net debt: interest 3,182 (2025), 3,016 (2024), 2,820 (2023), USD m. Ties:
+    # 3,182 less 1,115 income from cash (tot:FinanceIncomeCostCashAndCashEquivalents) = 2,067 cost of net debt
+    # (tot:CostOfDebtNet).
+    { concept = "tot:InterestExpenseNetOfHedgeInEffectiveness", stands_for = "interest", label = "Interest expense, net of hedge ineffectiveness" },
+]
+
+[[company]]
+name = "Iberdrola SA"
+lei = "5QK37QC7NWOJ8D7WVQ45"
+reviewed = "2026-11-03: ESEF annual report 2025, 5QK37QC7NWOJ8D7WVQ45-2025-12-31-ESEF-ES-0"
+lines = [
+    # Balance sheet: bank borrowings and bonds, EUR m. Non-current 42,159 (31 Dec 2025), 40,585 (31 Dec 2024);
+    # current 11,931 and 13,805. Equity instruments classed as financial liabilities (ibe:InstrumentosDeCapital...,
+    # 692 in 2025) sit on their own lines and are not included.
+    { concept = "ibe:DeudasConEntidadesDeCreditoYObligacionesUOtrosValoresNegociables", stands_for = "borrowings-noncurrent", label = "Deudas con entidades de crédito y obligaciones u otros valores negociables (no corriente)" },
+    { concept = "ibe:DeudasConEntidadesDeCreditoYObligacionesUOtrosValoresNegociablesCorrientes", stands_for = "borrowings-current", label = "Deudas con entidades de crédito y obligaciones u otros valores negociables (corriente)" },
 ]

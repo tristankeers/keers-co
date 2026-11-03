@@ -31,7 +31,8 @@ from .store import Store, is_sec_cik
 from .xbrl import SUBMISSIONS_URL, Instance, _json, fetch_instance, latest_periodic
 
 # What a line can stand for, and how Fundamentals uses it.
-STANDS_FOR = ("capex", "operating-income", "da", "interest")
+STANDS_FOR = ("capex", "operating-income", "da", "interest", "borrowings-noncurrent", "borrowings-current")
+BORROWINGS = ("borrowings-noncurrent", "borrowings-current")  # balance-sheet lines, used only for IFRS filers
 STANDARD_PREFIXES = ("ifrs-full", "us-gaap")
 ANNUAL_FORMS = ("20-F", "40-F", "20-F/A", "40-F/A", "10-K", "10-K/A")
 

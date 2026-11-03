@@ -83,14 +83,18 @@ other than the one read here (Shell tags capex as "purchase of other long-term a
 one company at a time, in `src/keers/data/own_lines.toml`, after a person has checked the row, its label and its
 printed figures in the filing named under `reviewed` (`scripts/foreign_lines_diag.py` prints them).
 
-- A listed line stands for one of: capex, operating income, D&A, interest. It is used **only** when the standard
-  concepts give no value for the same period, and the figure carries a warning naming the company's line and the
+- A listed line stands for one of: capex, operating income, D&A, interest, or non-current and current borrowings.
+  It is used **only** when the standard concepts give no value for the same period (borrowings: when no standard
+  borrowings line is filed, and only if every listed borrowings line has a balance at the date), and the figure carries a warning naming the company's line and the
   review. A line filed as a negative outflow is listed with `sign = -1` and the method says the sign was reversed.
 - ESEF reports: the listed concepts are kept when the report is parsed, under the company's own prefix.
 - SEC 20-F and 40-F filers: listed standard concepts come from company facts. The company's own concepts are not
   in company facts, so they are read from the latest annual filing's own XBRL instance. If that read fails the
   line stays unknown.
+- A listed interest line also feeds the debt completeness check and the pre-tax fallback for operating income.
 - A company or line not listed is unchanged: still missing.
+- Listed so far (reviewed 2026-11-03): Shell and Canadian Natural (capex), TotalEnergies (capex, interest),
+  Iberdrola (borrowings).
 
 ## Reporting cadence and staleness
 

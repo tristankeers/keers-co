@@ -168,3 +168,62 @@ def test_sec_instance_facts_keep_listed_extension_lines_only() -> None:
     assert [(f.taxonomy, f.concept, f.unit, f.value, f.form) for f in out] == [
         ("xco", "CapexPaid", "CAD", -6.0e9, "40-F")
     ]
+
+
+def test_own_borrowings_are_used_only_when_no_standard_borrowings_line_is_filed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    at = date(2025, 12, 31)
+    nc, cur = "exm:BankDebtAndBondsNoncurrent", "exm:BankDebtAndBondsCurrent"
+    entry = {"name": "Exemplar", "lei": ff.LEI, "reviewed": "test: annual report 2025", "lines": [
+        {"concept": nc, "stands_for": "borrowings-noncurrent", "label": "Debt, non-current"},
+        {"concept": cur, "stands_for": "borrowings-current", "label": "Debt, current"}]}  # fmt: skip
+    monkeypatch.setattr(own_lines, "config", lambda: tuple(own_lines.parse_config({"company": [entry]})))
+    renames = {"NoncurrentPortionOfNoncurrentBorrowings": nc,
+               "CurrentBorrowingsAndCurrentPortionOfNoncurrentBorrowings": cur}  # fmt: skip
+
+    def store(drop_current: bool = False) -> tuple[Store, int]:
+        st = Store(":memory:")
+        cik = st.entity_id("lei", ff.LEI, ff.LEGAL_NAME, "GB", "test")
+        for y in (2024, 2025):
+            doc = ff.report(y)
+            for k, body in list(doc["facts"].items()):
+                name = body["dimensions"]["concept"].split(":", 1)[1]
+                if name in renames:
+                    if drop_current and renames[name] == cur:
+                        del doc["facts"][k]
+                    else:
+                        body["dimensions"]["concept"] = renames[name]
+            st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, esef_filing(y), "s", own={nc, cur})[0])
+        return st, cik
+
+    st, cik = store()
+    debt = Fundamentals(st, cik, AS_OF).total_debt(at)
+    assert debt.value == pytest.approx(280 + 60 + 90) and nc.split(":")[1] in debt.method
+    assert any("own lines" in w and "test: annual report 2025" in w for w in debt.warnings)
+    # One listed line without a balance: no own borrowings, so debt is the leases alone and says so.
+    st, cik = store(drop_current=True)
+    debt = Fundamentals(st, cik, AS_OF).total_debt(at)
+    assert debt.value == pytest.approx(90) and any("lease liabilities only" in w for w in debt.warnings)
+
+
+def test_interest_from_own_line_feeds_the_pre_tax_fallback_for_operating_income(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    at = date(2025, 12, 31)
+    own = "exm:InterestOnDebt"
+    monkeypatch.setattr(own_lines, "config", lambda: cfg(stands_for="interest", concept=own))
+    st = Store(":memory:")
+    cik = st.entity_id("lei", ff.LEI, ff.LEGAL_NAME, "GB", "test")
+    for y in (2024, 2025):
+        doc = ff.report(y)
+        for body in doc["facts"].values():
+            c = body["dimensions"]["concept"]
+            if c == "ifrs-full:FinanceCosts":
+                body["dimensions"]["concept"] = own
+            elif c == "ifrs-full:ProfitLossFromOperatingActivities":
+                body["dimensions"]["concept"] = "ifrs-full:ProfitLossBeforeTax"
+                body["value"] = str(float(body["value"]) - 24 * ff.M)  # pre-tax = 130 - 24 in 2025
+        st.put_facts(esef.parse_xbrl_json(doc, ff.LEI, cik, esef_filing(y), "s", own={own})[0])
+    ebit = Fundamentals(st, cik, AS_OF).operating_income(at)
+    assert ebit.value == pytest.approx(130) and any("own line" in w for w in ebit.warnings)
