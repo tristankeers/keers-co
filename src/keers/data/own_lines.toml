@@ -21,10 +21,11 @@ name = "Shell plc"
 cik = 1306965
 reviewed = "2026-11-03: 20-F for 2025, accession 0001628280-26-017024"
 lines = [
-    # Cash flow statement, investing activities: 18,947 (2025), 19,601 (2024), 22,993 (2023), USD m. Shell's wider
+    # The "Capital expenditure" row of the consolidated statement of cash flows (label and presentation role
+    # confirmed from the filing's linkbases): 18,947 (2025), 19,601 (2024), 22,993 (2023), USD m. Shell's wider
     # "cash capital expenditure" (shel:CashOutflowForTotalCashCapitalExpenditure, 20,915 in 2025) adds
     # investments in joint ventures and associates and is not used.
-    { concept = "ifrs-full:PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities", stands_for = "capex", label = "Purchase of other long-term assets, classified as investing activities" },
+    { concept = "ifrs-full:PurchaseOfOtherLongtermAssetsClassifiedAsInvestingActivities", stands_for = "capex", label = "Capital expenditure" },
 ]
 
 [[company]]
