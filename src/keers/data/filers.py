@@ -174,6 +174,8 @@ class Filers:
             if not self.directory_status.startswith(("fetched", "filer list")):
                 self.directory_status = f"cached {at}"
             return f"cached {at}"
+        if self.directory_status.startswith("filer list unavailable"):
+            return self.directory_status  # failed earlier in this session: do not fetch every page again
         try:
             rows = self.esef.entities()
         except (FetchError, ParseError) as e:
