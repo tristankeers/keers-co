@@ -110,6 +110,14 @@ layer:
   year to date from the other, but only when both report the same value (within 0.1%, for rounding) for every period both carry
   and share at least one. Otherwise revenue stays unknown and the company stays blocked.
 
+Effect on the S&P 500 backtest (run 41733950722, 4 November 2026; before: run 41699050610). Blocked members per
+quarter at the peak, 2018 Q4: 233 before, 124 after. From 2019 Q1 on, every quarter has fewer blocks (2019 Q1:
+102 to 71). Result: 14.1% a year, Sharpe 0.68, against SPY 14.7% (0.70), RSP 11.6% and the judged equal-weight
+book 12.4%. Active return against the judged book is +0.37% a quarter, t 0.84, so there is still no significant
+edge. Still blocked in 2018: about 84 companies with no usable revenue period (AKAM, AMD: no period the two
+concepts share, so they are never mixed), about 33 not in the store, and a few whose stored 10-Q facts stop years
+early (MA, D, CAG). Those need their own look.
+
 ## Known limits
 
 - US GAAP and IFRS standard concepts only. A company that files cash from operations or tax under its own
