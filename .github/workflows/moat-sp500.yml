@@ -69,6 +69,20 @@ jobs:
           key: moat-sp500-${{ github.run_id }}
       - name: Backtest moat-b-v1 on the point-in-time index
         run: python -m keers.strategies.moat --db "$DB" backtest --start "$START" --membership moat-out/sp500-membership.json --benchmarks RSP --out moat-out/sp500-moat-backtest.json
+      - name: Explain blocked companies (a sample from each quarter with the most blocks, and Visa today)
+        if: always()
+        run: |
+          python - "$DB" <<'PY' || true
+          import json, subprocess, sys
+          res = json.load(open("moat-out/sp500-moat-backtest.json"))
+          qs = sorted(res.get("quarters", []), key=lambda q: -sum(len(v) for v in q.get("blocked", {}).values()))[:2]
+          for q in qs:
+              for why, ts in q["blocked"].items():
+                  subprocess.run([sys.executable, "-m", "keers.strategies.moat", "--db", sys.argv[1], "explain",
+                                  *ts[:3], "--as-of", q["signalDay"]], check=False)
+          PY
+          LAST=$(python -c "import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute(\"SELECT MAX(day) FROM prices WHERE ticker='SPY'\").fetchone()[0])" "$DB")
+          python -m keers.strategies.moat --db "$DB" explain V --as-of "$LAST" || true
       - name: Screen the index on the last stored session
         if: always()
         run: |

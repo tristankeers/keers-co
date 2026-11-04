@@ -62,10 +62,30 @@ class Quarter:
     signal_day: date
     trade_day: date
     status: dict[str, str] = field(default_factory=dict)  # ticker -> screen status
+    blocked: dict[str, list[str]] = field(default_factory=dict)  # why companies were blocked -> tickers
 
 
-def screen_quarter(store: Store, tickers: Sequence[str], day: date) -> dict[str, str]:
-    return {t: S.screen(store, t, day, detail=False)["status"] for t in tickers}
+def block_reason(why: Sequence[str]) -> str:
+    """A short label for a block: the first reason up to its colon, e.g. ``stale fundamentals``."""
+    if not why:
+        return "unknown"
+    first = why[0]
+    if "company not in the store" in first:
+        return "company not in the store"
+    return first.split(":", 1)[0]
+
+
+def screen_quarter(
+    store: Store, tickers: Sequence[str], day: date
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    status: dict[str, str] = {}
+    blocked: dict[str, list[str]] = {}
+    for t in tickers:
+        r = S.screen(store, t, day, detail=False)
+        status[t] = r["status"]
+        if r["status"] == "blocked":
+            blocked.setdefault(block_reason(r.get("blockedBy") or []), []).append(t)
+    return status, blocked
 
 
 def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Config | None = None,
@@ -100,11 +120,13 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
         if sig not in nxt:
             continue
         names = tickers if members is None else sorted(members(sig) & set(tickers))
-        q = Quarter(sig, nxt[sig], screen_quarter(store, names, sig))
+        q = Quarter(sig, nxt[sig], *screen_quarter(store, names, sig))
         quarters.append(q)
         if progress:
             n = {s: sum(1 for x in q.status.values() if x == s) for s in S.STATUSES}
             progress(f"{sig}: {len(names)} screened, " + ", ".join(f"{k} {v}" for k, v in n.items() if v))
+            for why, ts in sorted(q.blocked.items(), key=lambda kv: -len(kv[1])):
+                progress(f"    blocked, {why}: {len(ts)} (e.g. {' '.join(ts[:8])})")
     by_trade = {q.trade_day: q for q in quarters}
 
     book, ew = _Book(), _Book()
@@ -129,7 +151,7 @@ def run(store: Store, tickers: Sequence[str], start: date, end: date, cfg: Confi
             rf_now = (r_.value / 100 / 252) if r_ is not None else 0.0
             counts = {s: sum(1 for x in q.status.values() if x == s) for s in S.STATUSES}
             log.append({"signalDay": q.signal_day.isoformat(), "tradeDay": d.isoformat(), "screened": len(q.status),
-                        "statuses": counts, "held": held, "judged": len(judged), "turnover": book.turnover[-1]})  # fmt: skip
+                        "statuses": counts, "blocked": q.blocked, "held": held, "judged": len(judged), "turnover": book.turnover[-1]})  # fmt: skip
             started = True
         if started:
             curve.append((d, book.value()))

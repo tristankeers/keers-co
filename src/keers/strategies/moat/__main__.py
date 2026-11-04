@@ -58,6 +58,32 @@ def refetch_accounts(store: Store, max_minutes: float) -> dict[str, object]:
     return {"refetched": len(done), "upToDate": skipped, "failed": failed}
 
 
+def explain(store: Store, ticker: str, as_of: date, years: float = 2.0) -> str:
+    """The snapshot's verdict and every revenue fact known on ``as_of``, per concept, for diagnosing a block."""
+    from keers.data import snapshot
+
+    snap = snapshot.build(store, ticker, as_of)
+    out = [f"== {ticker} as of {as_of}: cadence {snap.cadence}, limit {snap.max_fundamentals_days} days"]
+    out += [f"  blocked: {b}" for b in snap.blocked_by]
+    rev = snap.values.get("revenue")
+    if rev is not None:
+        out.append(f"  revenue: {rev.value} to {rev.period_end} ({rev.method}) {list(rev.warnings)}")
+    if not snap.cik:
+        return "\n".join(out)
+    fu = F.Fundamentals(store, snap.cik, as_of)
+    lo = date.fromordinal(as_of.toordinal() - int(365 * years))
+    for c in F.REVENUE:
+        fs = [f for f in F.latest_known(fu._facts(c)) if f.start is not None and f.end >= lo]
+        if fs:
+            out.append(f"  {c}:")
+            out += [f"    {f.start} to {f.end} ({f.days}d) {f.value / 1e6:,.1f}m  {f.form} filed {f.filed}"
+                    for f in fs]  # fmt: skip
+    forms = [f for f in store.filings(snap.cik, forms=()) if lo <= f.filing_date <= as_of
+             and f.form.split("/")[0] in ("10-K", "10-Q", "20-F", "40-F")]  # fmt: skip
+    out.append("  filings: " + ", ".join(f"{f.form} {f.filing_date} (period {f.report_date})" for f in forms))
+    return "\n".join(out)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m keers.strategies.moat")
     ap.add_argument("--db", default=os.environ.get("KEERS_DB", DEFAULT_DB))
@@ -72,6 +98,10 @@ def main(argv: list[str] | None = None) -> int:
         "refetch-accounts", help="fetch SEC facts again where they predate the moat screen's lines"
     )
     r.add_argument("--max-minutes", type=float, default=60.0)
+    e = sub.add_parser("explain", help="show why a company is blocked: its revenue facts per concept")
+    e.add_argument("tickers", nargs="+")
+    e.add_argument("--as-of", type=date.fromisoformat, default=date.today())
+    e.add_argument("--years", type=float, default=2.0, help="periods ending this many years before --as-of")
     b = sub.add_parser("backtest")
     b.add_argument("tickers", nargs="*")
     b.add_argument("--universe")
@@ -85,6 +115,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.cmd == "refetch-accounts":
         print(json.dumps(refetch_accounts(store, a.max_minutes), indent=2))
+        return 0
+
+    if a.cmd == "explain":
+        for t in a.tickers:
+            print(explain(store, t.upper(), a.as_of, a.years))
         return 0
 
     membership = None
